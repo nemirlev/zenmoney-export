@@ -11,9 +11,10 @@ import (
 )
 
 type Store struct {
-	Conn   driver.Conn
-	Log    logger.Log
-	Config *config.Config
+	Conn      driver.Conn
+	Log       logger.Log
+	Config    *config.Config
+	Connector Connector
 }
 
 // connect устанавливает соединение с базой данных ClickHouse, используя параметры, указанные в конфигурации.
@@ -21,19 +22,20 @@ type Store struct {
 // - s: указатель на структуру Store, содержащую конфигурацию и логгер.
 func (s *Store) connect() error {
 	var (
-		ctx       = context.Background()
-		conn, err = clickhouse.Open(&clickhouse.Options{
-			Addr: []string{fmt.Sprintf("%s:9000", s.Config.ClickhouseServer)},
-			Auth: clickhouse.Auth{
-				Database: s.Config.ClickhouseDB,
-				Username: s.Config.ClickhouseUser,
-				Password: s.Config.ClickhousePassword,
-			},
-			Debugf: func(format string, v ...interface{}) {
-				s.Log.Debug(format, v)
-			},
-		})
+		ctx = context.Background()
 	)
+
+	conn, err := s.Connector.Open(&clickhouse.Options{
+		Addr: []string{fmt.Sprintf("%s:9000", s.Config.ClickhouseServer)},
+		Auth: clickhouse.Auth{
+			Database: s.Config.ClickhouseDB,
+			Username: s.Config.ClickhouseUser,
+			Password: s.Config.ClickhousePassword,
+		},
+		Debugf: func(format string, v ...interface{}) {
+			s.Log.Debug(format, v)
+		},
+	})
 
 	if err != nil {
 		return err

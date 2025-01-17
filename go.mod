@@ -3,6 +3,7 @@ module github.com/nemirlev/zenexport
 go 1.22
 
 require (
+	bou.ke/monkey v1.0.2
 	github.com/ClickHouse/clickhouse-go/v2 v2.24.0
 	github.com/nemirlev/zenapi v1.3.2
 	github.com/spf13/viper v1.18.2
