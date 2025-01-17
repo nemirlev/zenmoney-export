@@ -42,6 +42,58 @@ docker-compose.yml, где 180 - это интервал в минутах. По
 > БД ClickHouse должна где-то быть запущена. Если нет, можете использовать полностью готовый проект с Grafana для построения
 > диаграмм -  [ZenMoney Dashboard](https://github.com/nemirlev/zenmoney-dashboard)
 
+## Project structure
+
+```
+// Project structure
+zenmoney-export/
+├── cmd/
+│   ├── migrate.go             // CLI command for migrations
+│   └── root.go                // Root command for Cobra
+├── config/
+│   └── config.go              // Configuration management
+├── docker/
+│   ├── clickhouse-compose.yml // Docker Compose for Clickhouse
+│   ├── redis-compose.yml      // Docker Compose for Redis
+│   ├── mysql-compose.yml      // Docker Compose for MySQL
+│   ├── postgres-compose.yml   // Docker Compose for PostgreSQL
+│   └── mongo-compose.yml      // Docker Compose for MongoDB
+├── internal/
+│   ├── export/
+│   │   └── exporter.go        // Logic for exporting data
+│   ├── sync/
+│   │   └── syncer.go          // Logic for syncing data
+│   ├── db/
+│   │   ├── clickhouse.go      // Clickhouse integration
+│   │   ├── redis.go           // Redis integration
+│   │   ├── in_memory.go       // In-memory DB implementation
+│   │   ├── mysql.go           // MySQL driver integration
+│   │   ├── postgres.go        // PostgreSQL driver integration
+│   │   └── mongo.go           // MongoDB driver integration
+│   ├── utils/
+│   │   ├── logger.go          // Logging utilities with structured logging (slog)
+│   │   └── interfaces.go      // Interfaces for mocks and testing
+│   └── mocks/
+│       └── db_mock.go         // Mock implementations for testing
+├── migrations/                // SQL migrations
+│   └── postgres/
+│       └── 000001_init.up.sql // Initial migration for PostgreSQL
+│   └── clickhouse/
+│       └── 000001_init.up.sql // Initial migration for PostgreSQL
+│   └── mysql/
+│       └── 000001_init.up.sql // Initial migration for PostgreSQL
+│   └── mongo/
+│       └── 000001_init.up.sql // Initial migration for PostgreSQL
+├── mockery.yaml               // Configuration for mockery
+├── pkg/
+│   └── zenapi/
+│       └── client.go          // Wrapper for ZenMoney API SDK
+├── go.mod                     // Module file
+├── go.sum                     // Dependency management
+├── README.md                  // Documentation
+└── main.go                    // Entry point
+```
+
 ## Использование
 
 Необходимо:
