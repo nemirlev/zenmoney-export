@@ -45,7 +45,6 @@ docker-compose.yml, где 180 - это интервал в минутах. По
 ## Project structure
 
 ```
-// Project structure
 zenmoney-export/
 ├── cmd/
 │   ├── migrate.go             // CLI command for migrations
