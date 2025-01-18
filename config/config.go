@@ -1,39 +1,117 @@
+// config/config.go
 package config
 
 import (
+	"fmt"
+	"github.com/spf13/viper"
 	"log/slog"
 	"os"
-
-	"github.com/spf13/viper"
 )
 
+const (
+	// ConfigFileName is the name of the config file without extension
+	ConfigFileName = ".zenexport"
+)
+
+// Config holds all configuration for the application
 type Config struct {
-	DBType        string // postgres, mysql, clickhouse, etc.
-	DBConfig      string // connection string, example: "host=localhost port=5432 user=postgres password=postgres dbname=zenmoney sslmode=disable"
-	ZenMoneyToken string // ZenMoney API token, get on https://zerro.app/token
-	LogLevel      string // debug, info, warn, error
+	// Database configuration
+	DBType   string `mapstructure:"db_type"`   // postgres, mysql, clickhouse, etc.
+	DBConfig string `mapstructure:"db_config"` // connection string
+
+	// API configuration
+	ZenMoneyToken string `mapstructure:"token"` // ZenMoney API token
+
+	// Logging configuration
+	LogLevel string `mapstructure:"log_level"` // debug, info, warn, error
+
+	// Output configuration
+	OutputFormat string `mapstructure:"format"` // text, json
 }
 
-func LoadConfig() *Config {
-	viper.SetDefault("DB_TYPE", "postgres")
-	viper.SetDefault("LOG_LEVEL", "info")
-	viper.AutomaticEnv()
+// LoadConfig loads the configuration from all available sources
+func LoadConfig() (*Config, error) {
+	v := viper.New()
 
-	config := &Config{
-		DBType:        viper.GetString("DB_TYPE"),
-		DBConfig:      viper.GetString("DB_CONFIG"),
-		ZenMoneyToken: viper.GetString("ZENMONEY_TOKEN"),
-		LogLevel:      viper.GetString("LOG_LEVEL"),
+	// Set default values
+	setDefaults(v)
+
+	// Setup viper
+	setupViper(v)
+
+	// Read config
+	config := &Config{}
+	if err := v.Unmarshal(config); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-	return config
+	return config, nil
 }
 
-// NewLogger creates a new logger instance
-// TODO: make logic for setting log level from config
-func NewLogger(config *Config) *slog.Logger {
+// setDefaults sets default values for configuration
+func setDefaults(v *viper.Viper) {
+	v.SetDefault("db_type", "postgres")
+	v.SetDefault("log_level", "info")
+	v.SetDefault("format", "json")
+}
+
+// setupViper configures Viper instance
+func setupViper(v *viper.Viper) {
+	v.AutomaticEnv()
+
+	// Find home directory for default config location
+	home, err := os.UserHomeDir()
+	if err == nil {
+		// Search config in home directory with name ".zenexport" (without extension)
+		v.AddConfigPath(home)
+		v.SetConfigName(ConfigFileName)
+	}
+
+	// Read config file if exists
+	if err := v.ReadInConfig(); err == nil {
+		fmt.Fprintln(os.Stderr, "Using config file:", v.ConfigFileUsed())
+	}
+}
+
+// ValidateConfig validates the configuration
+func ValidateConfig(cfg *Config) error {
+	// Validate log level
+	switch cfg.LogLevel {
+	case "debug", "info", "warn", "error":
+		// Valid log level
+	default:
+		return fmt.Errorf("invalid log level: %s, must be one of: debug, info, warn, error", cfg.LogLevel)
+	}
+
+	// Validate output format
+	switch cfg.OutputFormat {
+	case "text", "json":
+		// Valid format
+	default:
+		return fmt.Errorf("invalid output format: %s, must be one of: text, json", cfg.OutputFormat)
+	}
+
+	return nil
+}
+
+// NewLogger creates a new logger instance with the configured level
+func NewLogger(cfg *Config) *slog.Logger {
+	var level slog.Level
+	switch cfg.LogLevel {
+	case "debug":
+		level = slog.LevelDebug
+	case "info":
+		level = slog.LevelInfo
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	default:
+		level = slog.LevelInfo
+	}
+
 	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level: level,
 	})
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
