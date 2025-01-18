@@ -202,7 +202,7 @@ CREATE TABLE IF NOT EXISTS budget
 );
 
 -- Create sync type enum
-CREATE TYPE sync_type AS ENUM ('full', 'partial');
+CREATE TYPE sync_type AS ENUM ('full', 'partial', 'force');
 
 -- Create sync status enum
 CREATE TYPE status AS ENUM ('completed', 'failed');
