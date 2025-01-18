@@ -11,22 +11,34 @@ CREATE TABLE IF NOT EXISTS instrument
 
 CREATE TABLE IF NOT EXISTS company
 (
-    id         INT,
-    changed    INT,
-    title      TEXT,
-    full_title TEXT,
-    www        TEXT,
-    country    INT,
+    id           INT,
+    changed      INT,
+    title        TEXT,
+    full_title   TEXT,
+    www          TEXT,
+    country      INT,
+    deleted      BOOLEAN DEFAULT FALSE,
+    country_code TEXT,
     PRIMARY KEY (id)
 );
 
 CREATE TABLE IF NOT EXISTS "user"
 (
-    id       INT,
-    changed  INT,
-    login    TEXT,
-    currency INT,
-    parent   INT,
+    id                        INT,
+    country                   INT       NULL,
+    country_code              TEXT      NULL,
+    email                     TEXT      NULL,
+    changed                   INT,
+    login                     TEXT,
+    currency                  INT,
+    parent                    INT,
+    paid_till                 TIMESTAMP,
+    month_start_day           INT,
+    is_forecast_enabled       BOOLEAN,
+    plan_balance_mode         TEXT,
+    plan_settings             TEXT,
+    subscription              TEXT,
+    subscription_renewal_date TIMESTAMP NULL,
     PRIMARY KEY (id)
 );
 
@@ -53,11 +65,11 @@ CREATE TABLE IF NOT EXISTS account
     balance                  FLOAT,
     start_balance            FLOAT,
     credit_limit             FLOAT,
-    in_balance               INT,
+    in_balance               BOOLEAN,
     savings                  BOOLEAN,
-    enable_correction        INT,
-    enable_sms               INT,
-    archive                  INT,
+    enable_correction        BOOLEAN,
+    enable_sms               BOOLEAN,
+    archive                  BOOLEAN,
     capitalization           BOOLEAN,
     percent                  FLOAT,
     start_date               TEXT,
@@ -65,6 +77,8 @@ CREATE TABLE IF NOT EXISTS account
     end_date_offset_interval TEXT,
     payoff_step              INT,
     payoff_interval          TEXT,
+    private                  BOOLEAN,
+    balance_correction_type  TEXT,
     PRIMARY KEY (id)
 );
 
@@ -78,11 +92,12 @@ CREATE TABLE IF NOT EXISTS tag
     icon           TEXT,
     picture        TEXT,
     color          BIGINT,
-    show_income    INT,
-    show_outcome   INT,
-    budget_income  INT,
-    budget_outcome INT,
+    show_income    BOOLEAN,
+    show_outcome   BOOLEAN,
+    budget_income  BOOLEAN,
+    budget_outcome BOOLEAN,
     required       BOOLEAN,
+    static_id      TEXT,
     PRIMARY KEY (id)
 );
 
@@ -174,14 +189,16 @@ CREATE TABLE IF NOT EXISTS transaction
 
 CREATE TABLE IF NOT EXISTS budget
 (
-    changed      INT,
-    "user"       INT,
-    tag          UUID,
-    date         TEXT,
-    income       FLOAT,
-    income_lock  INT,
-    outcome      FLOAT,
-    outcome_lock INT
+    changed             INT,
+    "user"              INT,
+    tag                 UUID,
+    date                TEXT,
+    income              FLOAT,
+    income_lock         BOOLEAN,
+    outcome             FLOAT,
+    outcome_lock        BOOLEAN,
+    is_income_forecast  BOOLEAN,
+    is_outcome_forecast BOOLEAN
 );
 
 -- Create sync type enum
@@ -199,30 +216,8 @@ CREATE TABLE IF NOT EXISTS sync_status
     sync_type         sync_type                NOT NULL,
     server_timestamp  BIGINT                   NOT NULL,
     records_processed INTEGER                           DEFAULT 0,
-    status            VARCHAR(20)              NOT NULL DEFAULT 'in_progress',
+    status            VARCHAR(20)              NOT NULL DEFAULT 'completed',
     error_message     TEXT,
     created_at        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
--- Create index for quick search of last successful sync
-CREATE INDEX idx_sync_status_completed
-    ON sync_status (finished_at DESC)
-    WHERE status = 'completed';
-
--- Create auto-update trigger function
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-    RETURNS TRIGGER AS
-$$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
--- Create trigger
-CREATE TRIGGER update_sync_status_updated_at
-    BEFORE UPDATE
-    ON sync_status
-    FOR EACH ROW
-EXECUTE PROCEDURE update_updated_at_column();
