@@ -1,0 +1,21 @@
+services:
+    postgres:
+        image: postgres:16
+        container_name: postgres
+        ports:
+        - "5432:5432"
+        environment:
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres
+            POSTGRES_DB: postgres
+        healthcheck:
+            test: ["CMD", "pg_isready", "-q", "-d", "postgres", "-U", "postgres"]
+    migrations:
+        image: migrate/migrate
+        container_name: migrations
+        volumes:
+        - ../migrations/postgres:/migrations
+        depends_on:
+            postgres:
+                condition: service_healthy
+        command: -path=/migrations/ -database=postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable up
