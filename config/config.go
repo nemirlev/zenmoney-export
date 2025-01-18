@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	// ConfigFileName is the name of the config file without extension
-	ConfigFileName = ".zenexport"
+	// FileName is the name of the config file without extension
+	FileName = ".zenexport"
 )
 
 // Config holds all configuration for the application
@@ -64,7 +64,7 @@ func setupViper(v *viper.Viper) {
 	if err == nil {
 		// Search config in home directory with name ".zenexport" (without extension)
 		v.AddConfigPath(home)
-		v.SetConfigName(ConfigFileName)
+		v.SetConfigName(FileName)
 	}
 
 	// Read config file if exists
