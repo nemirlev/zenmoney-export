@@ -51,6 +51,9 @@ and provides various options for data synchronization and export.`,
 
 		return validateToken(cmd)
 	},
+	Run: func(cmd *cobra.Command, args []string) {
+		println("Use 'zenexport help' for usage information")
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
