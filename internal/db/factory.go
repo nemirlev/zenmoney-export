@@ -6,25 +6,6 @@ import (
 )
 
 // NewStorage создает новое хранилище указанного типа
-func NewStorage(ctx context.Context, storageType StorageType, connectionString string) (Storage, error) {
-	switch storageType {
-	case PostgresStorage:
-		return NewPostgresStorage(connectionString)
-	//case MySQLStorage:
-	//	return NewMySQLStorage(connectionString)
-	//case MongoStorage:
-	//	return NewMongoStorage(connectionString)
-	//case ClickhouseStorage:
-	//	return NewClickhouseStorage(connectionString)
-	//case RedisStorage:
-	//	return NewRedisStorage(connectionString)
-	//case InMemoryStorage:
-	//	return NewInMemoryStorage()
-	default:
-		return nil, fmt.Errorf("unsupported storage type: %s", storageType)
-	}
-}
-
 // Usage example:
 /*
 func main() {
@@ -54,3 +35,21 @@ func main() {
 				{Object: "transaction", ID: 124},)
 }
 */
+func NewStorage(ctx context.Context, storageType StorageType, connectionString string) (Storage, error) {
+	switch storageType {
+	case PostgresStorage:
+		return NewPostgresStorage(connectionString)
+	//case MySQLStorage:
+	//	return NewMySQLStorage(connectionString)
+	//case MongoStorage:
+	//	return NewMongoStorage(connectionString)
+	//case ClickhouseStorage:
+	//	return NewClickhouseStorage(connectionString)
+	//case RedisStorage:
+	//	return NewRedisStorage(connectionString)
+	//case InMemoryStorage:
+	//	return NewInMemoryStorage()
+	default:
+		return nil, fmt.Errorf("unsupported storage type: %s", storageType)
+	}
+}
