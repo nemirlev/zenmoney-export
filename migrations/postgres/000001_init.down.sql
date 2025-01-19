@@ -9,3 +9,5 @@ DROP TABLE IF EXISTS country;
 DROP TABLE IF EXISTS "user";
 DROP TABLE IF EXISTS company;
 DROP TABLE IF EXISTS instrument;
+DROP TABLE IF EXISTS sync_status;
+DROP TABLE IF EXISTS deletion_history;

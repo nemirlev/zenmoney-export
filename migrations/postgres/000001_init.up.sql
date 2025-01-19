@@ -221,3 +221,21 @@ CREATE TABLE IF NOT EXISTS sync_status
     created_at        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS deletion_history
+(
+    id          BIGSERIAL PRIMARY KEY,
+    object_id   TEXT                     NOT NULL,
+    object_type TEXT                     NOT NULL,
+    user_id     INTEGER                  NOT NULL,
+    deleted_at  TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Создаем индексы для быстрого поиска
+CREATE INDEX IF NOT EXISTS idx_deletion_history_object
+    ON deletion_history (object_type, object_id);
+CREATE INDEX IF NOT EXISTS idx_deletion_history_user
+    ON deletion_history (user_id);
+CREATE INDEX IF NOT EXISTS idx_deletion_history_deleted_at
+    ON deletion_history (deleted_at);
