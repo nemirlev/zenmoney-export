@@ -1,5 +1,3 @@
-// internal/db/interfaces.go
-
 package db
 
 import (
