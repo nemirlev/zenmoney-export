@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/nemirlev/zenmoney-export/internal/db/postgres"
+	"github.com/nemirlev/zenmoney-export/internal/interfaces"
 )
 
 // NewStorage создает новое хранилище указанного типа
@@ -36,9 +37,9 @@ func main() {
 				{Object: "transaction", ID: 124},)
 }
 */
-func NewStorage(ctx context.Context, storageType StorageType, connectionString string) (Storage, error) {
+func NewStorage(ctx context.Context, storageType interfaces.StorageType, connectionString string) (interfaces.Storage, error) {
 	switch storageType {
-	case PostgresStorage:
+	case interfaces.PostgresStorage:
 		return postgres.NewPostgresStorage(connectionString)
 	//case MySQLStorage:
 	//	return NewMySQLStorage(connectionString)
