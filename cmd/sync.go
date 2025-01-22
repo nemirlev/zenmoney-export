@@ -120,15 +120,15 @@ func performSync(cmd *cobra.Command) error {
 
 	var zenLastSync models.Response
 
-	if lastSync == (interfaces.SyncStatus{}) || force {
+	if lastSync.ID == 0 || force {
 		slog.Info("No previous sync found or force sync enabled - starting full sync")
 		zenLastSync, err = zen.FullSync(ctx)
 		if err != nil {
 			log.Fatal(err)
 		}
 	} else {
-		slog.Info("Starting incremental sync", "last_sync", lastSync.FinishedAt)
-		zenLastSync, err = zen.SyncSince(ctx, *lastSync.FinishedAt)
+		slog.Info("Starting incremental sync", "last_sync", time.Unix(lastSync.ServerTimestamp, 0))
+		zenLastSync, err = zen.SyncSince(ctx, time.Unix(lastSync.ServerTimestamp, 0))
 		if err != nil {
 			log.Fatal(err)
 		}
