@@ -24,21 +24,21 @@ CREATE TABLE IF NOT EXISTS company
 
 CREATE TABLE IF NOT EXISTS "user"
 (
-    id                        INT,
-    country                   INT       NULL,
-    country_code              TEXT      NULL,
-    email                     TEXT      NULL,
-    changed                   INT,
+    id                        BIGINT,
+    country                   INT           NULL,
+    country_code              TEXT          NULL,
+    email                     TEXT          NULL,
+    changed                   BIGINT,
     login                     TEXT,
     currency                  INT,
-    parent                    INT,
-    paid_till                 TIMESTAMP,
+    parent                    INT           NULL,
+    paid_till                 BIGINT,
     month_start_day           INT,
     is_forecast_enabled       BOOLEAN,
     plan_balance_mode         TEXT,
     plan_settings             TEXT,
     subscription              TEXT,
-    subscription_renewal_date TIMESTAMP NULL,
+    subscription_renewal_date BIGINT NULL,
     PRIMARY KEY (id)
 );
 
@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS reminder
     points             INT[],
     start_date         TEXT,
     end_date           TEXT,
-    notify             INT,
+    notify             BOOLEAN,
     PRIMARY KEY (id)
 );
 
@@ -152,7 +152,8 @@ CREATE TABLE IF NOT EXISTS reminder_marker
     date               TEXT,
     reminder           UUID,
     state              TEXT,
-    notify             INT,
+    notify             BOOLEAN,
+    is_forecast        BOOLEAN,
     PRIMARY KEY (id)
 );
 
@@ -184,6 +185,11 @@ CREATE TABLE IF NOT EXISTS transaction
     op_outcome_instrument INT,
     latitude              FLOAT,
     longitude             FLOAT,
+    viewed               BOOLEAN,
+    qr_code               TEXT,
+    source                TEXT,
+    income_bank_id        TEXT,
+    outcome_bank_id       TEXT,
     PRIMARY KEY (id)
 );
 

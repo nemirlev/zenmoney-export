@@ -1,8 +1,15 @@
 package cmd
 
 import (
+	"context"
+	"github.com/nemirlev/zenmoney-export/config"
+	"github.com/nemirlev/zenmoney-export/internal/db"
+	"github.com/nemirlev/zenmoney-export/internal/interfaces"
+	"github.com/nemirlev/zenmoney-go-sdk/v2/api"
+	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
+	"log"
 	"log/slog"
-	"strings"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -82,41 +89,59 @@ func performSync(cmd *cobra.Command) error {
 		"force", force,
 		"batch_size", batchSize)
 
-	// 1. Подготовка
-	slog.Info("Initializing database connection")
-	// TODO: Инициализация подключения к БД
-
-	slog.Info("Initializing ZenMoney API client")
-	// TODO: Инициализация клиента API
-
-	// 2. Получение последней синхронизации
-	slog.Info("Getting last sync timestamp")
-	// TODO: Получение timestamp последней синхронизации
-
-	// 3. Синхронизация по сущностям
-	for _, entity := range strings.Split(entities, ",") {
-		entity = strings.TrimSpace(entity)
-		slog.Info("Starting entity sync", "entity", entity)
-
-		// 3.1. Получение данных из API
-		slog.Info("Fetching data from API", "entity", entity)
-		// TODO: Получение данных из API
-
-		// 3.2. Сохранение в БД
-		if !dryRun {
-			slog.Info("Saving data to database", "entity", entity)
-			// TODO: Сохранение данных в БД
-		} else {
-			slog.Info("Dry run - skipping database save", "entity", entity)
-		}
-
-		slog.Info("Entity sync completed", "entity", entity)
+	slog.Info("Initializing configuration")
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		slog.Error("Failed to load configuration", "error", err)
+		os.Exit(1)
 	}
 
-	// 4. Обновление статуса синхронизации
+	slog.Info("Initializing database connection")
+	ctx := context.Background()
+	storage, err := db.NewStorage(ctx, interfaces.PostgresStorage, cfg.DBConfig)
+	if err != nil {
+		slog.Error("Failed to initialize database connection", "error", err)
+		os.Exit(1)
+	}
+
+	slog.Info("Initializing ZenMoney API client")
+	zen, err := api.NewClient(cfg.ZenMoneyToken)
+	if err != nil {
+		slog.Error("Failed to initialize ZenMoney API client", "error", err)
+		os.Exit(1)
+	}
+
+	slog.Info("Getting last sync timestamp")
+	lastSync, err := storage.GetLastSyncStatus(ctx)
+	if err != nil {
+		slog.Error("Failed to get last sync status", "error", err)
+		os.Exit(1)
+	}
+
+	var zenLastSync models.Response
+
+	if lastSync == (interfaces.SyncStatus{}) || force {
+		slog.Info("No previous sync found or force sync enabled - starting full sync")
+		zenLastSync, err = zen.FullSync(ctx)
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		slog.Info("Starting incremental sync", "last_sync", lastSync.FinishedAt)
+		zenLastSync, err = zen.SyncSince(ctx, *lastSync.FinishedAt)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	slog.Info("Saving all entities to database")
 	if !dryRun {
-		slog.Info("Updating sync status")
-		// TODO: Обновление статуса синхронизации
+		err = storage.Save(ctx, &zenLastSync)
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		slog.Info("Dry run - skipping database save")
 	}
 
 	slog.Info("Sync process completed successfully")
