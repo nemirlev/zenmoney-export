@@ -2,9 +2,11 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/internal/interfaces"
+	"log/slog"
 	"time"
 )
 
@@ -51,8 +53,9 @@ func (s *DB) GetLastSyncStatus(ctx context.Context) (interfaces.SyncStatus, erro
 	)
 
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return interfaces.SyncStatus{}, fmt.Errorf("no sync status found")
+		if errors.Is(err, pgx.ErrNoRows) {
+			slog.Info("no previous sync element found in database")
+			return interfaces.SyncStatus{}, nil
 		}
 		return interfaces.SyncStatus{}, fmt.Errorf("failed to get last sync status: %w", err)
 	}

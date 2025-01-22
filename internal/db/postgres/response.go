@@ -94,8 +94,8 @@ func (s *DB) Save(ctx context.Context, response *models.Response) error {
 	// Save sync status
 	status := interfaces.SyncStatus{
 		StartedAt:        time.Now(),
-		FinishedAt:       nil, // Will be set after commit
-		SyncType:         "full",
+		FinishedAt:       nil,    // Will be set after commit
+		SyncType:         "full", // TODO: Implement sync type detection
 		ServerTimestamp:  int64(response.ServerTimestamp),
 		RecordsProcessed: s.countRecords(response),
 		Status:           "completed",
