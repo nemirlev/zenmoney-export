@@ -17,7 +17,7 @@ const (
 type Config struct {
 	// Database configuration
 	DBType   string `mapstructure:"db_type"`   // postgres, mysql, clickhouse, etc.
-	DBConfig string `mapstructure:"db_config"` // connection string
+	DBConfig string `mapstructure:"db_config"` // connection string, example: postgres://user:password@localhost:5432/dbname
 
 	// API configuration
 	ZenMoneyToken string `mapstructure:"token"` // ZenMoney API token
