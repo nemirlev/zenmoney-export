@@ -1,11 +1,12 @@
 // internal/db/postgres.go
 
-package db
+package postgres
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/nemirlev/zenmoney-export/internal/db"
 	"strings"
 	"time"
 
@@ -14,12 +15,12 @@ import (
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
 )
 
-type PostgresDB struct {
+type DB struct {
 	pool *pgxpool.Pool
 }
 
 // NewPostgresStorage creates a new PostgreSQL storage instance
-func NewPostgresStorage(connectionString string) (Storage, error) {
+func NewPostgresStorage(connectionString string) (db.Storage, error) {
 	config, err := pgxpool.ParseConfig(connectionString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse postgres config: %w", err)
@@ -30,24 +31,24 @@ func NewPostgresStorage(connectionString string) (Storage, error) {
 		return nil, fmt.Errorf("failed to create postgres connection pool: %w", err)
 	}
 
-	return &PostgresDB{
+	return &DB{
 		pool: pool,
 	}, nil
 }
 
 // Close closes the database connection pool
-func (s *PostgresDB) Close(ctx context.Context) error {
+func (s *DB) Close(ctx context.Context) error {
 	s.pool.Close()
 	return nil
 }
 
 // Ping checks if the database is accessible
-func (s *PostgresDB) Ping(ctx context.Context) error {
+func (s *DB) Ping(ctx context.Context) error {
 	return s.pool.Ping(ctx)
 }
 
 // Save saves the entire API response to database
-func (s *PostgresDB) Save(ctx context.Context, response *models.Response) error {
+func (s *DB) Save(ctx context.Context, response *models.Response) error {
 	// Begin transaction
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -130,7 +131,7 @@ func (s *PostgresDB) Save(ctx context.Context, response *models.Response) error 
 	}
 
 	// Save sync status
-	status := SyncStatus{
+	status := db.SyncStatus{
 		StartedAt:        time.Now(),
 		FinishedAt:       nil, // Will be set after commit
 		SyncType:         "full",
@@ -155,7 +156,7 @@ func (s *PostgresDB) Save(ctx context.Context, response *models.Response) error 
 }
 
 // countRecords counts total number of records in response
-func (s *PostgresDB) countRecords(response *models.Response) int {
+func (s *DB) countRecords(response *models.Response) int {
 	return len(response.Instrument) +
 		len(response.Country) +
 		len(response.Company) +
@@ -172,7 +173,7 @@ func (s *PostgresDB) countRecords(response *models.Response) int {
 
 // SaveSyncStatus saves synchronization status to the database
 // It creates a new record in the sync_status table with the provided status information
-func (s *PostgresDB) SaveSyncStatus(ctx context.Context, status SyncStatus) error {
+func (s *DB) SaveSyncStatus(ctx context.Context, status db.SyncStatus) error {
 	query := `
         INSERT INTO sync_status (
             started_at, finished_at, sync_type, server_timestamp,
@@ -196,8 +197,8 @@ func (s *PostgresDB) SaveSyncStatus(ctx context.Context, status SyncStatus) erro
 
 // GetLastSyncStatus retrieves the latest synchronization status from the database
 // Returns the most recent sync_status record ordered by ID
-func (s *PostgresDB) GetLastSyncStatus(ctx context.Context) (SyncStatus, error) {
-	var status SyncStatus
+func (s *DB) GetLastSyncStatus(ctx context.Context) (db.SyncStatus, error) {
+	var status db.SyncStatus
 	query := `
         SELECT id, started_at, finished_at, sync_type, server_timestamp,
                records_processed, status, error_message, created_at, updated_at
@@ -214,9 +215,9 @@ func (s *PostgresDB) GetLastSyncStatus(ctx context.Context) (SyncStatus, error) 
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return SyncStatus{}, fmt.Errorf("no sync status found")
+			return db.SyncStatus{}, fmt.Errorf("no sync status found")
 		}
-		return SyncStatus{}, fmt.Errorf("failed to get last sync status: %w", err)
+		return db.SyncStatus{}, fmt.Errorf("failed to get last sync status: %w", err)
 	}
 
 	return status, nil
@@ -224,7 +225,7 @@ func (s *PostgresDB) GetLastSyncStatus(ctx context.Context) (SyncStatus, error) 
 
 // SaveInstruments saves a batch of instruments to the database
 // It performs an upsert operation: inserts new records and updates existing ones based on their ID
-func (s *PostgresDB) SaveInstruments(ctx context.Context, instruments []models.Instrument) error {
+func (s *DB) SaveInstruments(ctx context.Context, instruments []models.Instrument) error {
 	if len(instruments) == 0 {
 		return nil
 	}
@@ -258,7 +259,7 @@ func (s *PostgresDB) SaveInstruments(ctx context.Context, instruments []models.I
 
 // SaveCountries saves a batch of countries to the database
 // It performs an upsert operation: inserts new records and updates existing ones based on their ID
-func (s *PostgresDB) SaveCountries(ctx context.Context, countries []models.Country) error {
+func (s *DB) SaveCountries(ctx context.Context, countries []models.Country) error {
 	if len(countries) == 0 {
 		return nil
 	}
@@ -290,7 +291,7 @@ func (s *PostgresDB) SaveCountries(ctx context.Context, countries []models.Count
 
 // SaveCompanies saves a batch of companies to the database
 // It performs an upsert operation: inserts new records and updates existing ones based on their ID
-func (s *PostgresDB) SaveCompanies(ctx context.Context, companies []models.Company) error {
+func (s *DB) SaveCompanies(ctx context.Context, companies []models.Company) error {
 	if len(companies) == 0 {
 		return nil
 	}
@@ -332,7 +333,7 @@ func (s *PostgresDB) SaveCompanies(ctx context.Context, companies []models.Compa
 
 // SaveUsers saves a batch of users to the database
 // It performs an upsert operation: inserts new records and updates existing ones based on their ID
-func (s *PostgresDB) SaveUsers(ctx context.Context, users []models.User) error {
+func (s *DB) SaveUsers(ctx context.Context, users []models.User) error {
 	if len(users) == 0 {
 		return nil
 	}
@@ -385,7 +386,7 @@ func (s *PostgresDB) SaveUsers(ctx context.Context, users []models.User) error {
 }
 
 // SaveAccounts saves a batch of accounts to the database
-func (s *PostgresDB) SaveAccounts(ctx context.Context, accounts []models.Account) error {
+func (s *DB) SaveAccounts(ctx context.Context, accounts []models.Account) error {
 	if len(accounts) == 0 {
 		return nil
 	}
@@ -472,7 +473,7 @@ func (s *PostgresDB) SaveAccounts(ctx context.Context, accounts []models.Account
 }
 
 // SaveTags saves a batch of tags to the database
-func (s *PostgresDB) SaveTags(ctx context.Context, tags []models.Tag) error {
+func (s *DB) SaveTags(ctx context.Context, tags []models.Tag) error {
 	if len(tags) == 0 {
 		return nil
 	}
@@ -531,7 +532,7 @@ func (s *PostgresDB) SaveTags(ctx context.Context, tags []models.Tag) error {
 }
 
 // SaveMerchants saves a batch of merchants to the database
-func (s *PostgresDB) SaveMerchants(ctx context.Context, merchants []models.Merchant) error {
+func (s *DB) SaveMerchants(ctx context.Context, merchants []models.Merchant) error {
 	if len(merchants) == 0 {
 		return nil
 	}
@@ -567,7 +568,7 @@ func (s *PostgresDB) SaveMerchants(ctx context.Context, merchants []models.Merch
 }
 
 // SaveBudgets saves a batch of budgets to the database
-func (s *PostgresDB) SaveBudgets(ctx context.Context, budgets []models.Budget) error {
+func (s *DB) SaveBudgets(ctx context.Context, budgets []models.Budget) error {
 	if len(budgets) == 0 {
 		return nil
 	}
@@ -615,7 +616,7 @@ func (s *PostgresDB) SaveBudgets(ctx context.Context, budgets []models.Budget) e
 }
 
 // SaveReminders saves a batch of reminders to the database
-func (s *PostgresDB) SaveReminders(ctx context.Context, reminders []models.Reminder) error {
+func (s *DB) SaveReminders(ctx context.Context, reminders []models.Reminder) error {
 	if len(reminders) == 0 {
 		return nil
 	}
@@ -686,7 +687,7 @@ func (s *PostgresDB) SaveReminders(ctx context.Context, reminders []models.Remin
 }
 
 // SaveReminderMarkers saves a batch of reminder markers to the database
-func (s *PostgresDB) SaveReminderMarkers(ctx context.Context, markers []models.ReminderMarker) error {
+func (s *DB) SaveReminderMarkers(ctx context.Context, markers []models.ReminderMarker) error {
 	if len(markers) == 0 {
 		return nil
 	}
@@ -755,7 +756,7 @@ func (s *PostgresDB) SaveReminderMarkers(ctx context.Context, markers []models.R
 }
 
 // SaveTransactions saves a batch of transactions to the database
-func (s *PostgresDB) SaveTransactions(ctx context.Context, transactions []models.Transaction) error {
+func (s *DB) SaveTransactions(ctx context.Context, transactions []models.Transaction) error {
 	if len(transactions) == 0 {
 		return nil
 	}
@@ -858,7 +859,7 @@ func (s *PostgresDB) SaveTransactions(ctx context.Context, transactions []models
 // - Object: the type of object (e.g., "transaction", "account", etc.)
 // - User: the user ID
 // - Stamp: timestamp of deletion
-func (s *PostgresDB) DeleteObjects(ctx context.Context, deletions []models.Deletion) error {
+func (s *DB) DeleteObjects(ctx context.Context, deletions []models.Deletion) error {
 	if len(deletions) == 0 {
 		return nil
 	}
@@ -925,7 +926,7 @@ func (s *PostgresDB) DeleteObjects(ctx context.Context, deletions []models.Delet
 }
 
 // GetInstrument retrieves a specific instrument by its ID
-func (s *PostgresDB) GetInstrument(ctx context.Context, id int) (*models.Instrument, error) {
+func (s *DB) GetInstrument(ctx context.Context, id int) (*models.Instrument, error) {
 	query := `
         SELECT id, title, short_title, symbol, rate, changed
         FROM instrument
@@ -951,7 +952,7 @@ func (s *PostgresDB) GetInstrument(ctx context.Context, id int) (*models.Instrum
 }
 
 // ListInstruments retrieves a list of instruments based on the provided filter
-func (s *PostgresDB) ListInstruments(ctx context.Context, filter Filter) ([]models.Instrument, error) {
+func (s *DB) ListInstruments(ctx context.Context, filter db.Filter) ([]models.Instrument, error) {
 	var conditions []string
 	var args []interface{}
 	argNum := 1
@@ -1003,7 +1004,7 @@ func (s *PostgresDB) ListInstruments(ctx context.Context, filter Filter) ([]mode
 }
 
 // CreateInstrument creates a new instrument record
-func (s *PostgresDB) CreateInstrument(ctx context.Context, instrument *models.Instrument) error {
+func (s *DB) CreateInstrument(ctx context.Context, instrument *models.Instrument) error {
 	query := `
         INSERT INTO instrument (id, title, short_title, symbol, rate, changed)
         VALUES ($1, $2, $3, $4, $5, $6)`
@@ -1024,7 +1025,7 @@ func (s *PostgresDB) CreateInstrument(ctx context.Context, instrument *models.In
 }
 
 // UpdateInstrument updates an existing instrument record
-func (s *PostgresDB) UpdateInstrument(ctx context.Context, instrument *models.Instrument) error {
+func (s *DB) UpdateInstrument(ctx context.Context, instrument *models.Instrument) error {
 	query := `
         UPDATE instrument
         SET title = $2, short_title = $3, symbol = $4, rate = $5, changed = $6
@@ -1050,7 +1051,7 @@ func (s *PostgresDB) UpdateInstrument(ctx context.Context, instrument *models.In
 }
 
 // DeleteInstrument deletes an instrument by its ID
-func (s *PostgresDB) DeleteInstrument(ctx context.Context, id int) error {
+func (s *DB) DeleteInstrument(ctx context.Context, id int) error {
 	query := `DELETE FROM instrument WHERE id = $1`
 
 	commandTag, err := s.pool.Exec(ctx, query, id)
@@ -1066,7 +1067,7 @@ func (s *PostgresDB) DeleteInstrument(ctx context.Context, id int) error {
 }
 
 // GetCompany retrieves a specific company by its ID
-func (s *PostgresDB) GetCompany(ctx context.Context, id int) (*models.Company, error) {
+func (s *DB) GetCompany(ctx context.Context, id int) (*models.Company, error) {
 	query := `
         SELECT id, title, full_title, www, country, deleted, country_code, changed
         FROM company
@@ -1094,7 +1095,7 @@ func (s *PostgresDB) GetCompany(ctx context.Context, id int) (*models.Company, e
 }
 
 // ListCompanies retrieves a list of companies based on the provided filter
-func (s *PostgresDB) ListCompanies(ctx context.Context, filter Filter) ([]models.Company, error) {
+func (s *DB) ListCompanies(ctx context.Context, filter db.Filter) ([]models.Company, error) {
 	var conditions []string
 	var args []interface{}
 	argNum := 1
@@ -1151,7 +1152,7 @@ func (s *PostgresDB) ListCompanies(ctx context.Context, filter Filter) ([]models
 }
 
 // CreateCompany creates a new company record
-func (s *PostgresDB) CreateCompany(ctx context.Context, company *models.Company) error {
+func (s *DB) CreateCompany(ctx context.Context, company *models.Company) error {
 	query := `
         INSERT INTO company (
             id, title, full_title, www, country, deleted,
@@ -1176,7 +1177,7 @@ func (s *PostgresDB) CreateCompany(ctx context.Context, company *models.Company)
 }
 
 // UpdateCompany updates an existing company record
-func (s *PostgresDB) UpdateCompany(ctx context.Context, company *models.Company) error {
+func (s *DB) UpdateCompany(ctx context.Context, company *models.Company) error {
 	query := `
         UPDATE company
         SET title = $2, full_title = $3, www = $4, country = $5,
@@ -1205,7 +1206,7 @@ func (s *PostgresDB) UpdateCompany(ctx context.Context, company *models.Company)
 }
 
 // DeleteCompany deletes a company by its ID
-func (s *PostgresDB) DeleteCompany(ctx context.Context, id int) error {
+func (s *DB) DeleteCompany(ctx context.Context, id int) error {
 	query := `DELETE FROM company WHERE id = $1`
 
 	commandTag, err := s.pool.Exec(ctx, query, id)
@@ -1221,7 +1222,7 @@ func (s *PostgresDB) DeleteCompany(ctx context.Context, id int) error {
 }
 
 // GetUser retrieves a specific user by their ID
-func (s *PostgresDB) GetUser(ctx context.Context, id int) (*models.User, error) {
+func (s *DB) GetUser(ctx context.Context, id int) (*models.User, error) {
 	query := `
         SELECT id, country, login, parent, country_code, email,
                changed, currency, paid_till, month_start_day,
@@ -1259,7 +1260,7 @@ func (s *PostgresDB) GetUser(ctx context.Context, id int) (*models.User, error) 
 }
 
 // ListUsers retrieves a list of users based on the provided filter
-func (s *PostgresDB) ListUsers(ctx context.Context, filter Filter) ([]models.User, error) {
+func (s *DB) ListUsers(ctx context.Context, filter db.Filter) ([]models.User, error) {
 	var conditions []string
 	var args []interface{}
 	argNum := 1
@@ -1326,7 +1327,7 @@ func (s *PostgresDB) ListUsers(ctx context.Context, filter Filter) ([]models.Use
 }
 
 // CreateUser creates a new user record
-func (s *PostgresDB) CreateUser(ctx context.Context, user *models.User) error {
+func (s *DB) CreateUser(ctx context.Context, user *models.User) error {
 	query := `
         INSERT INTO "user" (
             id, country, login, parent, country_code, email,
@@ -1360,7 +1361,7 @@ func (s *PostgresDB) CreateUser(ctx context.Context, user *models.User) error {
 }
 
 // UpdateUser updates an existing user record
-func (s *PostgresDB) UpdateUser(ctx context.Context, user *models.User) error {
+func (s *DB) UpdateUser(ctx context.Context, user *models.User) error {
 	query := `
         UPDATE "user"
         SET country = $2, login = $3, parent = $4, country_code = $5,
@@ -1399,7 +1400,7 @@ func (s *PostgresDB) UpdateUser(ctx context.Context, user *models.User) error {
 }
 
 // DeleteUser deletes a user by their ID
-func (s *PostgresDB) DeleteUser(ctx context.Context, id int) error {
+func (s *DB) DeleteUser(ctx context.Context, id int) error {
 	query := `DELETE FROM "user" WHERE id = $1`
 
 	commandTag, err := s.pool.Exec(ctx, query, id)
@@ -1415,7 +1416,7 @@ func (s *PostgresDB) DeleteUser(ctx context.Context, id int) error {
 }
 
 // GetCountry retrieves a specific country by its ID
-func (s *PostgresDB) GetCountry(ctx context.Context, id int) (*models.Country, error) {
+func (s *DB) GetCountry(ctx context.Context, id int) (*models.Country, error) {
 	query := `
         SELECT id, title, currency, domain
         FROM country
@@ -1439,7 +1440,7 @@ func (s *PostgresDB) GetCountry(ctx context.Context, id int) (*models.Country, e
 }
 
 // ListCountries retrieves a list of countries based on the provided filter
-func (s *PostgresDB) ListCountries(ctx context.Context, filter Filter) ([]models.Country, error) {
+func (s *DB) ListCountries(ctx context.Context, filter db.Filter) ([]models.Country, error) {
 	query := `
         SELECT id, title, currency, domain
         FROM country
@@ -1474,7 +1475,7 @@ func (s *PostgresDB) ListCountries(ctx context.Context, filter Filter) ([]models
 }
 
 // CreateCountry creates a new country record
-func (s *PostgresDB) CreateCountry(ctx context.Context, country *models.Country) error {
+func (s *DB) CreateCountry(ctx context.Context, country *models.Country) error {
 	query := `
         INSERT INTO country (id, title, currency, domain)
         VALUES ($1, $2, $3, $4)`
@@ -1493,7 +1494,7 @@ func (s *PostgresDB) CreateCountry(ctx context.Context, country *models.Country)
 }
 
 // UpdateCountry updates an existing country record
-func (s *PostgresDB) UpdateCountry(ctx context.Context, country *models.Country) error {
+func (s *DB) UpdateCountry(ctx context.Context, country *models.Country) error {
 	query := `
         UPDATE country
         SET title = $2, currency = $3, domain = $4
@@ -1517,7 +1518,7 @@ func (s *PostgresDB) UpdateCountry(ctx context.Context, country *models.Country)
 }
 
 // DeleteCountry deletes a country by its ID
-func (s *PostgresDB) DeleteCountry(ctx context.Context, id int) error {
+func (s *DB) DeleteCountry(ctx context.Context, id int) error {
 	query := `DELETE FROM country WHERE id = $1`
 
 	commandTag, err := s.pool.Exec(ctx, query, id)
@@ -1533,7 +1534,7 @@ func (s *PostgresDB) DeleteCountry(ctx context.Context, id int) error {
 }
 
 // GetAccount retrieves a specific account by its ID
-func (s *PostgresDB) GetAccount(ctx context.Context, id string) (*models.Account, error) {
+func (s *DB) GetAccount(ctx context.Context, id string) (*models.Account, error) {
 	query := `
         SELECT id, "user", instrument, type, role, private, savings,
                title, in_balance, credit_limit, start_balance, balance,
@@ -1585,7 +1586,7 @@ func (s *PostgresDB) GetAccount(ctx context.Context, id string) (*models.Account
 }
 
 // ListAccounts retrieves a list of accounts based on the provided filter
-func (s *PostgresDB) ListAccounts(ctx context.Context, filter Filter) ([]models.Account, error) {
+func (s *DB) ListAccounts(ctx context.Context, filter db.Filter) ([]models.Account, error) {
 	var conditions []string
 	var args []interface{}
 	argNum := 1
@@ -1665,7 +1666,7 @@ func (s *PostgresDB) ListAccounts(ctx context.Context, filter Filter) ([]models.
 }
 
 // CreateAccount creates a new account record
-func (s *PostgresDB) CreateAccount(ctx context.Context, account *models.Account) error {
+func (s *DB) CreateAccount(ctx context.Context, account *models.Account) error {
 	query := `
         INSERT INTO account (
             id, "user", instrument, type, role, private, savings,
@@ -1714,7 +1715,7 @@ func (s *PostgresDB) CreateAccount(ctx context.Context, account *models.Account)
 }
 
 // UpdateAccount updates an existing account record
-func (s *PostgresDB) UpdateAccount(ctx context.Context, account *models.Account) error {
+func (s *DB) UpdateAccount(ctx context.Context, account *models.Account) error {
 	query := `
         UPDATE account SET
             "user" = $2,
@@ -1785,7 +1786,7 @@ func (s *PostgresDB) UpdateAccount(ctx context.Context, account *models.Account)
 }
 
 // DeleteAccount deletes an account by its ID
-func (s *PostgresDB) DeleteAccount(ctx context.Context, id string) error {
+func (s *DB) DeleteAccount(ctx context.Context, id string) error {
 	query := `DELETE FROM account WHERE id = $1`
 
 	commandTag, err := s.pool.Exec(ctx, query, id)
@@ -1801,7 +1802,7 @@ func (s *PostgresDB) DeleteAccount(ctx context.Context, id string) error {
 }
 
 // GetTag retrieves a specific tag by its ID
-func (s *PostgresDB) GetTag(ctx context.Context, id string) (*models.Tag, error) {
+func (s *DB) GetTag(ctx context.Context, id string) (*models.Tag, error) {
 	query := `
         SELECT id, "user", changed, icon, budget_income, budget_outcome,
                required, color, picture, title, show_income, show_outcome,
@@ -1838,7 +1839,7 @@ func (s *PostgresDB) GetTag(ctx context.Context, id string) (*models.Tag, error)
 }
 
 // ListTags retrieves a list of tags based on the provided filter
-func (s *PostgresDB) ListTags(ctx context.Context, filter Filter) ([]models.Tag, error) {
+func (s *DB) ListTags(ctx context.Context, filter db.Filter) ([]models.Tag, error) {
 	var conditions []string
 	var args []interface{}
 	argNum := 1
@@ -1903,7 +1904,7 @@ func (s *PostgresDB) ListTags(ctx context.Context, filter Filter) ([]models.Tag,
 }
 
 // CreateTag creates a new tag record
-func (s *PostgresDB) CreateTag(ctx context.Context, tag *models.Tag) error {
+func (s *DB) CreateTag(ctx context.Context, tag *models.Tag) error {
 	query := `
         INSERT INTO tag (
             id, "user", changed, icon, budget_income, budget_outcome,
@@ -1936,7 +1937,7 @@ func (s *PostgresDB) CreateTag(ctx context.Context, tag *models.Tag) error {
 }
 
 // UpdateTag updates an existing tag record
-func (s *PostgresDB) UpdateTag(ctx context.Context, tag *models.Tag) error {
+func (s *DB) UpdateTag(ctx context.Context, tag *models.Tag) error {
 	query := `
         UPDATE tag SET
             "user" = $2,
@@ -1983,7 +1984,7 @@ func (s *PostgresDB) UpdateTag(ctx context.Context, tag *models.Tag) error {
 }
 
 // DeleteTag deletes a tag by its ID
-func (s *PostgresDB) DeleteTag(ctx context.Context, id string) error {
+func (s *DB) DeleteTag(ctx context.Context, id string) error {
 	query := `DELETE FROM tag WHERE id = $1`
 
 	commandTag, err := s.pool.Exec(ctx, query, id)
@@ -1999,7 +2000,7 @@ func (s *PostgresDB) DeleteTag(ctx context.Context, id string) error {
 }
 
 // GetMerchant retrieves a specific merchant by its ID
-func (s *PostgresDB) GetMerchant(ctx context.Context, id string) (*models.Merchant, error) {
+func (s *DB) GetMerchant(ctx context.Context, id string) (*models.Merchant, error) {
 	query := `
        SELECT id, "user", title, changed
        FROM merchant
@@ -2024,7 +2025,7 @@ func (s *PostgresDB) GetMerchant(ctx context.Context, id string) (*models.Mercha
 }
 
 // ListMerchants retrieves a list of merchants based on the provided filter
-func (s *PostgresDB) ListMerchants(ctx context.Context, filter Filter) ([]models.Merchant, error) {
+func (s *DB) ListMerchants(ctx context.Context, filter db.Filter) ([]models.Merchant, error) {
 	var conditions []string
 	var args []interface{}
 	argNum := 1
@@ -2075,7 +2076,7 @@ func (s *PostgresDB) ListMerchants(ctx context.Context, filter Filter) ([]models
 }
 
 // CreateMerchant creates a new merchant record
-func (s *PostgresDB) CreateMerchant(ctx context.Context, merchant *models.Merchant) error {
+func (s *DB) CreateMerchant(ctx context.Context, merchant *models.Merchant) error {
 	query := `
        INSERT INTO merchant (id, "user", title, changed)
        VALUES ($1, $2, $3, $4)`
@@ -2095,7 +2096,7 @@ func (s *PostgresDB) CreateMerchant(ctx context.Context, merchant *models.Mercha
 }
 
 // UpdateMerchant updates an existing merchant record
-func (s *PostgresDB) UpdateMerchant(ctx context.Context, merchant *models.Merchant) error {
+func (s *DB) UpdateMerchant(ctx context.Context, merchant *models.Merchant) error {
 	query := `
        UPDATE merchant 
        SET "user" = $2, title = $3, changed = $4
@@ -2120,7 +2121,7 @@ func (s *PostgresDB) UpdateMerchant(ctx context.Context, merchant *models.Mercha
 }
 
 // DeleteMerchant deletes a merchant by its ID
-func (s *PostgresDB) DeleteMerchant(ctx context.Context, id string) error {
+func (s *DB) DeleteMerchant(ctx context.Context, id string) error {
 	query := `DELETE FROM merchant WHERE id = $1`
 
 	commandTag, err := s.pool.Exec(ctx, query, id)
@@ -2136,7 +2137,7 @@ func (s *PostgresDB) DeleteMerchant(ctx context.Context, id string) error {
 }
 
 // GetBudget retrieves a specific budget by user ID, tag ID and date
-func (s *PostgresDB) GetBudget(ctx context.Context, userID int, tagID string, date time.Time) (*models.Budget, error) {
+func (s *DB) GetBudget(ctx context.Context, userID int, tagID string, date time.Time) (*models.Budget, error) {
 	query := `
         SELECT "user", changed, date, tag, income, outcome, 
                income_lock, outcome_lock, is_income_forecast, is_outcome_forecast
@@ -2169,7 +2170,7 @@ func (s *PostgresDB) GetBudget(ctx context.Context, userID int, tagID string, da
 }
 
 // ListBudgets retrieves a list of budgets based on the provided filter
-func (s *PostgresDB) ListBudgets(ctx context.Context, filter Filter) ([]models.Budget, error) {
+func (s *DB) ListBudgets(ctx context.Context, filter db.Filter) ([]models.Budget, error) {
 	var conditions []string
 	var args []interface{}
 	argNum := 1
@@ -2239,7 +2240,7 @@ func (s *PostgresDB) ListBudgets(ctx context.Context, filter Filter) ([]models.B
 }
 
 // CreateBudget creates a new budget record
-func (s *PostgresDB) CreateBudget(ctx context.Context, budget *models.Budget) error {
+func (s *DB) CreateBudget(ctx context.Context, budget *models.Budget) error {
 	query := `
         INSERT INTO budget (
             "user", changed, date, tag, income, outcome,
@@ -2267,7 +2268,7 @@ func (s *PostgresDB) CreateBudget(ctx context.Context, budget *models.Budget) er
 }
 
 // UpdateBudget updates an existing budget record
-func (s *PostgresDB) UpdateBudget(ctx context.Context, budget *models.Budget) error {
+func (s *DB) UpdateBudget(ctx context.Context, budget *models.Budget) error {
 	query := `
         UPDATE budget 
         SET changed = $4,
@@ -2305,7 +2306,7 @@ func (s *PostgresDB) UpdateBudget(ctx context.Context, budget *models.Budget) er
 }
 
 // DeleteBudget deletes a budget by user ID, tag ID and date
-func (s *PostgresDB) DeleteBudget(ctx context.Context, userID int, tagID string, date time.Time) error {
+func (s *DB) DeleteBudget(ctx context.Context, userID int, tagID string, date time.Time) error {
 	query := `DELETE FROM budget WHERE "user" = $1 AND tag = $2 AND date = $3`
 
 	commandTag, err := s.pool.Exec(ctx, query, userID, tagID, date.Format("2006-01-02"))
@@ -2322,7 +2323,7 @@ func (s *PostgresDB) DeleteBudget(ctx context.Context, userID int, tagID string,
 }
 
 // GetReminder retrieves a specific reminder by its ID
-func (s *PostgresDB) GetReminder(ctx context.Context, id string) (*models.Reminder, error) {
+func (s *DB) GetReminder(ctx context.Context, id string) (*models.Reminder, error) {
 	query := `
         SELECT id, "user", income, outcome, changed, income_instrument,
                outcome_instrument, step, points, tag, start_date, end_date,
@@ -2365,7 +2366,7 @@ func (s *PostgresDB) GetReminder(ctx context.Context, id string) (*models.Remind
 }
 
 // ListReminders retrieves a list of reminders based on the provided filter
-func (s *PostgresDB) ListReminders(ctx context.Context, filter Filter) ([]models.Reminder, error) {
+func (s *DB) ListReminders(ctx context.Context, filter db.Filter) ([]models.Reminder, error) {
 	var conditions []string
 	var args []interface{}
 	argNum := 1
@@ -2434,7 +2435,7 @@ func (s *PostgresDB) ListReminders(ctx context.Context, filter Filter) ([]models
 }
 
 // CreateReminder creates a new reminder record
-func (s *PostgresDB) CreateReminder(ctx context.Context, reminder *models.Reminder) error {
+func (s *DB) CreateReminder(ctx context.Context, reminder *models.Reminder) error {
 	query := `
         INSERT INTO reminder (
             id, "user", income, outcome, changed, income_instrument,
@@ -2474,7 +2475,7 @@ func (s *PostgresDB) CreateReminder(ctx context.Context, reminder *models.Remind
 }
 
 // UpdateReminder updates an existing reminder record
-func (s *PostgresDB) UpdateReminder(ctx context.Context, reminder *models.Reminder) error {
+func (s *DB) UpdateReminder(ctx context.Context, reminder *models.Reminder) error {
 	query := `
         UPDATE reminder SET
             "user" = $2,
@@ -2531,7 +2532,7 @@ func (s *PostgresDB) UpdateReminder(ctx context.Context, reminder *models.Remind
 }
 
 // DeleteReminder deletes a reminder by its ID
-func (s *PostgresDB) DeleteReminder(ctx context.Context, id string) error {
+func (s *DB) DeleteReminder(ctx context.Context, id string) error {
 	query := `DELETE FROM reminder WHERE id = $1`
 
 	commandTag, err := s.pool.Exec(ctx, query, id)
@@ -2547,7 +2548,7 @@ func (s *PostgresDB) DeleteReminder(ctx context.Context, id string) error {
 }
 
 // GetReminderMarker retrieves a specific reminder marker by its ID
-func (s *PostgresDB) GetReminderMarker(ctx context.Context, id string) (*models.ReminderMarker, error) {
+func (s *DB) GetReminderMarker(ctx context.Context, id string) (*models.ReminderMarker, error) {
 	query := `
         SELECT id, "user", date, income, outcome, changed,
                income_instrument, outcome_instrument, state, is_forecast,
@@ -2589,7 +2590,7 @@ func (s *PostgresDB) GetReminderMarker(ctx context.Context, id string) (*models.
 }
 
 // ListReminderMarkers retrieves a list of reminder markers based on the provided filter
-func (s *PostgresDB) ListReminderMarkers(ctx context.Context, filter Filter) ([]models.ReminderMarker, error) {
+func (s *DB) ListReminderMarkers(ctx context.Context, filter db.Filter) ([]models.ReminderMarker, error) {
 	var conditions []string
 	var args []interface{}
 	argNum := 1
@@ -2669,7 +2670,7 @@ func (s *PostgresDB) ListReminderMarkers(ctx context.Context, filter Filter) ([]
 }
 
 // CreateReminderMarker creates a new reminder marker record
-func (s *PostgresDB) CreateReminderMarker(ctx context.Context, marker *models.ReminderMarker) error {
+func (s *DB) CreateReminderMarker(ctx context.Context, marker *models.ReminderMarker) error {
 	query := `
         INSERT INTO reminder_marker (
             id, "user", date, income, outcome, changed,
@@ -2708,7 +2709,7 @@ func (s *PostgresDB) CreateReminderMarker(ctx context.Context, marker *models.Re
 }
 
 // UpdateReminderMarker updates an existing reminder marker record
-func (s *PostgresDB) UpdateReminderMarker(ctx context.Context, marker *models.ReminderMarker) error {
+func (s *DB) UpdateReminderMarker(ctx context.Context, marker *models.ReminderMarker) error {
 	query := `
         UPDATE reminder_marker SET
             "user" = $2,
@@ -2763,7 +2764,7 @@ func (s *PostgresDB) UpdateReminderMarker(ctx context.Context, marker *models.Re
 }
 
 // DeleteReminderMarker deletes a reminder marker by its ID
-func (s *PostgresDB) DeleteReminderMarker(ctx context.Context, id string) error {
+func (s *DB) DeleteReminderMarker(ctx context.Context, id string) error {
 	query := `DELETE FROM reminder_marker WHERE id = $1`
 
 	commandTag, err := s.pool.Exec(ctx, query, id)
@@ -2779,7 +2780,7 @@ func (s *PostgresDB) DeleteReminderMarker(ctx context.Context, id string) error 
 }
 
 // GetTransaction retrieves a specific transaction by its ID
-func (s *PostgresDB) GetTransaction(ctx context.Context, id string) (*models.Transaction, error) {
+func (s *DB) GetTransaction(ctx context.Context, id string) (*models.Transaction, error) {
 	query := `
         SELECT id, "user", date, income, outcome, changed, income_instrument,
                outcome_instrument, created, original_payee, deleted, viewed,
@@ -2835,7 +2836,7 @@ func (s *PostgresDB) GetTransaction(ctx context.Context, id string) (*models.Tra
 }
 
 // ListTransactions retrieves a list of transactions based on the provided filter
-func (s *PostgresDB) ListTransactions(ctx context.Context, filter Filter) ([]models.Transaction, error) {
+func (s *DB) ListTransactions(ctx context.Context, filter db.Filter) ([]models.Transaction, error) {
 	var conditions []string
 	var args []interface{}
 	argNum := 1
@@ -2930,7 +2931,7 @@ func (s *PostgresDB) ListTransactions(ctx context.Context, filter Filter) ([]mod
 }
 
 // CreateTransaction creates a new transaction record
-func (s *PostgresDB) CreateTransaction(ctx context.Context, tx *models.Transaction) error {
+func (s *DB) CreateTransaction(ctx context.Context, tx *models.Transaction) error {
 	query := `
         INSERT INTO transaction (
             id, "user", date, income, outcome, changed, income_instrument,
@@ -2984,7 +2985,7 @@ func (s *PostgresDB) CreateTransaction(ctx context.Context, tx *models.Transacti
 }
 
 // UpdateTransaction updates an existing transaction record
-func (s *PostgresDB) UpdateTransaction(ctx context.Context, tx *models.Transaction) error {
+func (s *DB) UpdateTransaction(ctx context.Context, tx *models.Transaction) error {
 	query := `
         UPDATE transaction SET
             "user" = $2,
@@ -3063,7 +3064,7 @@ func (s *PostgresDB) UpdateTransaction(ctx context.Context, tx *models.Transacti
 }
 
 // DeleteTransaction deletes a transaction by its ID
-func (s *PostgresDB) DeleteTransaction(ctx context.Context, id string) error {
+func (s *DB) DeleteTransaction(ctx context.Context, id string) error {
 	query := `DELETE FROM transaction WHERE id = $1`
 
 	commandTag, err := s.pool.Exec(ctx, query, id)
