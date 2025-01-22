@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"github.com/nemirlev/zenmoney-export/internal/db/postgres"
 )
 
 // NewStorage создает новое хранилище указанного типа
@@ -38,7 +39,7 @@ func main() {
 func NewStorage(ctx context.Context, storageType StorageType, connectionString string) (Storage, error) {
 	switch storageType {
 	case PostgresStorage:
-		return NewPostgresStorage(connectionString)
+		return postgres.NewPostgresStorage(connectionString)
 	//case MySQLStorage:
 	//	return NewMySQLStorage(connectionString)
 	//case MongoStorage:
