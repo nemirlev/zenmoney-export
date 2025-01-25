@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"github.com/nemirlev/zenmoney-export/config"
-	"github.com/nemirlev/zenmoney-export/internal/app"
+	"github.com/nemirlev/zenmoney-export/v2/config"
+	"github.com/nemirlev/zenmoney-export/v2/internal/app"
 	"github.com/spf13/cobra"
 )
 

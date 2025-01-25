@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/nemirlev/zenmoney-export/internal/interfaces"
+	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 )
 
 type DB struct {

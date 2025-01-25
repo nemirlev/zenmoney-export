@@ -3,8 +3,8 @@ package db
 import (
 	"context"
 	"fmt"
-	"github.com/nemirlev/zenmoney-export/internal/db/postgres"
-	"github.com/nemirlev/zenmoney-export/internal/interfaces"
+	"github.com/nemirlev/zenmoney-export/v2/internal/db/postgres"
+	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 )
 
 // NewStorage создает новое хранилище указанного типа

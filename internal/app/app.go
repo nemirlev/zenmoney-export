@@ -2,9 +2,9 @@ package app
 
 import (
 	"context"
-	"github.com/nemirlev/zenmoney-export/config"
-	"github.com/nemirlev/zenmoney-export/internal/db"
-	"github.com/nemirlev/zenmoney-export/internal/interfaces"
+	"github.com/nemirlev/zenmoney-export/v2/config"
+	"github.com/nemirlev/zenmoney-export/v2/internal/db"
+	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/api"
 	"log/slog"
 )

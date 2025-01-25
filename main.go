@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/nemirlev/zenmoney-export/cmd"
+	"github.com/nemirlev/zenmoney-export/v2/cmd"
 )
 
 func main() {
