@@ -18,8 +18,6 @@ func NewSyncCommand(root *RootCommand) *cobra.Command {
 				Entities: opts.Entities,
 				DryRun:   opts.DryRun,
 				Force:    opts.Force,
-				FromDate: opts.FromDate,
-				ToDate:   opts.ToDate,
 			}
 
 			if opts.IsDaemon {
