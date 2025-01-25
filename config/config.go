@@ -29,8 +29,6 @@ type SyncOptions struct {
 	CommandOptions
 	IsDaemon  bool
 	Interval  int
-	FromDate  string
-	ToDate    string
 	Entities  string
 	BatchSize int
 	Force     bool
