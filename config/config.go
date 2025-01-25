@@ -1,119 +1,102 @@
-// config/config.go
 package config
 
 import (
+	"errors"
 	"fmt"
 	"github.com/spf13/viper"
 	"log/slog"
 	"os"
 )
 
-const (
-	// FileName is the name of the config file without extension
-	FileName = ".zenexport"
-)
-
-// Config holds all configuration for the application
 type Config struct {
-	// Database configuration
-	DBType   string `mapstructure:"db_type"`   // postgres, mysql, clickhouse, etc.
-	DBConfig string `mapstructure:"db_config"` // connection string, example: postgres://user:password@localhost:5432/dbname
-
-	// API configuration
-	ZenMoneyToken string `mapstructure:"token"` // ZenMoney API token
-
-	// Logging configuration
-	LogLevel string `mapstructure:"log_level"` // debug, info, warn, error
-
-	// Output configuration
-	OutputFormat string `mapstructure:"format"` // text, json
+	DBType        string `mapstructure:"db_type"`
+	DBConfig      string `mapstructure:"db_config"`
+	ZenMoneyToken string `mapstructure:"token"`
+	LogLevel      string `mapstructure:"log_level"`
+	Format        string `mapstructure:"format"`
 }
 
-// LoadConfig loads the configuration from all available sources
-func LoadConfig() (*Config, error) {
-	v := viper.New()
+type CommandOptions struct {
+	ConfigFile string
+	Token      string
+	LogLevel   string
+	Format     string
+	DBType     string
+	DBConfig   string
+}
 
-	// Set default values
-	setDefaults(v)
+type SyncOptions struct {
+	CommandOptions
+	IsDaemon  bool
+	Interval  int
+	FromDate  string
+	ToDate    string
+	Entities  string
+	BatchSize int
+	Force     bool
+	DryRun    bool
+}
 
-	// Setup viper
-	setupViper(v)
-
-	// Read config
-	config := &Config{}
-	if err := v.Unmarshal(config); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+func NewConfigFromViper() (*Config, error) {
+	if err := initViper(); err != nil {
+		return nil, err
 	}
 
-	return config, nil
+	var cfg Config
+	if err := viper.Unmarshal(&cfg); err != nil {
+		return nil, fmt.Errorf("unmarshal config error: %w", err)
+	}
+
+	if err := ValidateConfig(&cfg); err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
 }
 
-// setDefaults sets default values for configuration
-func setDefaults(v *viper.Viper) {
-	v.SetDefault("db_type", "postgres")
-	v.SetDefault("log_level", "info")
-	v.SetDefault("format", "json")
-}
-
-// setupViper configures Viper instance
-func setupViper(v *viper.Viper) {
-	v.AutomaticEnv()
-
-	// Find home directory for default config location
+func initViper() error {
 	home, err := os.UserHomeDir()
-	if err == nil {
-		// Search config in home directory with name ".zenexport" (without extension)
-		v.AddConfigPath(home)
-		v.SetConfigName(FileName)
+	if err != nil {
+		return err
 	}
 
-	// Read config file if exists
-	if err := v.ReadInConfig(); err == nil {
-		fmt.Fprintln(os.Stderr, "Using config file:", v.ConfigFileUsed())
-	}
-}
+	viper.AddConfigPath(home)
+	viper.SetConfigName(".zenexport")
+	viper.SetConfigType("yaml")
+	viper.AutomaticEnv()
 
-// ValidateConfig validates the configuration
-func ValidateConfig(cfg *Config) error {
-	// Validate log level
-	switch cfg.LogLevel {
-	case "debug", "info", "warn", "error":
-		// Valid log level
-	default:
-		return fmt.Errorf("invalid log level: %s, must be one of: debug, info, warn, error", cfg.LogLevel)
-	}
-
-	// Validate output format
-	switch cfg.OutputFormat {
-	case "text", "json":
-		// Valid format
-	default:
-		return fmt.Errorf("invalid output format: %s, must be one of: text, json", cfg.OutputFormat)
+	if err := viper.ReadInConfig(); err != nil {
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if !errors.As(err, &configFileNotFoundError) {
+			return err
+		}
 	}
 
 	return nil
 }
 
-// NewLogger creates a new logger instance with the configured level
+func ValidateConfig(cfg *Config) error {
+	switch cfg.LogLevel {
+	case "debug", "info", "warn", "error", "":
+	default:
+		return fmt.Errorf("invalid log level: %s", cfg.LogLevel)
+	}
+	return nil
+}
+
 func NewLogger(cfg *Config) *slog.Logger {
-	var level slog.Level
+	level := slog.LevelInfo
 	switch cfg.LogLevel {
 	case "debug":
 		level = slog.LevelDebug
-	case "info":
-		level = slog.LevelInfo
 	case "warn":
 		level = slog.LevelWarn
 	case "error":
 		level = slog.LevelError
-	default:
-		level = slog.LevelInfo
 	}
 
 	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: level,
 	})
-	logger := slog.New(handler)
-	slog.SetDefault(logger)
-	return logger
+	return slog.New(handler)
 }
