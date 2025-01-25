@@ -39,7 +39,7 @@ func addSyncFlags(cmd *cobra.Command, opts *config.SyncOptions) {
 	flags.IntVar(&opts.Interval, "interval", 30, "sync interval in minutes")
 	flags.StringVar(&opts.FromDate, "from", "", "start date")
 	flags.StringVar(&opts.ToDate, "to", "", "end date")
-	flags.StringVar(&opts.Entities, "entities", "transactions,accounts", "entities to sync")
+	flags.StringVar(&opts.Entities, "entities", "all", "entities to sync")
 	flags.BoolVar(&opts.Force, "force", false, "force full sync")
 	flags.BoolVar(&opts.DryRun, "dry-run", false, "dry run mode")
 }
