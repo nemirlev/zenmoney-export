@@ -3,12 +3,37 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 )
 
 type DB struct {
-	pool *pgxpool.Pool
+	pool PgxIface
+}
+
+// PgxIface — interface for pgxpool.Pool
+type PgxIface interface {
+	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
+	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
+	Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error)
+
+	Begin(ctx context.Context) (pgx.Tx, error)
+	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
+
+	SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults
+
+	Acquire(ctx context.Context) (*pgxpool.Conn, error)
+	AcquireAllIdle(ctx context.Context) []*pgxpool.Conn
+	AcquireFunc(ctx context.Context, f func(*pgxpool.Conn) error) error
+
+	Stat() *pgxpool.Stat
+	Config() *pgxpool.Config
+
+	Reset()
+	Close()
+	Ping(ctx context.Context) error
 }
 
 // NewPostgresStorage creates a new PostgreSQL storage instance
