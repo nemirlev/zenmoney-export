@@ -1,7 +1,7 @@
 services:
     postgres:
-        image: postgres:16
-        container_name: postgres
+        image: postgres:17
+        container_name: zenexport_postgres
         ports:
         - "5432:5432"
         environment:
@@ -12,7 +12,7 @@ services:
             test: ["CMD", "pg_isready", "-q", "-d", "postgres", "-U", "postgres"]
     migrations:
         image: migrate/migrate
-        container_name: migrations
+        container_name: zenexport_migrations
         volumes:
         - ../migrations/postgres:/migrations
         depends_on:
