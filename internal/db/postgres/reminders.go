@@ -2,11 +2,56 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
 	"strings"
 )
+
+// GetReminder retrieves a specific reminder by its ID
+func (s *DB) GetReminder(ctx context.Context, id string) (*models.Reminder, error) {
+	query := `
+        SELECT id, "user", income, outcome, changed, income_instrument,
+               outcome_instrument, step, points, tag, start_date, end_date,
+               notify, interval, income_account, outcome_account, comment,
+               payee, merchant
+        FROM reminder
+        WHERE id = $1`
+
+	reminder := &models.Reminder{}
+	err := s.pool.QueryRow(ctx, query, id).Scan(
+		&reminder.ID,
+		&reminder.User,
+		&reminder.Income,
+		&reminder.Outcome,
+		&reminder.Changed,
+		&reminder.IncomeInstrument,
+		&reminder.OutcomeInstrument,
+		&reminder.Step,
+		&reminder.Points,
+		&reminder.Tag,
+		&reminder.StartDate,
+		&reminder.EndDate,
+		&reminder.Notify,
+		&reminder.Interval,
+		&reminder.IncomeAccount,
+		&reminder.OutcomeAccount,
+		&reminder.Comment,
+		&reminder.Payee,
+		&reminder.Merchant,
+	)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("reminder not found: %s", id)
+		}
+		return nil, fmt.Errorf("failed to get reminder: %w", err)
+	}
+
+	return reminder, nil
+}
 
 // ListReminders retrieves a list of reminders based on the provided filter
 func (s *DB) ListReminders(ctx context.Context, filter interfaces.Filter) ([]models.Reminder, error) {
