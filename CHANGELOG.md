@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### 🚀 Features
 
+- Update config and docker setup
+
+## [2.0.0] - 2025-02-27
+
+### 🚀 Features
+
 - Добавлены тесты для логгера
 - Добавлены моки
 - Добавлены тесты для функций create, uodate и delete в БД
