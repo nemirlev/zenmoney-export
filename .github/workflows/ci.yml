@@ -39,7 +39,6 @@ jobs:
         with:
           version: latest
 
-    
   test_amd64:
     name: Test AMD64
     needs: lint
@@ -88,7 +87,7 @@ jobs:
 
   build:
     name: Build
-    needs: test
+    needs: lint
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
