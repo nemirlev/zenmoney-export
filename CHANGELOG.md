@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.0.0] - 2025-02-27
+## [unreleased]
 
 ### 🚀 Features
 
@@ -66,6 +66,7 @@ All notable changes to this project will be documented in this file.
 - Update README for ZenMoney Export
 - Update Go version and dependencies
 - Add changelog and code of conduct
+- Update Go version in CI workflows
 
 ### Add
 
