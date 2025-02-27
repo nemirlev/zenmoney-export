@@ -1,4 +1,12 @@
 services:
+    app:
+        build:
+            context: ..
+            dockerfile: docker/Dockerfile
+        container_name: zenexport_app
+        depends_on:
+            -  postgres
+            -  migrations
     postgres:
         image: postgres:17
         container_name: zenexport_postgres
