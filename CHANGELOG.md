@@ -70,6 +70,7 @@ All notable changes to this project will be documented in this file.
 - Update Go version and dependencies
 - Add changelog and code of conduct
 - Full update ci/cd for working proposal
+- Update release workflow and changelog generation
 
 ## [1.4.2] - 2024-05-13
 
