@@ -32,26 +32,12 @@ All notable changes to this project will be documented in this file.
 - Remove date options from sync command
 - Add mocks
 - Add interface for pgxpool.Pool
-- Add issue templates and CI workflows
-- Add app service and Dockerfile for build
-- Add MIT License to the project
-- Add manual trigger for release workflow
-- Specify Dockerfile in release workflow
-- Add GoReleaser configuration for Docker builds
-- Update CI/CD workflows and add Docker support
-- Add environment variables for database connection
-- Add changelog generation to release workflow
 
 ### 🐛 Bug Fixes
 
 - Improve sync condition checks
 - Update container names for clarity
 - Move GetReminder function to a new file
-- Update release workflow for Go and changelog
-- Update GitHub token for release workflow
-- Tidy up CI workflow formatting
-- Update release args in workflow
-- Update changelog commit config
 
 ### 💼 Other
 
@@ -68,10 +54,6 @@ All notable changes to this project will be documented in this file.
 - Command structure and sync logic
 - Rename Postgres compose file
 
-### 📚 Documentation
-
-- Tidy up badge formatting in README
-
 ### 🧪 Testing
 
 - Add unit tests for storage creation
@@ -87,31 +69,7 @@ All notable changes to this project will be documented in this file.
 - Update README for ZenMoney Export
 - Update Go version and dependencies
 - Add changelog and code of conduct
-- Update Go version in CI workflows
-- Update changelog for version 2.0.0
-- Full refactor ci and cd
-- Обновление CHANGELOG.md [skip ci]
-- Обновление CHANGELOG.md [skip ci]
-- Обновление CHANGELOG.md [skip ci]
-- Обновление CHANGELOG.md [skip ci]
-- Обновление CHANGELOG.md
-- Automate changelog commit on release
-- Обновление CHANGELOG.md
-- Обновление CHANGELOG.md for release
-- Update CI workflows for changelog handling
-- Update CHANGELOG.md
-- Update Go versions and remove lint dependency
-- Update release notes generation
-- Add changelog generation to release workflow
-- Update CHANGELOG.md
-- Update release workflow for changelog handling
-- Update CHANGELOG.md
-- Update CHANGELOG.md
-- Update CHANGELOG.md
-- Update changelog action to v4
-- Update lint and coverage actions
-- *(ci)* Update changelog action version
-- Remove goreleaser configuration file
+- Full update ci/cd for working proposal
 
 ## [1.4.2] - 2024-05-13
 
