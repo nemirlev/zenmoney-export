@@ -22,7 +22,12 @@ jobs:
           go-version: '1.24'
 
       - name: Generate changelog
-        run: git cliff --unreleased --output /tmp/LATEST_CHANGELOG.md
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --verbose
+        env:
+          OUTPUT: /tmp/LATEST_CHANGELOG.md
 
       - name: Validate GoReleaser config
         uses: goreleaser/goreleaser-action@v6
@@ -69,7 +74,7 @@ jobs:
         with:
           context: .
           file: ./docker/Dockerfile
-          platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64/v8
+          platforms: linux/amd64,linux/arm64/v8
           push: true
           tags: |
             nemirlev/zenexport:latest
