@@ -1,0 +1,11 @@
+with-expecter: true
+inpackage: true
+dir: "{{.InterfaceDir}}"
+mockname: "Mock{{.InterfaceName}}"
+outpkg: "{{.PackageName}}"
+filename: "mock_{{.InterfaceName}}.go"
+all: true
+packages:
+  github.com/nemirlev/zenmoney-export/v2:
+    config:
+      recursive: true

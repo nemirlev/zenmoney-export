@@ -1,25 +1,57 @@
 package db
 
 import (
+	"context"
 	"fmt"
-	"github.com/nemirlev/zenexport/internal/config"
-	"github.com/nemirlev/zenexport/internal/db/clickhouse"
-	"github.com/nemirlev/zenexport/internal/logger"
+	"github.com/nemirlev/zenmoney-export/v2/internal/db/postgres"
+	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 )
 
-// NewDataStore фабрика для создания экземпляра DataStore в зависимости от типа базы данных, указанного в конфигурации.
-func NewDataStore(cfg *config.Config, log logger.Log) (DataStore, error) {
-	switch cfg.DatabaseType {
-	case "clickhouse":
-		// Инициализация и конфигурация для ClickHouse
-		return &clickhouse.Store{
-			Log:    log,
-			Config: cfg,
-		}, nil
-	//case "postgres":
-	//	// Инициализация и конфигурация для PostgreSQL
-	//	return &postgres.PostgresStore{}, nil
+// NewStorage создает новое хранилище указанного типа
+// Usage example:
+/*
+func main() {
+    storage, err := NewStorage(ctx, PostgresStorage, "postgres://...")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Get Transactions on period
+    transactions, err := storage.ListTransactions(ctx, Filter{
+        UserID:    &userID,
+        StartDate: &startDate,
+        EndDate:   &endDate,
+        Page:      1,
+        Limit:     100,
+    })
+
+	// Save all Zen Money Response (github.com/nemirlev/zenmoney-go-sdk/v2/models.Response)
+	err = storage.Save(ctx, response)
+
+    // Bulk operations in sync process
+    err = storage.SaveTransactions(ctx, newTransactions)
+
+	// Delete from delete array (github.com/nemirlev/zenmoney-go-sdk/v2/models.Deletion)
+    err = storage.DeleteObjects(ctx, []Deletions{
+				{Object: "transaction", ID: 123},
+				{Object: "transaction", ID: 124},)
+}
+*/
+func NewStorage(ctx context.Context, storageType interfaces.StorageType, connectionString string) (interfaces.Storage, error) {
+	switch storageType {
+	case interfaces.PostgresStorage:
+		return postgres.NewPostgresStorage(connectionString)
+	//case MySQLStorage:
+	//	return NewMySQLStorage(connectionString)
+	//case MongoStorage:
+	//	return NewMongoStorage(connectionString)
+	//case ClickhouseStorage:
+	//	return NewClickhouseStorage(connectionString)
+	//case RedisStorage:
+	//	return NewRedisStorage(connectionString)
+	//case InMemoryStorage:
+	//	return NewInMemoryStorage()
 	default:
-		return nil, fmt.Errorf("unsupported database type: %s", cfg.DatabaseType)
+		return nil, fmt.Errorf("unsupported storage type: %s", storageType)
 	}
 }
