@@ -73,6 +73,7 @@ All notable changes to this project will be documented in this file.
 - Full update ci/cd for working proposal
 - Update release workflow and changelog generation
 - Clean up extra files in release workflow
+- Update release workflow cleanup step
 
 ## [1.4.2] - 2024-05-13
 
