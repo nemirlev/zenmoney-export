@@ -55,7 +55,7 @@ jobs:
           go-version: ${{ matrix.go }}
 
       - name: Run tests
-        run: go test -v -race -coverprofile=coverage.out ./...
+        run: go test -v -race -coverprofile=coverage.out $(go list ./... | grep -v /mocks)
 
       - name: Upload coverage to Codecov
         if: matrix.go == '1.24'
