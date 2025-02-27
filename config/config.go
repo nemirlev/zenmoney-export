@@ -61,6 +61,21 @@ func initViper() error {
 	viper.AddConfigPath(home)
 	viper.SetConfigName(".zenexport")
 	viper.SetConfigType("yaml")
+	err = viper.BindEnv("db_type", "DB_TYPE")
+	if err != nil {
+		slog.Error("error binding env", "error", err)
+		return err
+	}
+	err = viper.BindEnv("db_config", "DB_CONFIG")
+	if err != nil {
+		slog.Error("error binding env", "error", err)
+		return err
+	}
+	err = viper.BindEnv("token", "TOKEN")
+	if err != nil {
+		slog.Error("error binding env", "error", err)
+		return err
+	}
 	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {

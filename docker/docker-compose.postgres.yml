@@ -1,13 +1,11 @@
 services:
     app:
-        build:
-            context: ..
-            dockerfile: docker/Dockerfile
+        image: nemirlev/zenexport:latest
         container_name: zenexport_app
         environment:
-            DB_URL: 'postgres://user:password@localhost:5432/dbname?sslmode=disable'
+            DB_CONFIG: "postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable"
             DB_TYPE: postgres
-            ZEN_API_TOKEN: PUT_YOU_TOKEN_HERE
+            TOKEN: YOUR_TOKEN
         depends_on:
             -  postgres
             -  migrations
@@ -20,6 +18,8 @@ services:
             POSTGRES_USER: postgres
             POSTGRES_PASSWORD: postgres
             POSTGRES_DB: postgres
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
         healthcheck:
             test: ["CMD", "pg_isready", "-q", "-d", "postgres", "-U", "postgres"]
     migrations:
@@ -31,3 +31,6 @@ services:
             postgres:
                 condition: service_healthy
         command: -path=/migrations/ -database=postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable up
+
+volumes:
+    postgres_data:
