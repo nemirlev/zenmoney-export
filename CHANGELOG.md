@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [unreleased]
 
+### 🐛 Bug Fixes
+
+- Update Docker image badge link in README
+
+## [2.0.1] - 2025-02-27
+
 ### 🚀 Features
 
 - Update config and docker setup
