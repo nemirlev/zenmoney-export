@@ -87,7 +87,7 @@ jobs:
 
   build:
     name: Build
-    needs: lint
+    needs: [test_amd64, test_arm]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
