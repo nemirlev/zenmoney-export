@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 - Update Docker image badge link in README
+- *(ci)* Exclude mocks from test coverage
 
 ## [2.0.1] - 2025-02-27
 
