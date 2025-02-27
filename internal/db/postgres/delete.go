@@ -3,7 +3,9 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
+	"log/slog"
 )
 
 // DeleteObjects handles deletion of multiple objects from different tables
@@ -23,7 +25,12 @@ func (s *DB) DeleteObjects(ctx context.Context, deletions []models.Deletion) err
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func(tx pgx.Tx, ctx context.Context) {
+		err := tx.Rollback(ctx)
+		if err != nil {
+			slog.Error("failed to rollback deletion transaction", "error", err)
+		}
+	}(tx, ctx)
 
 	// Process each deletion
 	for _, del := range deletions {
