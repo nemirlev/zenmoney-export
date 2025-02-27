@@ -30,7 +30,7 @@ jobs:
           OUTPUT: /tmp/LATEST_CHANGELOG.md
 
       - name: Cleanup extra files
-        run: rm -rf bin/ git-cliff-*.tar.gz
+        run: rm -rf bin/ git-cliff-*.tar.gz git-cliff-2.7.0
 
       - name: Validate GoReleaser config
         uses: goreleaser/goreleaser-action@v6
