@@ -29,6 +29,9 @@ jobs:
         env:
           OUTPUT: /tmp/LATEST_CHANGELOG.md
 
+      - name: Cleanup extra files
+        run: rm -rf bin/ git-cliff-*.tar.gz
+
       - name: Validate GoReleaser config
         uses: goreleaser/goreleaser-action@v6
         with:
