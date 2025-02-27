@@ -1,39 +1,69 @@
-name: Release and Publish
+name: Release
+
 on:
   push:
     tags:
       - 'v*'
 
 jobs:
-  release:
-    name: Release on GitHub
+  goreleaser:
+    name: Release with GoReleaser
     runs-on: ubuntu-latest
     steps:
-      - name: Check out code
+      - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Validates GO releaser config
-        uses: docker://goreleaser/goreleaser:latest
         with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Verify Go module version
+        run: |
+          GO_MOD_VERSION=$(grep -m 1 "go " go.mod | awk '{print $2}')
+          if [[ "$GO_MOD_VERSION" != "1.24" ]]; then
+            echo "Error: Go version mismatch in go.mod ($GO_MOD_VERSION) and workflow (1.24)"
+            exit 1
+          fi
+
+      - name: Generate changelog for release
+        uses: orhun/git-cliff-action@v3
+        id: git-cliff
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+        env:
+          OUTPUT: RELEASE_NOTES.md
+
+      - name: Validate GoReleaser config
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
           args: check
 
-      - name: Create release on GitHub
-        uses: docker://goreleaser/goreleaser:latest
+      - name: Create GitHub release
+        uses: goreleaser/goreleaser-action@v5
         with:
-          args: release
+          distribution: goreleaser
+          version: latest
+          args: release --clean --release-notes=RELEASE_NOTES.md
         env:
-          GITHUB_TOKEN: ${{secrets.PERSONAL_ACCESS_TOKEN}}
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
 
-  publish:
-    name: Publish to Docker Hub
+  docker:
+    name: Publish Docker image
+    needs: goreleaser
     runs-on: ubuntu-latest
     steps:
-      - name: Extract tag name
-        id: get_version
-        run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
-
-      - name: Check out code
+      - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -56,3 +86,5 @@ jobs:
           tags: |
             nemirlev/zenexport:latest
             nemirlev/zenexport:${{ steps.get_version.outputs.VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
