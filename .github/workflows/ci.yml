@@ -39,12 +39,13 @@ jobs:
         with:
           version: latest
 
-  test_amd64:
-    name: Test AMD64
+  test:
+    name: Test
     needs: lint
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: [ubuntu-latest, ubuntu-22.04]
         go: [ '1.22', '1.23', '1.24' ]
     steps:
       - name: Checkout code
@@ -66,28 +67,10 @@ jobs:
           file: ./coverage.out
           fail_ci_if_error: false
 
-  test_arm:
-    name: Test ARM64
-    needs: lint
-    runs-on: [ self-hosted, linux, ARM64 ]
-    strategy:
-      matrix:
-        go: [ '1.22', '1.23', '1.24' ]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Go ${{ matrix.go }}
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ matrix.go }}
-
-      - name: Run tests
-        run: go test -v -coverprofile=coverage.out ./...
 
   build:
     name: Build
-    needs: [test_amd64, test_arm]
+    needs: test
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
