@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
 	"log/slog"
@@ -15,7 +16,12 @@ func (s *DB) Save(ctx context.Context, response *models.Response) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func(tx pgx.Tx, ctx context.Context) {
+		err := tx.Rollback(ctx)
+		if err != nil {
+			slog.Error("failed to rollback transaction", "error", err)
+		}
+	}(tx, ctx)
 
 	status := interfaces.SyncStatus{
 		StartedAt:        time.Now(),

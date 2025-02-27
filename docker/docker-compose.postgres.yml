@@ -1,4 +1,16 @@
 services:
+    app:
+        build:
+            context: ..
+            dockerfile: docker/Dockerfile
+        container_name: zenexport_app
+        environment:
+            DB_URL: 'postgres://user:password@localhost:5432/dbname?sslmode=disable'
+            DB_TYPE: postgres
+            ZEN_API_TOKEN: PUT_YOU_TOKEN_HERE
+        depends_on:
+            -  postgres
+            -  migrations
     postgres:
         image: postgres:17
         container_name: zenexport_postgres

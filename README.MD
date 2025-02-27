@@ -1,13 +1,6 @@
 # ZenMoney Export
 
-[![GoDoc](https://godoc.org/github.com/zenexport/zenmoney-export?status.svg)](https://godoc.org/github.com/nemirlev/zenmoney-export)  
-[![Go Report Card](https://goreportcard.com/badge/github.com/nemirlev/zenmoney-export)](https://goreportcard.com/report/github.com/nemirlev/zenmoney-export)  
-![GitHub License](https://img.shields.io/github/license/nemirlev/zenmoney-export)  
-![Go Version](https://img.shields.io/github/go-mod/go-version/nemirlev/zenmoney-export)  
-![Latest Release](https://img.shields.io/github/v/release/nemirlev/zenmoney-export)  
-![Docker Pulls](https://img.shields.io/docker/pulls/nemirlev/zenmoney-export)  
-![Docker Image Size](https://img.shields.io/docker/image-size/nemirlev/zenmoney-export)  
-[![codecov](https://codecov.io/gh/nemirlev/zenmoney-export/graph/badge.svg?token=WOGJKM2YV0)](https://codecov.io/gh/nemirlev/zenmoney-export)
+[![GoDoc](https://godoc.org/github.com/zenexport/zenmoney-export?status.svg)](https://godoc.org/github.com/nemirlev/zenmoney-export) [![Go Report Card](https://goreportcard.com/badge/github.com/nemirlev/zenmoney-export)](https://goreportcard.com/report/github.com/nemirlev/zenmoney-export) ![GitHub License](https://img.shields.io/github/license/nemirlev/zenmoney-export) ![Go Version](https://img.shields.io/github/go-mod/go-version/nemirlev/zenmoney-export) ![Latest Release](https://img.shields.io/github/v/release/nemirlev/zenmoney-export) ![Docker Pulls](https://img.shields.io/docker/pulls/nemirlev/zenmoney-export) ![Docker Image Size](https://img.shields.io/docker/image-size/nemirlev/zenmoney-export) [![codecov](https://codecov.io/gh/nemirlev/zenmoney-export/graph/badge.svg?token=WOGJKM2YV0)](https://codecov.io/gh/nemirlev/zenmoney-export)
 
 ZenMoney Export is a tool designed to export and sync data from the personal finance management
 service [ZenMoney](https://zenmoney.ru/) to your own database.

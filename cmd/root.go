@@ -7,6 +7,7 @@ import (
 	"github.com/nemirlev/zenmoney-export/v2/internal/app"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"log/slog"
 	"os"
 )
 
@@ -41,9 +42,21 @@ func (r *RootCommand) addFlags() {
 	flags.StringVar(&r.opts.LogLevel, "log-level", "info", "log level (debug, info, warn, error)")
 	flags.StringVar(&r.opts.Format, "format", "json", "output format (text, json)")
 
-	viper.BindPFlag("token", flags.Lookup("token"))
-	viper.BindPFlag("log_level", flags.Lookup("log-level"))
-	viper.BindPFlag("format", flags.Lookup("format"))
+	err := viper.BindPFlag("token", flags.Lookup("token"))
+	if err != nil {
+		slog.Error("failed to bind token flag", "error", err)
+		return
+	}
+	err = viper.BindPFlag("log_level", flags.Lookup("log-level"))
+	if err != nil {
+		slog.Error("failed to bind log-level flag", "error", err)
+		return
+	}
+	err = viper.BindPFlag("format", flags.Lookup("format"))
+	if err != nil {
+		slog.Error("failed to bind format flag", "error", err)
+		return
+	}
 }
 
 func (r *RootCommand) addCommands() {
