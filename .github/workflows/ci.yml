@@ -58,14 +58,14 @@ jobs:
           cache: true
 
       - name: Run tests
-        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+        run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Upload coverage to Codecov
         if: matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          file: ./coverage.txt
+          file: ./coverage.out
           fail_ci_if_error: false
 
   build:
