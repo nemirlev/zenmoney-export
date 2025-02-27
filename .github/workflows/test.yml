@@ -1,0 +1,80 @@
+name: Build and Test
+on:
+  push:
+    branches:
+      - feature/*
+      - release/*
+  pull_request:
+    branches:
+      - feature/*
+      - release/*
+
+jobs:
+  lint:
+    strategy:
+      matrix:
+        go: [ '1.22' ]
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Lit by go vet
+        run: go vet ./...
+
+      - name: Lint by golangci-lint
+        uses: golangci/golangci-lint-action@v5
+        with:
+          version: latest
+
+  test:
+    strategy:
+      matrix:
+        go: [ '1.22' ]
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Run Unit tests.
+        run: go test -v ./... -coverprofile=coverage.txt
+
+      - name: Upload Coverage report to CodeCov
+        uses: codecov/codecov-action@v4.0.1
+        with:
+          token: ${{secrets.CODECOV_TOKEN}}
+          file: ./coverage.txt
+
+  build:
+    strategy:
+      matrix:
+        go: [ '1.22' ]
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: go build ./...
