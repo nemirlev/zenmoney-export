@@ -38,6 +38,7 @@ All notable changes to this project will be documented in this file.
 - Improve sync condition checks
 - Update container names for clarity
 - Move GetReminder function to a new file
+- Update Docker platforms for release workflow
 
 ### 💼 Other
 
