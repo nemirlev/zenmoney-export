@@ -14,7 +14,7 @@ service [ZenMoney](https://zenmoney.ru/) to your own database.
 
 ## Quick Start
 
-Obtain an API token from ZenMoney by visiting [Zerro.app](https://zerro.app/token) and following the instructions to
+Obtain an API token from ZenMoney by visiting [Budgera](https://budgera.com) or [Zerro.app](https://zerro.app/token) and following the instructions to
 generate your token.
 
 1. Choose a supported database type from `./docker` directory.
