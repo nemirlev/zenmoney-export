@@ -2,6 +2,11 @@
 
 ### 🐛 Bug Fixes
 
+- Upgrades Go version in Docker build image (#22)
+## [2.0.2] - 2026-03-07
+
+### 🐛 Bug Fixes
+
 - Update Docker image badge link in README
 - *(ci)* Exclude mocks from test coverage
 
