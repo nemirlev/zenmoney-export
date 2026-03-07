@@ -245,9 +245,8 @@ linters:
     - wsl_v5
     - zerologlint
   # All available settings of specific linters.
-  settings:
-    # See the dedicated "linters.settings" documentation section.
-    option: value
+  # See https://golangci-lint.run/docs/configuration/linters-settings/
+  settings: {}
   # Defines a set of rules to ignore issues.
   # It does not skip the analysis, and so does not ignore "typecheck" errors.
   exclusions:
@@ -280,8 +279,7 @@ formatters:
     - golines
     - swaggo
   # Formatters settings.
-  settings:
-    # See the dedicated "formatters.settings" documentation section.
+  settings: {}
   exclusions:
     # Log a warning if an exclusion path is unused.
     # Default: false
