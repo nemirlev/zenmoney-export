@@ -36,13 +36,11 @@ func (s *DB) Save(ctx context.Context, response *models.Response) error {
 	}
 
 	defer func() {
-		now := time.Now()
-		status.FinishedAt = &now
+		status.FinishedAt = new(time.Now())
 
 		if err != nil {
 			status.Status = "failed"
-			errorMessage := err.Error()
-			status.ErrorMessage = &errorMessage
+			status.ErrorMessage = new(err.Error())
 		} else {
 			status.Status = "completed"
 		}

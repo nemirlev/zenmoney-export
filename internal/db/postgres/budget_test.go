@@ -133,12 +133,11 @@ func TestListBudgets_Success(t *testing.T) {
 		Page:      1,
 	}
 
-	tagID := "test-tag"
 	rows := mock.NewRows([]string{
 		"user", "changed", "date", "tag", "income", "outcome",
 		"income_lock", "outcome_lock", "is_income_forecast", "is_outcome_forecast",
 	}).AddRow(
-		1, 1234567890, "2025-01-15", &tagID, 1000.0, 500.0, true, false, true, false,
+		1, 1234567890, "2025-01-15", new("test-tag"), 1000.0, 500.0, true, false, true, false,
 	)
 
 	mock.ExpectQuery(`SELECT "user", changed, date, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget WHERE "user" = \$1 AND date >= \$2 AND date <= \$3 LIMIT \$4 OFFSET \$5`).
