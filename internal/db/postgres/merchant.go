@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
-	"strings"
 )
 
 // GetMerchant retrieves a specific merchant by its ID
@@ -24,7 +25,6 @@ func (s *DB) GetMerchant(ctx context.Context, id string) (*models.Merchant, erro
 		&merchant.Title,
 		&merchant.Changed,
 	)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("merchant not found: %s", id)
@@ -36,7 +36,10 @@ func (s *DB) GetMerchant(ctx context.Context, id string) (*models.Merchant, erro
 }
 
 // ListMerchants retrieves a list of merchants based on the provided filter
-func (s *DB) ListMerchants(ctx context.Context, filter interfaces.Filter) ([]models.Merchant, error) {
+func (s *DB) ListMerchants(
+	ctx context.Context,
+	filter interfaces.Filter,
+) ([]models.Merchant, error) {
 	var conditions []string
 	var args []interface{}
 	argNum := 1
@@ -98,7 +101,6 @@ func (s *DB) CreateMerchant(ctx context.Context, merchant *models.Merchant) erro
 		merchant.Title,
 		merchant.Changed,
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to create merchant: %w", err)
 	}
@@ -119,7 +121,6 @@ func (s *DB) UpdateMerchant(ctx context.Context, merchant *models.Merchant) erro
 		merchant.Title,
 		merchant.Changed,
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to update merchant: %w", err)
 	}

@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
-	"strings"
 )
 
 // GetAccount retrieves a specific account by its ID
@@ -51,7 +52,6 @@ func (s *DB) GetAccount(ctx context.Context, id string) (*models.Account, error)
 		&account.PayoffStep,
 		&account.PayoffInterval,
 	)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("account not found: %s", id)
@@ -183,7 +183,6 @@ func (s *DB) CreateAccount(ctx context.Context, account *models.Account) error {
 		account.PayoffStep,
 		account.PayoffInterval,
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to create account: %w", err)
 	}
@@ -250,7 +249,6 @@ func (s *DB) UpdateAccount(ctx context.Context, account *models.Account) error {
 		account.PayoffStep,
 		account.PayoffInterval,
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to update account: %w", err)
 	}

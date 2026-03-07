@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
@@ -33,7 +34,10 @@ func (s *DB) GetCountry(ctx context.Context, id int) (*models.Country, error) {
 }
 
 // ListCountries retrieves a list of countries based on the provided filter
-func (s *DB) ListCountries(ctx context.Context, filter interfaces.Filter) ([]models.Country, error) {
+func (s *DB) ListCountries(
+	ctx context.Context,
+	filter interfaces.Filter,
+) ([]models.Country, error) {
 	query := `
         SELECT id, title, currency, domain
         FROM country

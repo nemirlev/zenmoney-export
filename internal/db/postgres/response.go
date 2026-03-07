@@ -3,11 +3,12 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"time"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
-	"log/slog"
-	"time"
 )
 
 // Save saves the entire API response to database

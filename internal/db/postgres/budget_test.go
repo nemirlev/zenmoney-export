@@ -3,11 +3,11 @@ package postgres
 import (
 	"context"
 	"errors"
-	"github.com/jackc/pgx/v5"
-	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
@@ -263,7 +263,12 @@ func TestDeleteBudget_Success(t *testing.T) {
 		WithArgs(userID, tagID, date).
 		WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
-	err = db.DeleteBudget(context.Background(), userID, tagID, time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC))
+	err = db.DeleteBudget(
+		context.Background(),
+		userID,
+		tagID,
+		time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
+	)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -283,7 +288,12 @@ func TestDeleteBudget_NotFound(t *testing.T) {
 		WithArgs(userID, tagID, date).
 		WillReturnResult(pgxmock.NewResult("DELETE", 0))
 
-	err = db.DeleteBudget(context.Background(), userID, tagID, time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC))
+	err = db.DeleteBudget(
+		context.Background(),
+		userID,
+		tagID,
+		time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
+	)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "budget not found")
 	assert.NoError(t, mock.ExpectationsWereMet())

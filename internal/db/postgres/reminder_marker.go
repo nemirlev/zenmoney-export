@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
-	"strings"
 )
 
 // GetReminderMarker retrieves a specific reminder marker by its ID
@@ -41,7 +42,6 @@ func (s *DB) GetReminderMarker(ctx context.Context, id string) (*models.Reminder
 		&marker.Notify,
 		&marker.Tag,
 	)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("reminder marker not found: %s", id)
@@ -53,7 +53,10 @@ func (s *DB) GetReminderMarker(ctx context.Context, id string) (*models.Reminder
 }
 
 // ListReminderMarkers retrieves a list of reminder markers based on the provided filter
-func (s *DB) ListReminderMarkers(ctx context.Context, filter interfaces.Filter) ([]models.ReminderMarker, error) {
+func (s *DB) ListReminderMarkers(
+	ctx context.Context,
+	filter interfaces.Filter,
+) ([]models.ReminderMarker, error) {
 	var conditions []string
 	var args []interface{}
 	argNum := 1
@@ -163,7 +166,6 @@ func (s *DB) CreateReminderMarker(ctx context.Context, marker *models.ReminderMa
 		marker.Notify,
 		marker.Tag,
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to create reminder marker: %w", err)
 	}
@@ -214,7 +216,6 @@ func (s *DB) UpdateReminderMarker(ctx context.Context, marker *models.ReminderMa
 		marker.Notify,
 		marker.Tag,
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to update reminder marker: %w", err)
 	}

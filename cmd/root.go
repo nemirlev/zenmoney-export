@@ -3,12 +3,13 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
+
 	"github.com/nemirlev/zenmoney-export/v2/config"
 	"github.com/nemirlev/zenmoney-export/v2/internal/app"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"log/slog"
-	"os"
 )
 
 type RootCommand struct {

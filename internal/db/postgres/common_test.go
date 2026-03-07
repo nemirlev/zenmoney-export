@@ -3,10 +3,11 @@ package postgres
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestNewPostgresStorage(t *testing.T) {
@@ -15,7 +16,6 @@ func TestNewPostgresStorage(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to parse postgres config")
 	})
-
 }
 
 // Тест для метода Close

@@ -3,10 +3,11 @@ package postgres
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestDeleteObjects_Success(t *testing.T) {

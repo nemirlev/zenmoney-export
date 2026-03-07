@@ -2,9 +2,10 @@ package app
 
 import (
 	"context"
-	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
 	"log/slog"
 	"time"
+
+	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
 )
 
 type SyncService struct {

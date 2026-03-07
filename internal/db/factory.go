@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+
 	"github.com/nemirlev/zenmoney-export/v2/internal/db/postgres"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 )
@@ -37,19 +38,23 @@ func main() {
 				{Object: "transaction", ID: 124},)
 }
 */
-func NewStorage(ctx context.Context, storageType interfaces.StorageType, connectionString string) (interfaces.Storage, error) {
+func NewStorage(
+	ctx context.Context,
+	storageType interfaces.StorageType,
+	connectionString string,
+) (interfaces.Storage, error) {
 	switch storageType {
 	case interfaces.PostgresStorage:
 		return postgres.NewPostgresStorage(connectionString)
-	//case MySQLStorage:
+	// case MySQLStorage:
 	//	return NewMySQLStorage(connectionString)
-	//case MongoStorage:
+	// case MongoStorage:
 	//	return NewMongoStorage(connectionString)
-	//case ClickhouseStorage:
+	// case ClickhouseStorage:
 	//	return NewClickhouseStorage(connectionString)
-	//case RedisStorage:
+	// case RedisStorage:
 	//	return NewRedisStorage(connectionString)
-	//case InMemoryStorage:
+	// case InMemoryStorage:
 	//	return NewInMemoryStorage()
 	default:
 		return nil, fmt.Errorf("unsupported storage type: %s", storageType)
