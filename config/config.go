@@ -3,9 +3,10 @@ package config
 import (
 	"errors"
 	"fmt"
-	"github.com/spf13/viper"
 	"log/slog"
 	"os"
+
+	"github.com/spf13/viper"
 )
 
 type Config struct {
@@ -79,8 +80,7 @@ func initViper() error {
 	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {
-		var configFileNotFoundError viper.ConfigFileNotFoundError
-		if !errors.As(err, &configFileNotFoundError) {
+		if _, ok := errors.AsType[viper.ConfigFileNotFoundError](err); !ok {
 			return err
 		}
 	}

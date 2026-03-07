@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
 )
@@ -26,7 +27,15 @@ func (s *DB) SaveInstruments(ctx context.Context, instruments []models.Instrumen
 
 	batch := &pgx.Batch{}
 	for _, inst := range instruments {
-		batch.Queue(query, inst.ID, inst.Title, inst.ShortTitle, inst.Symbol, inst.Rate, inst.Changed)
+		batch.Queue(
+			query,
+			inst.ID,
+			inst.Title,
+			inst.ShortTitle,
+			inst.Symbol,
+			inst.Rate,
+			inst.Changed,
+		)
 	}
 
 	br := s.pool.SendBatch(ctx, batch)

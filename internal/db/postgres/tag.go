@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
-	"strings"
 )
 
 // GetTag retrieves a specific tag by its ID
@@ -36,7 +37,6 @@ func (s *DB) GetTag(ctx context.Context, id string) (*models.Tag, error) {
 		&tag.Parent,
 		&tag.StaticID,
 	)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("tag not found: %s", id)
@@ -137,7 +137,6 @@ func (s *DB) CreateTag(ctx context.Context, tag *models.Tag) error {
 		tag.Parent,
 		tag.StaticID,
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to create tag: %w", err)
 	}
@@ -180,7 +179,6 @@ func (s *DB) UpdateTag(ctx context.Context, tag *models.Tag) error {
 		tag.Parent,
 		tag.StaticID,
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to update tag: %w", err)
 	}

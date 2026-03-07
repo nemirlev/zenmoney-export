@@ -121,6 +121,15 @@ To ensure the project remains robust, run tests using:
 go test ./...
 ```
 
+### Linting
+
+Linting uses [golangci-lint](https://golangci-lint.run/) v2 with a dedicated module (`golangci-lint.mod`) so the main `go.mod` stays clean. Config: [.golangci.yml](.golangci.yml).
+
+```bash
+make lint        # run linter
+make lint-fix    # run linter with auto-fix
+```
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

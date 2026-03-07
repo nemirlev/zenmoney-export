@@ -3,10 +3,10 @@ package postgres
 import (
 	"context"
 	"errors"
-	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
@@ -142,7 +142,9 @@ func TestListTransactions_Success(t *testing.T) {
 		"test-id", 1, "2023-01-01", 1000.0, 500.0, 1234567890, 1, 2, 1234567890,
 		"Original Payee", false, true, false, ptr("QRCode"), "Source", "IncomeAccount",
 		ptr("OutcomeAccount"), []string{"tag1", "tag2"}, ptr("Comment"), "Payee", 100.0, 50.0,
-		ptr(3), ptr(4), ptr(55.7558), ptr(37.6176), ptr("Merchant"), ptr("IncomeBankID"), ptr("OutcomeBankID"), ptr("ReminderMarker"),
+		ptr(
+			3,
+		), ptr(4), ptr(55.7558), ptr(37.6176), ptr("Merchant"), ptr("IncomeBankID"), ptr("OutcomeBankID"), ptr("ReminderMarker"),
 	)
 
 	mock.ExpectQuery(`SELECT id, "user", date, income, outcome, changed, income_instrument, outcome_instrument, created, original_payee, deleted, viewed, hold, qr_code, source, income_account, outcome_account, tag, comment, payee, op_income, op_outcome, op_income_instrument, op_outcome_instrument, latitude, longitude, merchant, income_bank_id, outcome_bank_id, reminder_marker FROM transaction WHERE "user" = \$1 ORDER BY date DESC, created DESC LIMIT \$2 OFFSET \$3`).

@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgx/v5"
-	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"log/slog"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 )
 
 // SaveSyncStatus saves synchronization status to the database
@@ -26,7 +27,6 @@ func (s *DB) SaveSyncStatus(ctx context.Context, status interfaces.SyncStatus) e
 		status.Status, status.ErrorMessage,
 		time.Now(), time.Now(),
 	).Scan(&status.ID)
-
 	if err != nil {
 		return fmt.Errorf("failed to save sync status: %w", err)
 	}
@@ -51,7 +51,6 @@ func (s *DB) GetLastSyncStatus(ctx context.Context) (interfaces.SyncStatus, erro
 		&status.RecordsProcessed, &status.Status,
 		&status.ErrorMessage, &status.CreatedAt, &status.UpdatedAt,
 	)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			slog.Info("no previous sync element found in database")

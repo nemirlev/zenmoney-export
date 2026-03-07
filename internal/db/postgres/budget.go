@@ -4,15 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
-	"strings"
-	"time"
 )
 
 // GetBudget retrieves a specific budget by user ID, tag ID and date
-func (s *DB) GetBudget(ctx context.Context, userID int, tagID string, date time.Time) (*models.Budget, error) {
+func (s *DB) GetBudget(
+	ctx context.Context,
+	userID int,
+	tagID string,
+	date time.Time,
+) (*models.Budget, error) {
 	query := `
         SELECT "user", changed, date, tag, income, outcome, 
                income_lock, outcome_lock, is_income_forecast, is_outcome_forecast
@@ -32,7 +38,6 @@ func (s *DB) GetBudget(ctx context.Context, userID int, tagID string, date time.
 		&budget.IsIncomeForecast,
 		&budget.IsOutcomeForecast,
 	)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("budget not found for user %d, tag %s, date %s",
@@ -134,7 +139,6 @@ func (s *DB) CreateBudget(ctx context.Context, budget *models.Budget) error {
 		budget.IsIncomeForecast,
 		budget.IsOutcomeForecast,
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to create budget: %w", err)
 	}
@@ -167,7 +171,6 @@ func (s *DB) UpdateBudget(ctx context.Context, budget *models.Budget) error {
 		budget.IsIncomeForecast,
 		budget.IsOutcomeForecast,
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to update budget: %w", err)
 	}

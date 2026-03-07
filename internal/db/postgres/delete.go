@@ -3,9 +3,10 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"log/slog"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
-	"log/slog"
 )
 
 // DeleteObjects handles deletion of multiple objects from different tables

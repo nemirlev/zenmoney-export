@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
-	"strings"
 )
 
 // GetReminder retrieves a specific reminder by its ID
@@ -42,7 +43,6 @@ func (s *DB) GetReminder(ctx context.Context, id string) (*models.Reminder, erro
 		&reminder.Payee,
 		&reminder.Merchant,
 	)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("reminder not found: %s", id)
@@ -54,7 +54,10 @@ func (s *DB) GetReminder(ctx context.Context, id string) (*models.Reminder, erro
 }
 
 // ListReminders retrieves a list of reminders based on the provided filter
-func (s *DB) ListReminders(ctx context.Context, filter interfaces.Filter) ([]models.Reminder, error) {
+func (s *DB) ListReminders(
+	ctx context.Context,
+	filter interfaces.Filter,
+) ([]models.Reminder, error) {
 	var conditions []string
 	var args []interface{}
 	argNum := 1
@@ -154,7 +157,6 @@ func (s *DB) CreateReminder(ctx context.Context, reminder *models.Reminder) erro
 		reminder.Payee,
 		reminder.Merchant,
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to create reminder: %w", err)
 	}
@@ -207,7 +209,6 @@ func (s *DB) UpdateReminder(ctx context.Context, reminder *models.Reminder) erro
 		reminder.Payee,
 		reminder.Merchant,
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to update reminder: %w", err)
 	}

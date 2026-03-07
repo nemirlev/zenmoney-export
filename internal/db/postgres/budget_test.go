@@ -3,11 +3,11 @@ package postgres
 import (
 	"context"
 	"errors"
-	"github.com/jackc/pgx/v5"
-	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
@@ -133,12 +133,11 @@ func TestListBudgets_Success(t *testing.T) {
 		Page:      1,
 	}
 
-	tagID := "test-tag"
 	rows := mock.NewRows([]string{
 		"user", "changed", "date", "tag", "income", "outcome",
 		"income_lock", "outcome_lock", "is_income_forecast", "is_outcome_forecast",
 	}).AddRow(
-		1, 1234567890, "2025-01-15", &tagID, 1000.0, 500.0, true, false, true, false,
+		1, 1234567890, "2025-01-15", new("test-tag"), 1000.0, 500.0, true, false, true, false,
 	)
 
 	mock.ExpectQuery(`SELECT "user", changed, date, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget WHERE "user" = \$1 AND date >= \$2 AND date <= \$3 LIMIT \$4 OFFSET \$5`).
@@ -264,7 +263,12 @@ func TestDeleteBudget_Success(t *testing.T) {
 		WithArgs(userID, tagID, date).
 		WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
-	err = db.DeleteBudget(context.Background(), userID, tagID, time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC))
+	err = db.DeleteBudget(
+		context.Background(),
+		userID,
+		tagID,
+		time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
+	)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -284,7 +288,12 @@ func TestDeleteBudget_NotFound(t *testing.T) {
 		WithArgs(userID, tagID, date).
 		WillReturnResult(pgxmock.NewResult("DELETE", 0))
 
-	err = db.DeleteBudget(context.Background(), userID, tagID, time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC))
+	err = db.DeleteBudget(
+		context.Background(),
+		userID,
+		tagID,
+		time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
+	)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "budget not found")
 	assert.NoError(t, mock.ExpectationsWereMet())

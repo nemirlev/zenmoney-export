@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
-	"strings"
 )
 
 // GetInstrument retrieves a specific instrument by its ID
@@ -37,7 +38,10 @@ func (s *DB) GetInstrument(ctx context.Context, id int) (*models.Instrument, err
 }
 
 // ListInstruments retrieves a list of instruments based on the provided filter
-func (s *DB) ListInstruments(ctx context.Context, filter interfaces.Filter) ([]models.Instrument, error) {
+func (s *DB) ListInstruments(
+	ctx context.Context,
+	filter interfaces.Filter,
+) ([]models.Instrument, error) {
 	var conditions []string
 	var args []interface{}
 	argNum := 1

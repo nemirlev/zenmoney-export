@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
-	"strings"
 )
 
 // GetCompany retrieves a specific company by its ID
@@ -39,7 +40,10 @@ func (s *DB) GetCompany(ctx context.Context, id int) (*models.Company, error) {
 }
 
 // ListCompanies retrieves a list of companies based on the provided filter
-func (s *DB) ListCompanies(ctx context.Context, filter interfaces.Filter) ([]models.Company, error) {
+func (s *DB) ListCompanies(
+	ctx context.Context,
+	filter interfaces.Filter,
+) ([]models.Company, error) {
 	var conditions []string
 	var args []interface{}
 	argNum := 1

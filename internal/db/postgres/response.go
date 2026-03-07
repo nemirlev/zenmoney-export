@@ -3,11 +3,12 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"time"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
-	"log/slog"
-	"time"
 )
 
 // Save saves the entire API response to database
@@ -36,13 +37,11 @@ func (s *DB) Save(ctx context.Context, response *models.Response) error {
 	}
 
 	defer func() {
-		now := time.Now()
-		status.FinishedAt = &now
+		status.FinishedAt = new(time.Now())
 
 		if err != nil {
 			status.Status = "failed"
-			errorMessage := err.Error()
-			status.ErrorMessage = &errorMessage
+			status.ErrorMessage = new(err.Error())
 		} else {
 			status.Status = "completed"
 		}
