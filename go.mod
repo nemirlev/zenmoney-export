@@ -3,7 +3,7 @@ module github.com/nemirlev/zenmoney-export/v2
 go 1.26
 
 require (
-	github.com/jackc/pgx/v5 v5.8.0
+	github.com/jackc/pgx/v5 v5.9.0
 	github.com/nemirlev/zenmoney-go-sdk/v2 v2.0.5
 	github.com/pashagolub/pgxmock/v4 v4.9.0
 	github.com/spf13/cobra v1.10.2
