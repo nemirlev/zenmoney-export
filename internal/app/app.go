@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/nemirlev/zenmoney-export/v2/config"
@@ -9,6 +11,14 @@ import (
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v3/api"
 )
+
+type storageFactory func(
+	ctx context.Context,
+	storageType interfaces.StorageType,
+	connectionString string,
+) (interfaces.Storage, error)
+
+type zenClientFactory func(token string, opts ...api.Option) (*api.Client, error)
 
 type Application struct {
 	cfg       *config.Config
@@ -20,15 +30,27 @@ type Application struct {
 }
 
 func NewApplication(ctx context.Context, cfg *config.Config) (*Application, error) {
+	return newApplication(ctx, cfg, db.NewStorage, api.NewClient)
+}
+
+func newApplication(
+	ctx context.Context,
+	cfg *config.Config,
+	newStorage storageFactory,
+	newZenClient zenClientFactory,
+) (*Application, error) {
 	logger := installDefaultLogger(cfg)
 
-	storage, err := db.NewStorage(ctx, interfaces.StorageType(cfg.DBType), cfg.DBConfig)
+	storage, err := newStorage(ctx, interfaces.StorageType(cfg.DBType), cfg.DBConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	zc, err := api.NewClient(cfg.ZenMoneyToken, api.WithLogger(logger))
+	zc, err := newZenClient(cfg.ZenMoneyToken, api.WithLogger(logger))
 	if err != nil {
+		if closeErr := storage.Close(context.WithoutCancel(ctx)); closeErr != nil {
+			return nil, errors.Join(err, fmt.Errorf("close storage after API client initialization failure: %w", closeErr))
+		}
 		return nil, err
 	}
 
@@ -42,6 +64,13 @@ func NewApplication(ctx context.Context, cfg *config.Config) (*Application, erro
 	app.SyncService = NewSyncService(app)
 
 	return app, nil
+}
+
+func (a *Application) Close(ctx context.Context) error {
+	if a == nil || a.db == nil {
+		return nil
+	}
+	return a.db.Close(ctx)
 }
 
 func installDefaultLogger(cfg *config.Config) *slog.Logger {

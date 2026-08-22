@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
@@ -273,4 +274,79 @@ func TestSyncDryRunLogsSummaryWithoutSaving(t *testing.T) {
 		"transactions":     0,
 		"deletions":        1,
 	}, summaryLog.Counts)
+}
+
+func TestDaemonSyncRejectsNonPositiveIntervals(t *testing.T) {
+	service := &SyncService{}
+
+	for _, interval := range []int{0, -1} {
+		err := service.DaemonSync(context.Background(), &SyncParams{}, interval)
+		require.ErrorContains(t, err, "greater than zero")
+	}
+}
+
+func TestRunDaemonSyncUsesExponentialRetryAndResetsAfterSuccess(t *testing.T) {
+	syncError := errors.New("sync failed")
+	stopError := errors.New("stop test loop")
+	results := []error{syncError, syncError, nil, syncError}
+	syncCalls := 0
+	waits := make([]time.Duration, 0, len(results))
+
+	err := runDaemonSync(
+		context.Background(),
+		func(context.Context, *SyncParams) error {
+			result := results[syncCalls]
+			syncCalls++
+			return result
+		},
+		&SyncParams{},
+		10*time.Second,
+		&exponentialBackoff{initial: time.Second, maximum: 4 * time.Second},
+		func(_ context.Context, duration time.Duration) error {
+			waits = append(waits, duration)
+			if len(waits) == len(results) {
+				return stopError
+			}
+			return nil
+		},
+	)
+
+	require.ErrorIs(t, err, stopError)
+	require.Equal(t, len(results), syncCalls, "the first sync must run before the first wait")
+	require.Equal(t, []time.Duration{
+		time.Second,
+		2 * time.Second,
+		10 * time.Second,
+		time.Second,
+	}, waits)
+}
+
+func TestRunDaemonSyncCancellationInterruptsWaitCleanly(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	syncStarted := make(chan struct{})
+	result := make(chan error, 1)
+
+	go func() {
+		result <- runDaemonSync(
+			ctx,
+			func(context.Context, *SyncParams) error {
+				close(syncStarted)
+				return nil
+			},
+			&SyncParams{},
+			time.Hour,
+			&exponentialBackoff{initial: time.Second, maximum: 4 * time.Second},
+			waitForContext,
+		)
+	}()
+
+	<-syncStarted
+	cancel()
+
+	select {
+	case err := <-result:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("daemon did not stop after context cancellation")
+	}
 }

@@ -2,10 +2,16 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"testing"
 
 	"github.com/nemirlev/zenmoney-export/v2/config"
+	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
+	"github.com/nemirlev/zenmoney-export/v2/mocks"
+	"github.com/nemirlev/zenmoney-go-sdk/v3/api"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func TestInstallDefaultLoggerHonorsConfiguredLevel(t *testing.T) {
@@ -38,4 +44,40 @@ func TestInstallDefaultLoggerHonorsConfiguredLevel(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewApplicationClosesStorageWhenAPIClientInitializationFails(t *testing.T) {
+	originalLogger := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(originalLogger) })
+
+	storage := mocks.NewStorage(t)
+	storage.On("Close", mock.MatchedBy(func(ctx context.Context) bool {
+		return ctx.Err() == nil
+	})).Return(nil).Once()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	clientError := errors.New("invalid API client configuration")
+
+	application, err := newApplication(
+		ctx,
+		&config.Config{DBType: "postgres", DBConfig: "postgres://example", ZenMoneyToken: "token"},
+		func(context.Context, interfaces.StorageType, string) (interfaces.Storage, error) {
+			return storage, nil
+		},
+		func(string, ...api.Option) (*api.Client, error) {
+			return nil, clientError
+		},
+	)
+
+	require.Nil(t, application)
+	require.ErrorIs(t, err, clientError)
+}
+
+func TestApplicationCloseClosesStorage(t *testing.T) {
+	storage := mocks.NewStorage(t)
+	storage.On("Close", mock.Anything).Return(nil).Once()
+	application := &Application{db: storage}
+
+	require.NoError(t, application.Close(context.Background()))
 }

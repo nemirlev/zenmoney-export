@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/nemirlev/zenmoney-export/v2/config"
 	"github.com/nemirlev/zenmoney-export/v2/internal/app"
@@ -80,8 +82,7 @@ func (r *RootCommand) preRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	ctx := context.Background()
-	application, err := app.NewApplication(ctx, cfg)
+	application, err := app.NewApplication(cmd.Context(), cfg)
 	if err != nil {
 		return fmt.Errorf("failed to initialize application: %w", err)
 	}
@@ -92,7 +93,10 @@ func (r *RootCommand) preRun(cmd *cobra.Command, args []string) error {
 
 func Execute() {
 	root := NewRootCommand()
-	if err := root.Execute(); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := root.ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

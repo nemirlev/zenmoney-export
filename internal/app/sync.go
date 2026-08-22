@@ -21,6 +21,19 @@ type SyncService struct {
 	client zenMoneySyncClient
 }
 
+const (
+	initialDaemonRetryDelay = time.Minute
+	maximumDaemonRetryDelay = 15 * time.Minute
+)
+
+type exponentialBackoff struct {
+	initial time.Duration
+	maximum time.Duration
+	current time.Duration
+}
+
+type contextWaitFunc func(ctx context.Context, duration time.Duration) error
+
 func NewSyncService(app *Application) *SyncService {
 	return &SyncService{app: app, client: app.zenClient}
 }
@@ -207,11 +220,84 @@ func (s *SyncService) Sync(ctx context.Context, p *SyncParams) error {
 }
 
 func (s *SyncService) DaemonSync(ctx context.Context, p *SyncParams, interval int) error {
+	if interval <= 0 {
+		return fmt.Errorf("daemon sync interval must be greater than zero minutes")
+	}
+
 	slog.Info("Running daemon sync", "interval_minutes", interval)
+	return runDaemonSync(
+		ctx,
+		s.Sync,
+		p,
+		time.Duration(interval)*time.Minute,
+		&exponentialBackoff{
+			initial: initialDaemonRetryDelay,
+			maximum: maximumDaemonRetryDelay,
+		},
+		waitForContext,
+	)
+}
+
+func runDaemonSync(
+	ctx context.Context,
+	sync func(context.Context, *SyncParams) error,
+	params *SyncParams,
+	interval time.Duration,
+	backoff *exponentialBackoff,
+	wait contextWaitFunc,
+) error {
 	for {
-		if err := s.Sync(ctx, p); err != nil {
-			slog.Error("sync failed", "error", err)
+		if ctx.Err() != nil {
+			return nil
 		}
-		time.Sleep(time.Duration(interval) * time.Minute)
+
+		err := sync(ctx, params)
+		if ctx.Err() != nil {
+			return nil
+		}
+
+		delay := interval
+		if err != nil {
+			slog.Error("sync failed", "error", err)
+			delay = backoff.Next()
+		} else {
+			backoff.Reset()
+		}
+
+		if err := wait(ctx, delay); err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			return err
+		}
+	}
+}
+
+func (b *exponentialBackoff) Next() time.Duration {
+	if b.current == 0 {
+		b.current = b.initial
+		return b.current
+	}
+	if b.current >= b.maximum/2 {
+		b.current = b.maximum
+		return b.current
+	}
+	b.current *= 2
+	return b.current
+}
+
+func (b *exponentialBackoff) Reset() {
+	b.current = 0
+}
+
+func waitForContext(ctx context.Context, duration time.Duration) error {
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
 	}
 }
