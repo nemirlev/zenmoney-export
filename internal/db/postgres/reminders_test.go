@@ -35,12 +35,12 @@ func TestGetReminder_Success(t *testing.T) {
 		StartDate:         "2025-01-01",
 		EndDate:           nil,
 		Notify:            true,
-		Interval:          ptr("week"),
+		Interval:          new("week"),
 		IncomeAccount:     "income-account",
 		OutcomeAccount:    "outcome-account",
-		Comment:           ptr("test comment"),
-		Payee:             ptr("payee-id"),
-		Merchant:          ptr("merchant-id"),
+		Comment:           new("test comment"),
+		Payee:             new("payee-id"),
+		Merchant:          new("merchant-id"),
 	}
 
 	rows := mock.NewRows([]string{
@@ -132,7 +132,7 @@ func TestListReminders_Success(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID: ptr(1),
+		UserID: new(1),
 		Limit:  10,
 		Page:   1,
 	}
@@ -151,12 +151,12 @@ func TestListReminders_Success(t *testing.T) {
 		StartDate:         "2025-01-01",
 		EndDate:           nil,
 		Notify:            true,
-		Interval:          ptr("week"),
+		Interval:          new("week"),
 		IncomeAccount:     "income-account",
 		OutcomeAccount:    "outcome-account",
-		Comment:           ptr("test comment"),
-		Payee:             ptr("payee-id"),
-		Merchant:          ptr("merchant-id"),
+		Comment:           new("test comment"),
+		Payee:             new("payee-id"),
+		Merchant:          new("merchant-id"),
 	}
 
 	rows := mock.NewRows([]string{
@@ -206,7 +206,7 @@ func TestListReminders_QueryError(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID: ptr(1),
+		UserID: new(1),
 		Limit:  10,
 		Page:   1,
 	}
@@ -244,12 +244,12 @@ func TestCreateReminder_Success(t *testing.T) {
 		StartDate:         "2025-01-01",
 		EndDate:           nil,
 		Notify:            true,
-		Interval:          ptr("week"),
+		Interval:          new("week"),
 		IncomeAccount:     "income-account",
 		OutcomeAccount:    "outcome-account",
-		Comment:           ptr("test comment"),
-		Payee:             ptr("payee-id"),
-		Merchant:          ptr("merchant-id"),
+		Comment:           new("test comment"),
+		Payee:             new("payee-id"),
+		Merchant:          new("merchant-id"),
 	}
 
 	mock.ExpectExec(`INSERT INTO reminder \(
@@ -306,12 +306,12 @@ func TestCreateReminder_QueryError(t *testing.T) {
 		StartDate:         "2025-01-01",
 		EndDate:           nil,
 		Notify:            true,
-		Interval:          ptr("week"),
+		Interval:          new("week"),
 		IncomeAccount:     "income-account",
 		OutcomeAccount:    "outcome-account",
-		Comment:           ptr("test comment"),
-		Payee:             ptr("payee-id"),
-		Merchant:          ptr("merchant-id"),
+		Comment:           new("test comment"),
+		Payee:             new("payee-id"),
+		Merchant:          new("merchant-id"),
 	}
 
 	mock.ExpectExec(`INSERT INTO reminder \(
@@ -370,12 +370,12 @@ func TestUpdateReminder_Success(t *testing.T) {
 		StartDate:         "2025-01-01",
 		EndDate:           nil,
 		Notify:            true,
-		Interval:          ptr("week"),
+		Interval:          new("week"),
 		IncomeAccount:     "income-account",
 		OutcomeAccount:    "outcome-account",
-		Comment:           ptr("test comment"),
-		Payee:             ptr("payee-id"),
-		Merchant:          ptr("merchant-id"),
+		Comment:           new("test comment"),
+		Payee:             new("payee-id"),
+		Merchant:          new("merchant-id"),
 	}
 
 	mock.ExpectExec(`UPDATE reminder SET
@@ -447,12 +447,12 @@ func TestUpdateReminder_NotFound(t *testing.T) {
 		StartDate:         "2025-01-01",
 		EndDate:           nil,
 		Notify:            true,
-		Interval:          ptr("week"),
+		Interval:          new("week"),
 		IncomeAccount:     "income-account",
 		OutcomeAccount:    "outcome-account",
-		Comment:           ptr("test comment"),
-		Payee:             ptr("payee-id"),
-		Merchant:          ptr("merchant-id"),
+		Comment:           new("test comment"),
+		Payee:             new("payee-id"),
+		Merchant:          new("merchant-id"),
 	}
 
 	mock.ExpectExec(`UPDATE reminder SET
@@ -525,12 +525,12 @@ func TestUpdateReminder_QueryError(t *testing.T) {
 		StartDate:         "2025-01-01",
 		EndDate:           nil,
 		Notify:            true,
-		Interval:          ptr("week"),
+		Interval:          new("week"),
 		IncomeAccount:     "income-account",
 		OutcomeAccount:    "outcome-account",
-		Comment:           ptr("test comment"),
-		Payee:             ptr("payee-id"),
-		Merchant:          ptr("merchant-id"),
+		Comment:           new("test comment"),
+		Payee:             new("payee-id"),
+		Merchant:          new("merchant-id"),
 	}
 
 	mock.ExpectExec(`UPDATE reminder SET

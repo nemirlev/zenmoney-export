@@ -52,7 +52,7 @@ func (s *DB) GetBudget(
 // ListBudgets retrieves a list of budgets based on the provided filter
 func (s *DB) ListBudgets(ctx context.Context, filter interfaces.Filter) ([]models.Budget, error) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argNum := 1
 
 	if filter.UserID != nil {

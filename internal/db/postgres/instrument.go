@@ -43,7 +43,7 @@ func (s *DB) ListInstruments(
 	filter interfaces.Filter,
 ) ([]models.Instrument, error) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argNum := 1
 
 	// Build the WHERE clause based on filter

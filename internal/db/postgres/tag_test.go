@@ -24,17 +24,17 @@ func TestGetTag_Success(t *testing.T) {
 		ID:            tagID,
 		User:          1,
 		Changed:       1234567890,
-		Icon:          ptr("icon"),
+		Icon:          new("icon"),
 		BudgetIncome:  true,
 		BudgetOutcome: false,
-		Required:      ptr(true),
+		Required:      new(true),
 		Archive:       true,
-		Color:         ptr(int64(123456)),
-		Picture:       ptr("picture"),
+		Color:         new(int64(123456)),
+		Picture:       new("picture"),
 		Title:         "Test Tag",
 		ShowIncome:    true,
 		ShowOutcome:   false,
-		Parent:        ptr("parent-id"),
+		Parent:        new("parent-id"),
 		StaticID:      "static-id",
 	}
 
@@ -110,7 +110,7 @@ func TestListTags_Success(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID: ptr(1),
+		UserID: new(1),
 		Limit:  10,
 		Page:   1,
 	}
@@ -120,9 +120,9 @@ func TestListTags_Success(t *testing.T) {
 		"required", "archive", "color", "picture", "title", "show_income", "show_outcome",
 		"parent", "static_id",
 	}).AddRow(
-		"test-id", 1, 1234567890, ptr("icon"), true, false,
-		ptr(true), true, ptr(int64(123456)), ptr("picture"), "Test Tag", true, false,
-		ptr("parent-id"), "static-id",
+		"test-id", 1, 1234567890, new("icon"), true, false,
+		new(true), true, new(int64(123456)), new("picture"), "Test Tag", true, false,
+		new("parent-id"), "static-id",
 	)
 
 	mock.ExpectQuery(`SELECT id, "user", changed, icon, budget_income, budget_outcome, required, archive, color, picture, title, show_income, show_outcome, parent, static_id FROM tag WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
@@ -145,7 +145,7 @@ func TestListTags_QueryError(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID: ptr(1),
+		UserID: new(1),
 		Limit:  10,
 		Page:   1,
 	}
@@ -170,7 +170,7 @@ func TestListTags_NoResults(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID: ptr(1),
+		UserID: new(1),
 		Limit:  10,
 		Page:   1,
 	}
@@ -203,17 +203,17 @@ func TestCreateTag_Success(t *testing.T) {
 		ID:            "test-id",
 		User:          1,
 		Changed:       1234567890,
-		Icon:          ptr("icon"),
+		Icon:          new("icon"),
 		BudgetIncome:  true,
 		BudgetOutcome: false,
-		Required:      ptr(true),
+		Required:      new(true),
 		Archive:       true,
-		Color:         ptr(int64(123456)),
-		Picture:       ptr("picture"),
+		Color:         new(int64(123456)),
+		Picture:       new("picture"),
 		Title:         "Test Tag",
 		ShowIncome:    true,
 		ShowOutcome:   false,
-		Parent:        ptr("parent-id"),
+		Parent:        new("parent-id"),
 		StaticID:      "static-id",
 	}
 
@@ -242,17 +242,17 @@ func TestCreateTag_QueryError(t *testing.T) {
 		ID:            "test-id",
 		User:          1,
 		Changed:       1234567890,
-		Icon:          ptr("icon"),
+		Icon:          new("icon"),
 		BudgetIncome:  true,
 		BudgetOutcome: false,
-		Required:      ptr(true),
+		Required:      new(true),
 		Archive:       true,
-		Color:         ptr(int64(123456)),
-		Picture:       ptr("picture"),
+		Color:         new(int64(123456)),
+		Picture:       new("picture"),
 		Title:         "Test Tag",
 		ShowIncome:    true,
 		ShowOutcome:   false,
-		Parent:        ptr("parent-id"),
+		Parent:        new("parent-id"),
 		StaticID:      "static-id",
 	}
 
@@ -282,17 +282,17 @@ func TestUpdateTag_Success(t *testing.T) {
 		ID:            "test-id",
 		User:          1,
 		Changed:       1234567890,
-		Icon:          ptr("icon"),
+		Icon:          new("icon"),
 		BudgetIncome:  true,
 		BudgetOutcome: false,
-		Required:      ptr(true),
+		Required:      new(true),
 		Archive:       true,
-		Color:         ptr(int64(123456)),
-		Picture:       ptr("picture"),
+		Color:         new(int64(123456)),
+		Picture:       new("picture"),
 		Title:         "Updated Tag",
 		ShowIncome:    true,
 		ShowOutcome:   false,
-		Parent:        ptr("parent-id"),
+		Parent:        new("parent-id"),
 		StaticID:      "static-id",
 	}
 
@@ -321,17 +321,17 @@ func TestUpdateTag_NotFound(t *testing.T) {
 		ID:            "non-existing-id",
 		User:          1,
 		Changed:       1234567890,
-		Icon:          ptr("icon"),
+		Icon:          new("icon"),
 		BudgetIncome:  true,
 		BudgetOutcome: false,
-		Required:      ptr(true),
+		Required:      new(true),
 		Archive:       true,
-		Color:         ptr(int64(123456)),
-		Picture:       ptr("picture"),
+		Color:         new(int64(123456)),
+		Picture:       new("picture"),
 		Title:         "Updated Tag",
 		ShowIncome:    true,
 		ShowOutcome:   false,
-		Parent:        ptr("parent-id"),
+		Parent:        new("parent-id"),
 		StaticID:      "static-id",
 	}
 
@@ -361,17 +361,17 @@ func TestUpdateTag_QueryError(t *testing.T) {
 		ID:            "test-id",
 		User:          1,
 		Changed:       1234567890,
-		Icon:          ptr("icon"),
+		Icon:          new("icon"),
 		BudgetIncome:  true,
 		BudgetOutcome: false,
-		Required:      ptr(true),
+		Required:      new(true),
 		Archive:       true,
-		Color:         ptr(int64(123456)),
-		Picture:       ptr("picture"),
+		Color:         new(int64(123456)),
+		Picture:       new("picture"),
 		Title:         "Updated Tag",
 		ShowIncome:    true,
 		ShowOutcome:   false,
-		Parent:        ptr("parent-id"),
+		Parent:        new("parent-id"),
 		StaticID:      "static-id",
 	}
 

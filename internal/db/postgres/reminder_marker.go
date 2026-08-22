@@ -58,7 +58,7 @@ func (s *DB) ListReminderMarkers(
 	filter interfaces.Filter,
 ) ([]models.ReminderMarker, error) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argNum := 1
 
 	if filter.UserID != nil {

@@ -51,7 +51,7 @@ func (s *DB) GetTag(ctx context.Context, id string) (*models.Tag, error) {
 // ListTags retrieves a list of tags based on the provided filter
 func (s *DB) ListTags(ctx context.Context, filter interfaces.Filter) ([]models.Tag, error) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argNum := 1
 
 	// Build WHERE clause based on filter

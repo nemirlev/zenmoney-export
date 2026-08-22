@@ -59,7 +59,7 @@ func (s *DB) ListReminders(
 	filter interfaces.Filter,
 ) ([]models.Reminder, error) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argNum := 1
 
 	if filter.UserID != nil {

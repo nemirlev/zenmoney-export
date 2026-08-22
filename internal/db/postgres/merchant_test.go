@@ -25,7 +25,7 @@ func TestGetMerchant_Success(t *testing.T) {
 		User:    1,
 		Title:   "Test Merchant",
 		Changed: 1234567890,
-		MCC:     ptr(5411),
+		MCC:     new(5411),
 	}
 
 	rows := mock.NewRows([]string{"id", "user", "title", "changed", "mcc"}).
@@ -92,13 +92,13 @@ func TestListMerchants_Success(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID: ptr(1),
+		UserID: new(1),
 		Limit:  10,
 		Page:   1,
 	}
 
 	rows := mock.NewRows([]string{"id", "user", "title", "changed", "mcc"}).
-		AddRow("test-id", 1, "Test Merchant", 1234567890, ptr(5411))
+		AddRow("test-id", 1, "Test Merchant", 1234567890, new(5411))
 
 	mock.ExpectQuery(`SELECT id, "user", title, changed, mcc FROM merchant WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
 		WithArgs(1, 10, 0).
@@ -121,7 +121,7 @@ func TestListMerchants_QueryError(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID: ptr(1),
+		UserID: new(1),
 		Limit:  10,
 		Page:   1,
 	}
@@ -146,7 +146,7 @@ func TestListMerchants_NoResults(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID: ptr(1),
+		UserID: new(1),
 		Limit:  10,
 		Page:   1,
 	}
@@ -174,7 +174,7 @@ func TestCreateMerchant_Success(t *testing.T) {
 		User:    1,
 		Title:   "Test Merchant",
 		Changed: 1234567890,
-		MCC:     ptr(5411),
+		MCC:     new(5411),
 	}
 
 	mock.ExpectExec(`INSERT INTO merchant \(id, "user", title, changed, mcc\) VALUES \(\$1, \$2, \$3, \$4, \$5\)`).
@@ -199,7 +199,7 @@ func TestCreateMerchant_QueryError(t *testing.T) {
 		User:    1,
 		Title:   "Test Merchant",
 		Changed: 1234567890,
-		MCC:     ptr(5411),
+		MCC:     new(5411),
 	}
 
 	mock.ExpectExec(`INSERT INTO merchant \(id, "user", title, changed, mcc\) VALUES \(\$1, \$2, \$3, \$4, \$5\)`).
@@ -225,7 +225,7 @@ func TestUpdateMerchant_Success(t *testing.T) {
 		User:    1,
 		Title:   "Test Merchant",
 		Changed: 1234567890,
-		MCC:     ptr(5411),
+		MCC:     new(5411),
 	}
 
 	mock.ExpectExec(`UPDATE merchant SET "user" = \$2, title = \$3, changed = \$4, mcc = \$5 WHERE id = \$1`).
@@ -250,7 +250,7 @@ func TestUpdateMerchant_QueryError(t *testing.T) {
 		User:    1,
 		Title:   "Test Merchant",
 		Changed: 1234567890,
-		MCC:     ptr(5411),
+		MCC:     new(5411),
 	}
 
 	mock.ExpectExec(`UPDATE merchant SET "user" = \$2, title = \$3, changed = \$4, mcc = \$5 WHERE id = \$1`).

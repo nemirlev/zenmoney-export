@@ -42,7 +42,7 @@ func (s *DB) ListMerchants(
 	filter interfaces.Filter,
 ) ([]models.Merchant, error) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argNum := 1
 
 	if filter.UserID != nil {

@@ -94,7 +94,7 @@ func TestListInstruments_Success(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID: ptr(1),
+		UserID: new(1),
 		Limit:  10,
 		Page:   1,
 	}
@@ -128,7 +128,7 @@ func TestListInstruments_QueryError(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID: ptr(1),
+		UserID: new(1),
 		Limit:  10,
 		Page:   1,
 	}

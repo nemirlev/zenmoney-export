@@ -45,7 +45,7 @@ func (s *DB) ListCompanies(
 	filter interfaces.Filter,
 ) ([]models.Company, error) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argNum := 1
 
 	// Build the WHERE clause based on filter

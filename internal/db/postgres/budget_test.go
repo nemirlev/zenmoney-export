@@ -126,9 +126,9 @@ func TestListBudgets_Success(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID:    ptr(1),
-		StartDate: ptr(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
-		EndDate:   ptr(time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)),
+		UserID:    new(1),
+		StartDate: new(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
+		EndDate:   new(time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)),
 		Limit:     10,
 		Page:      1,
 	}
@@ -162,9 +162,9 @@ func TestListBudgets_QueryError(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID:    ptr(1),
-		StartDate: ptr(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
-		EndDate:   ptr(time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)),
+		UserID:    new(1),
+		StartDate: new(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
+		EndDate:   new(time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)),
 		Limit:     10,
 		Page:      1,
 	}
@@ -192,7 +192,7 @@ func TestCreateBudget_Success(t *testing.T) {
 		User:              1,
 		Changed:           1234567890,
 		Date:              "2025-02-01",
-		Tag:               ptr("test-tag"),
+		Tag:               new("test-tag"),
 		Income:            1000.0,
 		Outcome:           500.0,
 		IncomeLock:        true,
@@ -225,7 +225,7 @@ func TestCreateBudget_QueryError(t *testing.T) {
 		User:              1,
 		Changed:           1234567890,
 		Date:              "2025-02-01",
-		Tag:               ptr("test-tag"),
+		Tag:               new("test-tag"),
 		Income:            1000.0,
 		Outcome:           500.0,
 		IncomeLock:        true,

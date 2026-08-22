@@ -111,7 +111,7 @@ func TestListUsers_Success(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID: ptr(1),
+		UserID: new(1),
 		Limit:  10,
 		Page:   1,
 	}
@@ -148,7 +148,7 @@ func TestListUsers_QueryError(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID: ptr(1),
+		UserID: new(1),
 		Limit:  10,
 		Page:   1,
 	}

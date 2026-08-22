@@ -62,7 +62,7 @@ func TestSaveCompanies_Success(t *testing.T) {
 		{
 			ID:          1,
 			Title:       "Bank",
-			FullTitle:   ptr("Bank Inc."),
+			FullTitle:   new("Bank Inc."),
 			Www:         "www.bank.com",
 			Country:     1,
 			Deleted:     false,
@@ -159,7 +159,7 @@ func TestSaveMerchants_Success(t *testing.T) {
 	db := &DB{pool: mock}
 
 	merchants := []models.Merchant{
-		{ID: "merchant-1", User: 1, Title: "Amazon", Changed: 123456, MCC: ptr(5411)},
+		{ID: "merchant-1", User: 1, Title: "Amazon", Changed: 123456, MCC: new(5411)},
 	}
 
 	batch := mock.ExpectBatch()
@@ -228,7 +228,7 @@ func TestSaveReminders_Success(t *testing.T) {
 			Interval:          nil,
 			IncomeAccount:     "acc-1",
 			OutcomeAccount:    "acc-2",
-			Comment:           ptr("Test Reminder"),
+			Comment:           new("Test Reminder"),
 			Payee:             nil,
 			Merchant:          nil,
 		},
@@ -309,7 +309,7 @@ func TestSaveTransactions_Success(t *testing.T) {
 			QRCode:              nil,
 			Source:              "bank",
 			IncomeAccount:       "acc-1",
-			OutcomeAccount:      ptr("acc-2"),
+			OutcomeAccount:      new("acc-2"),
 			Tag:                 []string{"tag-1"},
 			Comment:             nil,
 			Payee:               "Payee-1",

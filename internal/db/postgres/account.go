@@ -65,7 +65,7 @@ func (s *DB) GetAccount(ctx context.Context, id string) (*models.Account, error)
 // ListAccounts retrieves a list of accounts based on the provided filter
 func (s *DB) ListAccounts(ctx context.Context, filter interfaces.Filter) ([]models.Account, error) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argNum := 1
 
 	// Build WHERE clause based on filter

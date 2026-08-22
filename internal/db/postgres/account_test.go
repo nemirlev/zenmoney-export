@@ -96,7 +96,7 @@ func TestListAccounts_Success(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID: ptr(1), // ptr — вспомогательная функция, объявленная ниже
+		UserID: new(1),
 		Limit:  10,
 		Page:   1,
 	}
@@ -135,7 +135,7 @@ func TestListAccounts_QueryError(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID: ptr(1),
+		UserID: new(1),
 		Limit:  10,
 		Page:   1,
 	}
@@ -325,8 +325,4 @@ func TestDeleteAccount_NotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "account not found")
 
 	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
-func ptr[T any](v T) *T {
-	return &v
 }

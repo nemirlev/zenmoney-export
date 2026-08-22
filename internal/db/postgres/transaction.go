@@ -72,7 +72,7 @@ func (s *DB) ListTransactions(
 	filter interfaces.Filter,
 ) ([]models.Transaction, error) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argNum := 1
 
 	if filter.UserID != nil {

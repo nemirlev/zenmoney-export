@@ -52,7 +52,7 @@ func (s *DB) GetUser(ctx context.Context, id int) (*models.User, error) {
 // ListUsers retrieves a list of users based on the provided filter
 func (s *DB) ListUsers(ctx context.Context, filter interfaces.Filter) ([]models.User, error) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argNum := 1
 
 	// Build the WHERE clause based on filter

@@ -26,7 +26,7 @@ func TestGetCompany_Success(t *testing.T) {
 	expectedCompany := &models.Company{
 		ID:          companyID,
 		Title:       "Test Company",
-		FullTitle:   ptr("Test Company Full Title"),
+		FullTitle:   new("Test Company Full Title"),
 		Www:         "https://testcompany.com",
 		Country:     1,
 		Deleted:     false,
@@ -89,7 +89,7 @@ func TestListCompanies_Success(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID: ptr(1),
+		UserID: new(1),
 		Limit:  10,
 		Page:   1,
 	}
@@ -97,7 +97,7 @@ func TestListCompanies_Success(t *testing.T) {
 	rows := mock.NewRows([]string{
 		"id", "title", "full_title", "www", "country", "deleted", "country_code", "changed",
 	}).AddRow(
-		1, "Test Company", ptr("Test Company Full Title"), "https://testcompany.com", 1, false, "TC", 1234567890,
+		1, "Test Company", new("Test Company Full Title"), "https://testcompany.com", 1, false, "TC", 1234567890,
 	)
 
 	mock.ExpectQuery(`SELECT id, title, full_title, www, country, deleted, country_code, changed FROM company WHERE user_id = \$1 LIMIT \$2 OFFSET \$3`).
@@ -121,7 +121,7 @@ func TestListCompanies_QueryError(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID: ptr(1),
+		UserID: new(1),
 		Limit:  10,
 		Page:   1,
 	}
@@ -149,7 +149,7 @@ func TestCreateCompany_Success(t *testing.T) {
 	company := &models.Company{
 		ID:          1,
 		Title:       "Test Company",
-		FullTitle:   ptr("Test Company Full Title"),
+		FullTitle:   new("Test Company Full Title"),
 		Www:         "https://testcompany.com",
 		Country:     1,
 		Deleted:     false,
@@ -181,7 +181,7 @@ func TestCreateCompany_QueryError(t *testing.T) {
 	company := &models.Company{
 		ID:          1,
 		Title:       "Test Company",
-		FullTitle:   ptr("Test Company Full Title"),
+		FullTitle:   new("Test Company Full Title"),
 		Www:         "https://testcompany.com",
 		Country:     1,
 		Deleted:     false,
@@ -214,7 +214,7 @@ func TestUpdateCompany_Success(t *testing.T) {
 	company := &models.Company{
 		ID:          1,
 		Title:       "Updated Company",
-		FullTitle:   ptr("Updated Company Full Title"),
+		FullTitle:   new("Updated Company Full Title"),
 		Www:         "https://updatedcompany.com",
 		Country:     1,
 		Deleted:     false,
@@ -246,7 +246,7 @@ func TestUpdateCompany_NotFound(t *testing.T) {
 	company := &models.Company{
 		ID:          1,
 		Title:       "Updated Company",
-		FullTitle:   ptr("Updated Company Full Title"),
+		FullTitle:   new("Updated Company Full Title"),
 		Www:         "https://updatedcompany.com",
 		Country:     1,
 		Deleted:     false,

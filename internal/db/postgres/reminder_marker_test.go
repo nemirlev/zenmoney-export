@@ -35,8 +35,8 @@ func TestGetReminderMarker_Success(t *testing.T) {
 		IncomeAccount:     "income-account-id",
 		OutcomeAccount:    "outcome-account-id",
 		Comment:           "test comment",
-		Payee:             ptr("payee-id"),
-		Merchant:          ptr("merchant-id"),
+		Payee:             new("payee-id"),
+		Merchant:          new("merchant-id"),
 		Notify:            true,
 		Tag:               []string{"tag1", "tag2"},
 	}
@@ -125,9 +125,9 @@ func TestListReminderMarkers_Success(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID:    ptr(1),
-		StartDate: ptr(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
-		EndDate:   ptr(time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)),
+		UserID:    new(1),
+		StartDate: new(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
+		EndDate:   new(time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)),
 		Limit:     10,
 		Page:      1,
 	}
@@ -147,8 +147,8 @@ func TestListReminderMarkers_Success(t *testing.T) {
 		IncomeAccount:     "income-account-id",
 		OutcomeAccount:    "outcome-account-id",
 		Comment:           "test comment",
-		Payee:             ptr("payee-id"),
-		Merchant:          ptr("merchant-id"),
+		Payee:             new("payee-id"),
+		Merchant:          new("merchant-id"),
 		Notify:            true,
 		Tag:               []string{"tag1", "tag2"},
 	}
@@ -199,9 +199,9 @@ func TestListReminderMarkers_QueryError(t *testing.T) {
 	db := &DB{pool: mock}
 
 	filter := interfaces.Filter{
-		UserID:    ptr(1),
-		StartDate: ptr(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
-		EndDate:   ptr(time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)),
+		UserID:    new(1),
+		StartDate: new(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
+		EndDate:   new(time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)),
 		Limit:     10,
 		Page:      1,
 	}
@@ -240,8 +240,8 @@ func TestCreateReminderMarker_Success(t *testing.T) {
 		IncomeAccount:     "income-account-id",
 		OutcomeAccount:    "outcome-account-id",
 		Comment:           "test comment",
-		Payee:             ptr("payee-id"),
-		Merchant:          ptr("merchant-id"),
+		Payee:             new("payee-id"),
+		Merchant:          new("merchant-id"),
 		Notify:            true,
 		Tag:               []string{"tag1", "tag2"},
 	}
@@ -300,8 +300,8 @@ func TestCreateReminderMarker_QueryError(t *testing.T) {
 		IncomeAccount:     "income-account-id",
 		OutcomeAccount:    "outcome-account-id",
 		Comment:           "test comment",
-		Payee:             ptr("payee-id"),
-		Merchant:          ptr("merchant-id"),
+		Payee:             new("payee-id"),
+		Merchant:          new("merchant-id"),
 		Notify:            true,
 		Tag:               []string{"tag1", "tag2"},
 	}
@@ -362,8 +362,8 @@ func TestUpdateReminderMarker_Success(t *testing.T) {
 		IncomeAccount:     "income-account-id",
 		OutcomeAccount:    "outcome-account-id",
 		Comment:           "test comment",
-		Payee:             ptr("payee-id"),
-		Merchant:          ptr("merchant-id"),
+		Payee:             new("payee-id"),
+		Merchant:          new("merchant-id"),
 		Notify:            true,
 		Tag:               []string{"tag1", "tag2"},
 	}
@@ -435,8 +435,8 @@ func TestUpdateReminderMarker_QueryError(t *testing.T) {
 		IncomeAccount:     "income-account-id",
 		OutcomeAccount:    "outcome-account-id",
 		Comment:           "test comment",
-		Payee:             ptr("payee-id"),
-		Merchant:          ptr("merchant-id"),
+		Payee:             new("payee-id"),
+		Merchant:          new("merchant-id"),
 		Notify:            true,
 		Tag:               []string{"tag1", "tag2"},
 	}
