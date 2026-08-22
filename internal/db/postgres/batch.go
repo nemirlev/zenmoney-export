@@ -61,10 +61,45 @@ func executeBatch(
 	return nil
 }
 
+func (s *DB) saveBatchTransaction(
+	ctx context.Context,
+	save func(pgx.Tx) error,
+) (err error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin batch transaction: %w", err)
+	}
+
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		rollbackErr := tx.Rollback(context.WithoutCancel(ctx))
+		if rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {
+			err = errors.Join(err, fmt.Errorf("rollback batch transaction: %w", rollbackErr))
+		}
+	}()
+
+	if err := save(tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit batch transaction: %w", err)
+	}
+	committed = true
+	return nil
+}
+
 // SaveInstruments saves a batch of instruments to the database
 // It performs an upsert operation: inserts new records and updates existing ones based on their ID
 func (s *DB) SaveInstruments(ctx context.Context, instruments []models.Instrument) error {
-	return saveInstruments(ctx, s.pool, instruments, interfaces.DefaultBatchSize)
+	if len(instruments) == 0 {
+		return nil
+	}
+	return s.saveBatchTransaction(ctx, func(tx pgx.Tx) error {
+		return saveInstruments(ctx, tx, instruments, interfaces.DefaultBatchSize)
+	})
 }
 
 func saveInstruments(ctx context.Context, db batchSender, instruments []models.Instrument, batchSize int) error {
@@ -98,7 +133,12 @@ func saveInstruments(ctx context.Context, db batchSender, instruments []models.I
 // SaveCountries saves a batch of countries to the database
 // It performs an upsert operation: inserts new records and updates existing ones based on their ID
 func (s *DB) SaveCountries(ctx context.Context, countries []models.Country) error {
-	return saveCountries(ctx, s.pool, countries, interfaces.DefaultBatchSize)
+	if len(countries) == 0 {
+		return nil
+	}
+	return s.saveBatchTransaction(ctx, func(tx pgx.Tx) error {
+		return saveCountries(ctx, tx, countries, interfaces.DefaultBatchSize)
+	})
 }
 
 func saveCountries(ctx context.Context, db batchSender, countries []models.Country, batchSize int) error {
@@ -122,7 +162,12 @@ func saveCountries(ctx context.Context, db batchSender, countries []models.Count
 // SaveCompanies saves a batch of companies to the database
 // It performs an upsert operation: inserts new records and updates existing ones based on their ID
 func (s *DB) SaveCompanies(ctx context.Context, companies []models.Company) error {
-	return saveCompanies(ctx, s.pool, companies, interfaces.DefaultBatchSize)
+	if len(companies) == 0 {
+		return nil
+	}
+	return s.saveBatchTransaction(ctx, func(tx pgx.Tx) error {
+		return saveCompanies(ctx, tx, companies, interfaces.DefaultBatchSize)
+	})
 }
 
 func saveCompanies(ctx context.Context, db batchSender, companies []models.Company, batchSize int) error {
@@ -156,7 +201,12 @@ func saveCompanies(ctx context.Context, db batchSender, companies []models.Compa
 // SaveUsers saves a batch of users to the database
 // It performs an upsert operation: inserts new records and updates existing ones based on their ID
 func (s *DB) SaveUsers(ctx context.Context, users []models.User) error {
-	return saveUsers(ctx, s.pool, users, interfaces.DefaultBatchSize)
+	if len(users) == 0 {
+		return nil
+	}
+	return s.saveBatchTransaction(ctx, func(tx pgx.Tx) error {
+		return saveUsers(ctx, tx, users, interfaces.DefaultBatchSize)
+	})
 }
 
 func saveUsers(ctx context.Context, db batchSender, users []models.User, batchSize int) error {
@@ -201,7 +251,12 @@ func saveUsers(ctx context.Context, db batchSender, users []models.User, batchSi
 
 // SaveAccounts saves a batch of accounts to the database
 func (s *DB) SaveAccounts(ctx context.Context, accounts []models.Account) error {
-	return saveAccounts(ctx, s.pool, accounts, interfaces.DefaultBatchSize)
+	if len(accounts) == 0 {
+		return nil
+	}
+	return s.saveBatchTransaction(ctx, func(tx pgx.Tx) error {
+		return saveAccounts(ctx, tx, accounts, interfaces.DefaultBatchSize)
+	})
 }
 
 func saveAccounts(ctx context.Context, db batchSender, accounts []models.Account, batchSize int) error {
@@ -282,7 +337,12 @@ func saveAccounts(ctx context.Context, db batchSender, accounts []models.Account
 
 // SaveTags saves a batch of tags to the database
 func (s *DB) SaveTags(ctx context.Context, tags []models.Tag) error {
-	return saveTags(ctx, s.pool, tags, interfaces.DefaultBatchSize)
+	if len(tags) == 0 {
+		return nil
+	}
+	return s.saveBatchTransaction(ctx, func(tx pgx.Tx) error {
+		return saveTags(ctx, tx, tags, interfaces.DefaultBatchSize)
+	})
 }
 
 func saveTags(ctx context.Context, db batchSender, tags []models.Tag, batchSize int) error {
@@ -336,7 +396,12 @@ func saveTags(ctx context.Context, db batchSender, tags []models.Tag, batchSize 
 
 // SaveMerchants saves a batch of merchants to the database
 func (s *DB) SaveMerchants(ctx context.Context, merchants []models.Merchant) error {
-	return saveMerchants(ctx, s.pool, merchants, interfaces.DefaultBatchSize)
+	if len(merchants) == 0 {
+		return nil
+	}
+	return s.saveBatchTransaction(ctx, func(tx pgx.Tx) error {
+		return saveMerchants(ctx, tx, merchants, interfaces.DefaultBatchSize)
+	})
 }
 
 func saveMerchants(ctx context.Context, db batchSender, merchants []models.Merchant, batchSize int) error {
@@ -366,7 +431,12 @@ func saveMerchants(ctx context.Context, db batchSender, merchants []models.Merch
 
 // SaveBudgets saves a batch of budgets to the database
 func (s *DB) SaveBudgets(ctx context.Context, budgets []models.Budget) error {
-	return saveBudgets(ctx, s.pool, budgets, interfaces.DefaultBatchSize)
+	if len(budgets) == 0 {
+		return nil
+	}
+	return s.saveBatchTransaction(ctx, func(tx pgx.Tx) error {
+		return saveBudgets(ctx, tx, budgets, interfaces.DefaultBatchSize)
+	})
 }
 
 func saveBudgets(ctx context.Context, db batchSender, budgets []models.Budget, batchSize int) error {
@@ -407,7 +477,12 @@ func saveBudgets(ctx context.Context, db batchSender, budgets []models.Budget, b
 
 // SaveReminders saves a batch of reminders to the database
 func (s *DB) SaveReminders(ctx context.Context, reminders []models.Reminder) error {
-	return saveReminders(ctx, s.pool, reminders, interfaces.DefaultBatchSize)
+	if len(reminders) == 0 {
+		return nil
+	}
+	return s.saveBatchTransaction(ctx, func(tx pgx.Tx) error {
+		return saveReminders(ctx, tx, reminders, interfaces.DefaultBatchSize)
+	})
 }
 
 func saveReminders(ctx context.Context, db batchSender, reminders []models.Reminder, batchSize int) error {
@@ -472,7 +547,12 @@ func saveReminders(ctx context.Context, db batchSender, reminders []models.Remin
 
 // SaveReminderMarkers saves a batch of reminder markers to the database
 func (s *DB) SaveReminderMarkers(ctx context.Context, markers []models.ReminderMarker) error {
-	return saveReminderMarkers(ctx, s.pool, markers, interfaces.DefaultBatchSize)
+	if len(markers) == 0 {
+		return nil
+	}
+	return s.saveBatchTransaction(ctx, func(tx pgx.Tx) error {
+		return saveReminderMarkers(ctx, tx, markers, interfaces.DefaultBatchSize)
+	})
 }
 
 func saveReminderMarkers(ctx context.Context, db batchSender, markers []models.ReminderMarker, batchSize int) error {
@@ -534,7 +614,12 @@ func saveReminderMarkers(ctx context.Context, db batchSender, markers []models.R
 
 // SaveTransactions saves a batch of transactions to the database
 func (s *DB) SaveTransactions(ctx context.Context, transactions []models.Transaction) error {
-	return saveTransactions(ctx, s.pool, transactions, interfaces.DefaultBatchSize)
+	if len(transactions) == 0 {
+		return nil
+	}
+	return s.saveBatchTransaction(ctx, func(tx pgx.Tx) error {
+		return saveTransactions(ctx, tx, transactions, interfaces.DefaultBatchSize)
+	})
 }
 
 func saveTransactions(ctx context.Context, db batchSender, transactions []models.Transaction, batchSize int) error {

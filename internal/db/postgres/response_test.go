@@ -148,21 +148,23 @@ func (p *recordingPool) QueryRow(_ context.Context, _ string, args ...any) pgx.R
 
 type recordingTx struct {
 	pgx.Tx
-	sendBatchCalls int
-	batchSizes     []int
-	closedBatches  int
-	failBatch      int
-	rollbackCalls  int
-	commitCalls    int
-	execCalls      int
-	lastStatus     string
-	copyFromCalls  int
-	copiedRows     int
-	copiedValues   [][]any
-	failCopy       bool
-	failMerge      bool
-	stagingCreated bool
-	mergeExecuted  bool
+	sendBatchCalls     int
+	batchSizes         []int
+	closedBatches      int
+	failBatch          int
+	onBatchError       func()
+	rollbackCalls      int
+	rollbackContextErr error
+	commitCalls        int
+	execCalls          int
+	lastStatus         string
+	copyFromCalls      int
+	copiedRows         int
+	copiedValues       [][]any
+	failCopy           bool
+	failMerge          bool
+	stagingCreated     bool
+	mergeExecuted      bool
 }
 
 func (tx *recordingTx) SendBatch(_ context.Context, batch *pgx.Batch) pgx.BatchResults {
@@ -174,6 +176,7 @@ func (tx *recordingTx) SendBatch(_ context.Context, batch *pgx.Batch) pgx.BatchR
 	}
 	if tx.sendBatchCalls == tx.failBatch {
 		results.err = errors.New("late entity write failed")
+		results.onError = tx.onBatchError
 	}
 	return results
 }
@@ -183,8 +186,9 @@ func (tx *recordingTx) QueryRow(_ context.Context, _ string, args ...any) pgx.Ro
 	return recordingRow{}
 }
 
-func (tx *recordingTx) Rollback(context.Context) error {
+func (tx *recordingTx) Rollback(ctx context.Context) error {
 	tx.rollbackCalls++
+	tx.rollbackContextErr = ctx.Err()
 	return nil
 }
 
@@ -237,6 +241,7 @@ type recordingBatchResults struct {
 	remaining int
 	err       error
 	onClose   func()
+	onError   func()
 }
 
 func (r *recordingBatchResults) Exec() (pgconn.CommandTag, error) {
@@ -244,6 +249,9 @@ func (r *recordingBatchResults) Exec() (pgconn.CommandTag, error) {
 		r.remaining--
 	}
 	if r.err != nil {
+		if r.onError != nil {
+			r.onError()
+		}
 		err := r.err
 		r.err = nil
 		return pgconn.CommandTag{}, err

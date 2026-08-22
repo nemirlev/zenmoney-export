@@ -4,10 +4,58 @@ import (
 	"context"
 	"testing"
 
+	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestPublicSaveCommitsAllChunksInOneTransaction(t *testing.T) {
+	tx := &recordingTx{}
+	pool := &recordingPool{tx: tx}
+	db := &DB{pool: pool}
+	instruments := make([]models.Instrument, interfaces.DefaultBatchSize+1)
+
+	err := db.SaveInstruments(context.Background(), instruments)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, pool.beginCalls)
+	require.Equal(t, []int{interfaces.DefaultBatchSize, 1}, tx.batchSizes)
+	require.Equal(t, 1, tx.commitCalls)
+	require.Zero(t, tx.rollbackCalls)
+	require.Zero(t, pool.sendBatchCalls, "chunks must be written through the explicit transaction")
+}
+
+func TestPublicSaveRollsBackAllChunksAfterLateFailure(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	tx := &recordingTx{failBatch: 2, onBatchError: cancel}
+	pool := &recordingPool{tx: tx}
+	db := &DB{pool: pool}
+	instruments := make([]models.Instrument, interfaces.DefaultBatchSize+1)
+
+	err := db.SaveInstruments(ctx, instruments)
+
+	require.ErrorContains(t, err, "failed to save instrument 1000")
+	require.ErrorIs(t, ctx.Err(), context.Canceled)
+	require.Equal(t, 1, pool.beginCalls)
+	require.Equal(t, []int{interfaces.DefaultBatchSize, 1}, tx.batchSizes)
+	require.Zero(t, tx.commitCalls)
+	require.Equal(t, 1, tx.rollbackCalls)
+	require.NoError(t, tx.rollbackContextErr, "rollback must not inherit caller cancellation")
+}
+
+func TestPublicSaveEmptySliceDoesNotBeginTransaction(t *testing.T) {
+	tx := &recordingTx{}
+	pool := &recordingPool{tx: tx}
+	db := &DB{pool: pool}
+
+	err := db.SaveTransactions(context.Background(), nil)
+
+	require.NoError(t, err)
+	require.Zero(t, pool.beginCalls)
+	require.Zero(t, tx.sendBatchCalls)
+}
 
 func TestSaveInstruments_Success(t *testing.T) {
 	mock, err := pgxmock.NewPool()
@@ -15,6 +63,7 @@ func TestSaveInstruments_Success(t *testing.T) {
 	defer mock.Close()
 
 	db := &DB{pool: mock}
+	mock.ExpectBegin()
 
 	instruments := []models.Instrument{
 		{ID: 1, Title: "USD", ShortTitle: "USD", Symbol: "$", Rate: 1.0, Changed: 123456},
@@ -25,6 +74,7 @@ func TestSaveInstruments_Success(t *testing.T) {
 		WithArgs(instruments[0].ID, instruments[0].Title, instruments[0].ShortTitle, instruments[0].Symbol, decimalString(instruments[0].Rate), instruments[0].Changed).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
+	mock.ExpectCommit()
 	err = db.SaveInstruments(context.Background(), instruments)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -36,6 +86,7 @@ func TestSaveCountries_Success(t *testing.T) {
 	defer mock.Close()
 
 	db := &DB{pool: mock}
+	mock.ExpectBegin()
 
 	countries := []models.Country{
 		{ID: 1, Title: "USA", Currency: 1, Domain: "us"},
@@ -46,6 +97,7 @@ func TestSaveCountries_Success(t *testing.T) {
 		WithArgs(countries[0].ID, countries[0].Title, countries[0].Currency, countries[0].Domain).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
+	mock.ExpectCommit()
 	err = db.SaveCountries(context.Background(), countries)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -57,6 +109,7 @@ func TestSaveCompanies_Success(t *testing.T) {
 	defer mock.Close()
 
 	db := &DB{pool: mock}
+	mock.ExpectBegin()
 
 	companies := []models.Company{
 		{
@@ -76,6 +129,7 @@ func TestSaveCompanies_Success(t *testing.T) {
 		WithArgs(companies[0].ID, companies[0].Title, companies[0].FullTitle, companies[0].Www, companies[0].Country, companies[0].Deleted, companies[0].CountryCode, companies[0].Changed).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
+	mock.ExpectCommit()
 	err = db.SaveCompanies(context.Background(), companies)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -87,6 +141,7 @@ func TestSaveUsers_Success(t *testing.T) {
 	defer mock.Close()
 
 	db := &DB{pool: mock}
+	mock.ExpectBegin()
 
 	users := []models.User{
 		{ID: 1, Country: 1, Login: "testuser", Email: "test@example.com", Changed: 123456},
@@ -97,6 +152,7 @@ func TestSaveUsers_Success(t *testing.T) {
 		WithArgs(users[0].ID, users[0].Country, users[0].Login, users[0].Parent, users[0].CountryCode, users[0].Email, users[0].Changed, users[0].Currency, users[0].PaidTill, users[0].MonthStartDay, users[0].IsForecastEnabled, users[0].PlanBalanceMode, users[0].PlanSettings, users[0].Subscription, users[0].SubscriptionRenewalDate).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
+	mock.ExpectCommit()
 	err = db.SaveUsers(context.Background(), users)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -108,6 +164,7 @@ func TestSaveAccounts_Success(t *testing.T) {
 	defer mock.Close()
 
 	db := &DB{pool: mock}
+	mock.ExpectBegin()
 
 	accounts := []models.Account{
 		{ID: "acc-1", User: 1, Title: "Main Account", Type: "checking", Private: true},
@@ -118,6 +175,7 @@ func TestSaveAccounts_Success(t *testing.T) {
 		WithArgs(accounts[0].ID, accounts[0].User, accounts[0].Instrument, accounts[0].Type, accounts[0].Role, accounts[0].Private, accounts[0].Savings, accounts[0].Title, accounts[0].InBalance, optionalDecimalString(accounts[0].CreditLimit), optionalDecimalString(accounts[0].StartBalance), optionalDecimalString(accounts[0].Balance), accounts[0].Company, accounts[0].Archive, accounts[0].EnableCorrection, accounts[0].BalanceCorrectionType, accounts[0].StartDate, accounts[0].Capitalization, optionalDecimalString(accounts[0].Percent), accounts[0].Changed, accounts[0].SyncID, accounts[0].EnableSMS, accounts[0].EndDateOffset, accounts[0].EndDateOffsetInterval, accounts[0].PayoffStep, accounts[0].PayoffInterval).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
+	mock.ExpectCommit()
 	err = db.SaveAccounts(context.Background(), accounts)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -129,6 +187,7 @@ func TestSaveTags_Success(t *testing.T) {
 	defer mock.Close()
 
 	db := &DB{pool: mock}
+	mock.ExpectBegin()
 
 	tags := []models.Tag{
 		{
@@ -146,6 +205,7 @@ func TestSaveTags_Success(t *testing.T) {
 		WithArgs(tags[0].ID, tags[0].User, tags[0].Changed, tags[0].Icon, tags[0].BudgetIncome, tags[0].BudgetOutcome, tags[0].Required, tags[0].Archive, tags[0].Color, tags[0].Picture, tags[0].Title, tags[0].ShowIncome, tags[0].ShowOutcome, tags[0].Parent, tags[0].StaticID).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
+	mock.ExpectCommit()
 	err = db.SaveTags(context.Background(), tags)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -157,6 +217,7 @@ func TestSaveMerchants_Success(t *testing.T) {
 	defer mock.Close()
 
 	db := &DB{pool: mock}
+	mock.ExpectBegin()
 
 	merchants := []models.Merchant{
 		{ID: "merchant-1", User: 1, Title: "Amazon", Changed: 123456, MCC: new(5411)},
@@ -167,6 +228,7 @@ func TestSaveMerchants_Success(t *testing.T) {
 		WithArgs(merchants[0].ID, merchants[0].User, merchants[0].Title, merchants[0].Changed, merchants[0].MCC).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
+	mock.ExpectCommit()
 	err = db.SaveMerchants(context.Background(), merchants)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -178,6 +240,7 @@ func TestSaveBudgets_UpsertsByNaturalKey(t *testing.T) {
 	defer mock.Close()
 
 	db := &DB{pool: mock}
+	mock.ExpectBegin()
 	aggregateTag := "00000000-0000-0000-0000-000000000000"
 
 	budgets := []models.Budget{
@@ -215,6 +278,7 @@ func TestSaveBudgets_UpsertsByNaturalKey(t *testing.T) {
 		WithArgs(budgets[1].User, budgets[1].Changed, budgets[1].Date, budgets[1].Tag, decimalString(budgets[1].Income), decimalString(budgets[1].Outcome), budgets[1].IncomeLock, budgets[1].OutcomeLock, budgets[1].IsIncomeForecast, budgets[1].IsOutcomeForecast).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
+	mock.ExpectCommit()
 	err = db.SaveBudgets(context.Background(), budgets)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -226,6 +290,7 @@ func TestSaveReminders_Success(t *testing.T) {
 	defer mock.Close()
 
 	db := &DB{pool: mock}
+	mock.ExpectBegin()
 
 	reminders := []models.Reminder{
 		{
@@ -256,6 +321,7 @@ func TestSaveReminders_Success(t *testing.T) {
 		WithArgs(reminders[0].ID, reminders[0].User, decimalString(reminders[0].Income), decimalString(reminders[0].Outcome), reminders[0].Changed, reminders[0].IncomeInstrument, reminders[0].OutcomeInstrument, reminders[0].Step, reminders[0].Points, reminders[0].Tag, reminders[0].StartDate, reminders[0].EndDate, reminders[0].Notify, reminders[0].Interval, reminders[0].IncomeAccount, reminders[0].OutcomeAccount, reminders[0].Comment, reminders[0].Payee, reminders[0].Merchant).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
+	mock.ExpectCommit()
 	err = db.SaveReminders(context.Background(), reminders)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -267,6 +333,7 @@ func TestSaveReminderMarkers_Success(t *testing.T) {
 	defer mock.Close()
 
 	db := &DB{pool: mock}
+	mock.ExpectBegin()
 
 	markers := []models.ReminderMarker{
 		{
@@ -296,6 +363,7 @@ func TestSaveReminderMarkers_Success(t *testing.T) {
 		WithArgs(markers[0].ID, markers[0].User, markers[0].Date, decimalString(markers[0].Income), decimalString(markers[0].Outcome), markers[0].Changed, markers[0].IncomeInstrument, markers[0].OutcomeInstrument, markers[0].State, markers[0].IsForecast, markers[0].Reminder, markers[0].IncomeAccount, markers[0].OutcomeAccount, markers[0].Comment, markers[0].Payee, markers[0].Merchant, markers[0].Notify, markers[0].Tag).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
+	mock.ExpectCommit()
 	err = db.SaveReminderMarkers(context.Background(), markers)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -307,6 +375,7 @@ func TestSaveTransactions_Success(t *testing.T) {
 	defer mock.Close()
 
 	db := &DB{pool: mock}
+	mock.ExpectBegin()
 
 	transactions := []models.Transaction{
 		{
@@ -348,6 +417,7 @@ func TestSaveTransactions_Success(t *testing.T) {
 		WithArgs(transactions[0].ID, transactions[0].User, transactions[0].Date, decimalString(transactions[0].Income), decimalString(transactions[0].Outcome), transactions[0].Changed, transactions[0].IncomeInstrument, transactions[0].OutcomeInstrument, transactions[0].Created, transactions[0].OriginalPayee, transactions[0].Deleted, transactions[0].Viewed, transactions[0].Hold, transactions[0].QRCode, transactions[0].Source, transactions[0].IncomeAccount, transactions[0].OutcomeAccount, transactions[0].Tag, transactions[0].Comment, transactions[0].Payee, decimalString(transactions[0].OpIncome), decimalString(transactions[0].OpOutcome), transactions[0].OpIncomeInstrument, transactions[0].OpOutcomeInstrument, transactions[0].Latitude, transactions[0].Longitude, transactions[0].Merchant, transactions[0].IncomeBankID, transactions[0].OutcomeBankID, transactions[0].ReminderMarker).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
+	mock.ExpectCommit()
 	err = db.SaveTransactions(context.Background(), transactions)
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
