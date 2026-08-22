@@ -87,7 +87,7 @@ an incremental sync. You can force a full sync using `--force`.
 Flags:
 
 - `-d`, `--daemon`: Run the sync in daemon mode, continuously syncing at intervals.
-- `--dry-run`: Perform a trial run with no changes made to the database.
+- `--dry-run`: Fetch data and print per-entity counts without saving data or advancing the sync cursor.
 - `--entities string`: Specify which entities to sync (default "all").
 - `--force`: Force a full sync, ignoring any previous sync state.
 - `-h`, `--help`: Show help information for the sync command.

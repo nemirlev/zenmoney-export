@@ -1,7 +1,11 @@
 package app
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -163,4 +167,110 @@ func TestSyncRejectsInvalidEntitiesBeforeStorageOrAPI(t *testing.T) {
 			storage.AssertNotCalled(t, "GetLastSyncStatus", mock.Anything)
 		})
 	}
+}
+
+func TestSummarizeResponseCountsEveryEntityType(t *testing.T) {
+	response := models.Response{
+		ServerTimestamp: 987654321,
+		Instrument:      make([]models.Instrument, 1),
+		Country:         make([]models.Country, 2),
+		Company:         make([]models.Company, 3),
+		User:            make([]models.User, 4),
+		Account:         make([]models.Account, 5),
+		Tag:             make([]models.Tag, 6),
+		Merchant:        make([]models.Merchant, 7),
+		Budget:          make([]models.Budget, 8),
+		Reminder:        make([]models.Reminder, 9),
+		ReminderMarker:  make([]models.ReminderMarker, 10),
+		Transaction:     make([]models.Transaction, 11),
+		Deletion:        make([]models.Deletion, 12),
+	}
+
+	summary := summarizeResponse(&response)
+
+	require.Equal(t, syncSummary{
+		ServerTimestamp: 987654321,
+		Instruments:     1,
+		Countries:       2,
+		Companies:       3,
+		Users:           4,
+		Accounts:        5,
+		Tags:            6,
+		Merchants:       7,
+		Budgets:         8,
+		Reminders:       9,
+		ReminderMarkers: 10,
+		Transactions:    11,
+		Deletions:       12,
+		Total:           78,
+	}, summary)
+}
+
+func TestSyncDryRunLogsSummaryWithoutSaving(t *testing.T) {
+	storage := mocks.NewStorage(t)
+	storage.On("GetLastSyncStatus", mock.Anything).Return(interfaces.SyncStatus{}, nil).Once()
+
+	response := models.Response{
+		ServerTimestamp: 777,
+		Account:         []models.Account{{Title: "sensitive account name"}},
+		Tag:             []models.Tag{{Title: "private category"}},
+		Deletion:        []models.Deletion{{ID: "sensitive-deletion-id", Object: "account"}},
+	}
+	client := &recordingSyncClient{response: response}
+	service := &SyncService{
+		app: &Application{
+			cfg: &config.Config{DBType: "postgres"},
+			db:  storage,
+		},
+		client: client,
+	}
+
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+
+	err := service.Sync(context.Background(), &SyncParams{Entities: "all", DryRun: true})
+
+	require.NoError(t, err)
+	storage.AssertNotCalled(t, "Save", mock.Anything, mock.Anything)
+	storage.AssertNotCalled(t, "SaveSyncStatus", mock.Anything, mock.Anything)
+	require.NotContains(t, logs.String(), "sensitive account name")
+	require.NotContains(t, logs.String(), "private category")
+	require.NotContains(t, logs.String(), "sensitive-deletion-id")
+
+	var summaryLog struct {
+		Message         string         `json:"msg"`
+		ServerTimestamp int64          `json:"server_timestamp"`
+		Counts          map[string]int `json:"counts"`
+		Total           int            `json:"total"`
+	}
+	for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
+		var entry struct {
+			Message string `json:"msg"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(line), &entry))
+		if entry.Message == "Dry run sync summary" {
+			require.NoError(t, json.Unmarshal([]byte(line), &summaryLog))
+			break
+		}
+	}
+
+	require.Equal(t, "Dry run sync summary", summaryLog.Message)
+	require.Equal(t, int64(777), summaryLog.ServerTimestamp)
+	require.Equal(t, 3, summaryLog.Total)
+	require.Equal(t, map[string]int{
+		"instruments":      0,
+		"countries":        0,
+		"companies":        0,
+		"users":            0,
+		"accounts":         1,
+		"tags":             1,
+		"merchants":        0,
+		"budgets":          0,
+		"reminders":        0,
+		"reminder_markers": 0,
+		"transactions":     0,
+		"deletions":        1,
+	}, summaryLog.Counts)
 }

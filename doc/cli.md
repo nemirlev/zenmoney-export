@@ -62,7 +62,7 @@ Sync flags:
     --interval int    interval in minutes for daemon mode (default 30)
     --entities string entities to sync (default "all")
     --force            force a full sync
-    --dry-run          fetch data without writing it to the database
+    --dry-run          print per-entity counts without saving data or advancing the sync cursor
 ```
 
 Examples:

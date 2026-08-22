@@ -33,6 +33,68 @@ type SyncParams struct {
 	DryRun   bool
 }
 
+type syncSummary struct {
+	ServerTimestamp int64
+	Instruments     int
+	Countries       int
+	Companies       int
+	Users           int
+	Accounts        int
+	Tags            int
+	Merchants       int
+	Budgets         int
+	Reminders       int
+	ReminderMarkers int
+	Transactions    int
+	Deletions       int
+	Total           int
+}
+
+func summarizeResponse(data *models.Response) syncSummary {
+	summary := syncSummary{
+		ServerTimestamp: data.ServerTimestamp,
+		Instruments:     len(data.Instrument),
+		Countries:       len(data.Country),
+		Companies:       len(data.Company),
+		Users:           len(data.User),
+		Accounts:        len(data.Account),
+		Tags:            len(data.Tag),
+		Merchants:       len(data.Merchant),
+		Budgets:         len(data.Budget),
+		Reminders:       len(data.Reminder),
+		ReminderMarkers: len(data.ReminderMarker),
+		Transactions:    len(data.Transaction),
+		Deletions:       len(data.Deletion),
+	}
+	summary.Total = summary.Instruments + summary.Countries + summary.Companies +
+		summary.Users + summary.Accounts + summary.Tags + summary.Merchants +
+		summary.Budgets + summary.Reminders + summary.ReminderMarkers +
+		summary.Transactions + summary.Deletions
+
+	return summary
+}
+
+func logSyncSummary(message string, summary syncSummary) {
+	slog.Info(message,
+		"server_timestamp", summary.ServerTimestamp,
+		"counts", slog.GroupValue(
+			slog.Int("instruments", summary.Instruments),
+			slog.Int("countries", summary.Countries),
+			slog.Int("companies", summary.Companies),
+			slog.Int("users", summary.Users),
+			slog.Int("accounts", summary.Accounts),
+			slog.Int("tags", summary.Tags),
+			slog.Int("merchants", summary.Merchants),
+			slog.Int("budgets", summary.Budgets),
+			slog.Int("reminders", summary.Reminders),
+			slog.Int("reminder_markers", summary.ReminderMarkers),
+			slog.Int("transactions", summary.Transactions),
+			slog.Int("deletions", summary.Deletions),
+		),
+		"total", summary.Total,
+	)
+}
+
 // ParseSyncEntities parses the CLI entity selection. "all" means a regular
 // diff (or a full sync when combined with --force); named entities are sent as
 // forceFetch while the same global diff cursor is preserved.
@@ -129,13 +191,15 @@ func (s *SyncService) Sync(ctx context.Context, p *SyncParams) error {
 		return err
 	}
 
+	summary := summarizeResponse(&data)
 	if !p.DryRun {
 		err = s.app.db.Save(ctx, &data)
 		if err != nil {
 			return err
 		}
 	} else {
-		slog.Info("Dry run mode: skipping save")
+		logSyncSummary("Dry run sync summary", summary)
+		slog.Info("Dry run mode: skipping save and sync cursor update")
 	}
 
 	slog.Info("Sync completed successfully")
