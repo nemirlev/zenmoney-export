@@ -1,5 +1,10 @@
 ## [unreleased]
 
+### 🚀 Features
+
+- Update ZenMoney Go SDK to v3.0.1
+- Persist tag archive status and merchant MCC values
+
 ### 🐛 Bug Fixes
 
 - Upgrades Go version in Docker build image (#22)
