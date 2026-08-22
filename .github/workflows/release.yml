@@ -20,7 +20,7 @@ jobs:
     steps:
       - name: Run Release Please
         id: release
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@v5
         with:
           # A PAT allows Release Please pull requests to trigger CI. The built-in
           # token remains a functional fallback for repositories without one.
