@@ -13,6 +13,10 @@ func NewSyncCommand(root *RootCommand) *cobra.Command {
 		Use:   "sync",
 		Short: "Sync data from ZenMoney",
 		Long:  `Synchronizes data from ZenMoney to your local database.`,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			_, _, err := app.ParseSyncEntities(opts.Entities)
+			return err
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			params := &app.SyncParams{
 				Entities: opts.Entities,
@@ -35,7 +39,7 @@ func addSyncFlags(cmd *cobra.Command, opts *config.SyncOptions) {
 	flags := cmd.Flags()
 	flags.BoolVarP(&opts.IsDaemon, "daemon", "d", false, "run in daemon mode")
 	flags.IntVar(&opts.Interval, "interval", 30, "sync interval in minutes")
-	flags.StringVar(&opts.Entities, "entities", "all", "entities to sync")
+	flags.StringVar(&opts.Entities, "entities", "all", "comma-separated entities to force-fetch, or all")
 	flags.BoolVar(&opts.Force, "force", false, "force full sync")
 	flags.BoolVar(&opts.DryRun, "dry-run", false, "dry run mode")
 }

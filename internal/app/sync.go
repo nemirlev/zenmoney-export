@@ -2,18 +2,27 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 )
 
+type zenMoneySyncClient interface {
+	FullSync(ctx context.Context) (models.Response, error)
+	SyncSince(ctx context.Context, lastSync time.Time) (models.Response, error)
+	ForceSyncEntitiesSince(ctx context.Context, lastSync time.Time, entityTypes ...models.EntityType) (models.Response, error)
+}
+
 type SyncService struct {
-	app *Application
+	app    *Application
+	client zenMoneySyncClient
 }
 
 func NewSyncService(app *Application) *SyncService {
-	return &SyncService{app: app}
+	return &SyncService{app: app, client: app.zenClient}
 }
 
 type SyncParams struct {
@@ -24,7 +33,75 @@ type SyncParams struct {
 	DryRun   bool
 }
 
+// ParseSyncEntities parses the CLI entity selection. "all" means a regular
+// diff (or a full sync when combined with --force); named entities are sent as
+// forceFetch while the same global diff cursor is preserved.
+func ParseSyncEntities(value string) (bool, []models.EntityType, error) {
+	aliases := map[string]models.EntityType{
+		"instrument":      models.EntityTypeInstrument,
+		"instruments":     models.EntityTypeInstrument,
+		"country":         models.EntityTypeCountry,
+		"countries":       models.EntityTypeCountry,
+		"company":         models.EntityTypeCompany,
+		"companies":       models.EntityTypeCompany,
+		"user":            models.EntityTypeUser,
+		"users":           models.EntityTypeUser,
+		"account":         models.EntityTypeAccount,
+		"accounts":        models.EntityTypeAccount,
+		"tag":             models.EntityTypeTag,
+		"tags":            models.EntityTypeTag,
+		"merchant":        models.EntityTypeMerchant,
+		"merchants":       models.EntityTypeMerchant,
+		"budget":          models.EntityTypeBudget,
+		"budgets":         models.EntityTypeBudget,
+		"reminder":        models.EntityTypeReminder,
+		"reminders":       models.EntityTypeReminder,
+		"remindermarker":  models.EntityTypeReminderMarker,
+		"remindermarkers": models.EntityTypeReminderMarker,
+		"transaction":     models.EntityTypeTransaction,
+		"transactions":    models.EntityTypeTransaction,
+	}
+
+	parts := strings.Split(value, ",")
+	entities := make([]models.EntityType, 0, len(parts))
+	seen := make(map[models.EntityType]struct{}, len(parts))
+	all := false
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return false, nil, fmt.Errorf("entities must not contain empty values")
+		}
+
+		normalized := strings.NewReplacer("-", "", "_", "").Replace(strings.ToLower(part))
+		if normalized == "all" {
+			all = true
+			continue
+		}
+
+		entityType, ok := aliases[normalized]
+		if !ok {
+			return false, nil, fmt.Errorf("unknown entity %q", part)
+		}
+		if _, ok := seen[entityType]; ok {
+			continue
+		}
+		seen[entityType] = struct{}{}
+		entities = append(entities, entityType)
+	}
+
+	if all && len(entities) > 0 {
+		return false, nil, fmt.Errorf("entity %q cannot be combined with named entities", "all")
+	}
+	return all, entities, nil
+}
+
 func (s *SyncService) Sync(ctx context.Context, p *SyncParams) error {
+	allEntities, entities, err := ParseSyncEntities(p.Entities)
+	if err != nil {
+		return fmt.Errorf("invalid entities: %w", err)
+	}
+
 	slog.Info("Starting sync",
 		"db_type", s.app.cfg.DBType,
 		"entities", p.Entities,
@@ -37,16 +114,19 @@ func (s *SyncService) Sync(ctx context.Context, p *SyncParams) error {
 	}
 
 	var data models.Response
-	if lastSync.ID == 0 || p.Force {
-		data, err = s.app.zenClient.FullSync(ctx)
-		if err != nil {
-			return err
-		}
+	if lastSync.ID == 0 || (allEntities && p.Force) {
+		data, err = s.client.FullSync(ctx)
+	} else if allEntities {
+		data, err = s.client.SyncSince(ctx, time.Unix(lastSync.ServerTimestamp, 0))
 	} else {
-		data, err = s.app.zenClient.SyncSince(ctx, time.Unix(lastSync.ServerTimestamp, 0))
-		if err != nil {
-			return err
-		}
+		data, err = s.client.ForceSyncEntitiesSince(
+			ctx,
+			time.Unix(lastSync.ServerTimestamp, 0),
+			entities...,
+		)
+	}
+	if err != nil {
+		return err
 	}
 
 	if !p.DryRun {
