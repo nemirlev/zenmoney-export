@@ -102,6 +102,26 @@ func TestDeleteObjects_InvalidCountryID(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestDeleteObjects_BudgetDeletionIsRejectedWithoutSQL(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	assert.NoError(t, err)
+	defer mock.Close()
+
+	db := &DB{pool: mock}
+	deletions := []models.Deletion{
+		{ID: "not-a-budget-id", Object: string(models.EntityTypeBudget), User: 1, Stamp: 1234567890},
+	}
+
+	mock.ExpectBegin()
+	// A budget has no ID in the ZenMoney contract, so neither a DELETE nor a
+	// deletion_history INSERT may be executed for this object.
+	mock.ExpectRollback()
+
+	err = db.DeleteObjects(context.Background(), deletions)
+	assert.ErrorContains(t, err, "budget deletion objects are unsupported")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 // TestDeleteObjects_UnsupportedObject tests the case when an unsupported object type is provided
 func TestDeleteObjects_UnsupportedObject(t *testing.T) {
 	mock, err := pgxmock.NewPool()

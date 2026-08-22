@@ -72,7 +72,9 @@ func deleteObjects(ctx context.Context, executor commandExecutor, deletions []mo
 		case string(models.EntityTypeMerchant):
 			query = `DELETE FROM merchant WHERE id = $1 AND "user" = $2`
 		case string(models.EntityTypeBudget):
-			query = `DELETE FROM budget WHERE "user" = $1 AND date = $2`
+			// ZenMoney budgets have no ID and are removed by updating their
+			// amount/lock fields. A Deletion cannot identify a budget row safely.
+			return fmt.Errorf("budget deletion objects are unsupported")
 		case string(models.EntityTypeReminder):
 			query = `DELETE FROM reminder WHERE id = $1 AND "user" = $2`
 		case string(models.EntityTypeReminderMarker):
