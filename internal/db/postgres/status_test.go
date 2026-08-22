@@ -79,7 +79,9 @@ func TestSaveSyncStatus_Error(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestGetLastSyncStatus_Success(t *testing.T) {
+const lastCompletedSyncStatusQuery = `SELECT id, started_at, finished_at, sync_type, server_timestamp, records_processed, status, error_message, created_at, updated_at FROM sync_status WHERE status = 'completed' ORDER BY id DESC LIMIT 1`
+
+func TestGetLastSyncStatus_ReturnsLatestCompleted(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	assert.NoError(t, err)
 	defer mock.Close()
@@ -109,7 +111,7 @@ func TestGetLastSyncStatus_Success(t *testing.T) {
 		expectedStatus.ErrorMessage, expectedStatus.CreatedAt, expectedStatus.UpdatedAt,
 	)
 
-	mock.ExpectQuery(`SELECT id, started_at, finished_at, sync_type, server_timestamp, records_processed, status, error_message, created_at, updated_at FROM sync_status ORDER BY id DESC LIMIT 1`).
+	mock.ExpectQuery(lastCompletedSyncStatusQuery).
 		WillReturnRows(rows)
 
 	status, err := db.GetLastSyncStatus(context.Background())
@@ -119,14 +121,14 @@ func TestGetLastSyncStatus_Success(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestGetLastSyncStatus_NoRows(t *testing.T) {
+func TestGetLastSyncStatus_NoCompletedSync(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	assert.NoError(t, err)
 	defer mock.Close()
 
 	db := &DB{pool: mock}
 
-	mock.ExpectQuery(`SELECT id, started_at, finished_at, sync_type, server_timestamp, records_processed, status, error_message, created_at, updated_at FROM sync_status ORDER BY id DESC LIMIT 1`).
+	mock.ExpectQuery(lastCompletedSyncStatusQuery).
 		WillReturnError(pgx.ErrNoRows)
 
 	status, err := db.GetLastSyncStatus(context.Background())
@@ -143,7 +145,7 @@ func TestGetLastSyncStatus_Error(t *testing.T) {
 
 	db := &DB{pool: mock}
 
-	mock.ExpectQuery(`SELECT id, started_at, finished_at, sync_type, server_timestamp, records_processed, status, error_message, created_at, updated_at FROM sync_status ORDER BY id DESC LIMIT 1`).
+	mock.ExpectQuery(lastCompletedSyncStatusQuery).
 		WillReturnError(errors.New("query error"))
 
 	status, err := db.GetLastSyncStatus(context.Background())
