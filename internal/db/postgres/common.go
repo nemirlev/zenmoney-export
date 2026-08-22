@@ -14,6 +14,18 @@ type DB struct {
 	pool PgxIface
 }
 
+// batchSender is implemented by both pgxpool.Pool and pgx.Tx. Keeping the
+// persistence helpers in terms of this small interface lets Save run every
+// batch on its transaction while the public CRUD methods continue to use the
+// pool directly.
+type batchSender interface {
+	SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults
+}
+
+type commandExecutor interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
 // PgxIface — interface for pgxpool.Pool
 type PgxIface interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row

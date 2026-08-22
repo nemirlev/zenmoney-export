@@ -17,12 +17,15 @@ func (s *DB) Save(ctx context.Context, response *models.Response) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer func(tx pgx.Tx, ctx context.Context) {
-		err := tx.Rollback(ctx)
-		if err != nil {
-			slog.Error("failed to rollback transaction", "error", err)
+	txClosed := false
+	defer func() {
+		if txClosed {
+			return
 		}
-	}(tx, ctx)
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+			slog.Error("failed to rollback transaction", "error", rollbackErr)
+		}
+	}()
 
 	status := interfaces.SyncStatus{
 		StartedAt:        time.Now(),
@@ -36,95 +39,108 @@ func (s *DB) Save(ctx context.Context, response *models.Response) error {
 		UpdatedAt:        time.Now(),
 	}
 
-	defer func() {
-		status.FinishedAt = new(time.Now())
-
-		if err != nil {
-			status.Status = "failed"
-			status.ErrorMessage = new(err.Error())
-		} else {
-			status.Status = "completed"
+	fail := func(saveErr error) error {
+		rollbackErr := tx.Rollback(ctx)
+		txClosed = true
+		if rollbackErr != nil && rollbackErr != pgx.ErrTxClosed {
+			slog.Error("failed to rollback transaction", "error", rollbackErr)
 		}
 
-		if saveErr := s.SaveSyncStatus(ctx, status); saveErr != nil {
-			slog.Error("Failed to save sync status on Save method", "error", saveErr)
+		finishedAt := time.Now()
+		status.FinishedAt = &finishedAt
+		status.Status = "failed"
+		errorMessage := saveErr.Error()
+		status.ErrorMessage = &errorMessage
+		if statusErr := s.SaveSyncStatus(ctx, status); statusErr != nil {
+			slog.Error("failed to save failed sync status", "error", statusErr)
 		}
-	}()
+
+		return saveErr
+	}
 
 	if len(response.Instrument) > 0 {
-		if err = s.SaveInstruments(ctx, response.Instrument); err != nil {
-			return fmt.Errorf("failed to save instruments: %w", err)
+		if err = saveInstruments(ctx, tx, response.Instrument); err != nil {
+			return fail(fmt.Errorf("failed to save instruments: %w", err))
 		}
 	}
 
 	if len(response.Country) > 0 {
-		if err = s.SaveCountries(ctx, response.Country); err != nil {
-			return fmt.Errorf("failed to save countries: %w", err)
+		if err = saveCountries(ctx, tx, response.Country); err != nil {
+			return fail(fmt.Errorf("failed to save countries: %w", err))
 		}
 	}
 
 	if len(response.Company) > 0 {
-		if err = s.SaveCompanies(ctx, response.Company); err != nil {
-			return fmt.Errorf("failed to save companies: %w", err)
+		if err = saveCompanies(ctx, tx, response.Company); err != nil {
+			return fail(fmt.Errorf("failed to save companies: %w", err))
 		}
 	}
 
 	if len(response.User) > 0 {
-		if err = s.SaveUsers(ctx, response.User); err != nil {
-			return fmt.Errorf("failed to save users: %w", err)
+		if err = saveUsers(ctx, tx, response.User); err != nil {
+			return fail(fmt.Errorf("failed to save users: %w", err))
 		}
 	}
 
 	if len(response.Account) > 0 {
-		if err = s.SaveAccounts(ctx, response.Account); err != nil {
-			return fmt.Errorf("failed to save accounts: %w", err)
+		if err = saveAccounts(ctx, tx, response.Account); err != nil {
+			return fail(fmt.Errorf("failed to save accounts: %w", err))
 		}
 	}
 
 	if len(response.Tag) > 0 {
-		if err = s.SaveTags(ctx, response.Tag); err != nil {
-			return fmt.Errorf("failed to save tags: %w", err)
+		if err = saveTags(ctx, tx, response.Tag); err != nil {
+			return fail(fmt.Errorf("failed to save tags: %w", err))
 		}
 	}
 
 	if len(response.Merchant) > 0 {
-		if err = s.SaveMerchants(ctx, response.Merchant); err != nil {
-			return fmt.Errorf("failed to save merchants: %w", err)
+		if err = saveMerchants(ctx, tx, response.Merchant); err != nil {
+			return fail(fmt.Errorf("failed to save merchants: %w", err))
 		}
 	}
 
 	if len(response.Budget) > 0 {
-		if err = s.SaveBudgets(ctx, response.Budget); err != nil {
-			return fmt.Errorf("failed to save budgets: %w", err)
+		if err = saveBudgets(ctx, tx, response.Budget); err != nil {
+			return fail(fmt.Errorf("failed to save budgets: %w", err))
 		}
 	}
 
 	if len(response.Reminder) > 0 {
-		if err = s.SaveReminders(ctx, response.Reminder); err != nil {
-			return fmt.Errorf("failed to save reminders: %w", err)
+		if err = saveReminders(ctx, tx, response.Reminder); err != nil {
+			return fail(fmt.Errorf("failed to save reminders: %w", err))
 		}
 	}
 
 	if len(response.ReminderMarker) > 0 {
-		if err = s.SaveReminderMarkers(ctx, response.ReminderMarker); err != nil {
-			return fmt.Errorf("failed to save reminder markers: %w", err)
+		if err = saveReminderMarkers(ctx, tx, response.ReminderMarker); err != nil {
+			return fail(fmt.Errorf("failed to save reminder markers: %w", err))
 		}
 	}
 
 	if len(response.Transaction) > 0 {
-		if err = s.SaveTransactions(ctx, response.Transaction); err != nil {
-			return fmt.Errorf("failed to save transactions: %w", err)
+		if err = saveTransactions(ctx, tx, response.Transaction); err != nil {
+			return fail(fmt.Errorf("failed to save transactions: %w", err))
 		}
 	}
 
 	if len(response.Deletion) > 0 {
-		if err = s.DeleteObjects(ctx, response.Deletion); err != nil {
-			return fmt.Errorf("failed to process deletions: %w", err)
+		if err = deleteObjects(ctx, tx, response.Deletion); err != nil {
+			return fail(fmt.Errorf("failed to process deletions: %w", err))
 		}
 	}
 
-	if err = tx.Commit(ctx); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+	finishedAt := time.Now()
+	status.FinishedAt = &finishedAt
+	status.Status = "completed"
+	if err = s.saveSyncStatus(ctx, tx, status); err != nil {
+		return fail(fmt.Errorf("failed to save completed sync status: %w", err))
+	}
+
+	err = tx.Commit(ctx)
+	txClosed = true
+	if err != nil {
+		return fail(fmt.Errorf("failed to commit transaction: %w", err))
 	}
 
 	return nil

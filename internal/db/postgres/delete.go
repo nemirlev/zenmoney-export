@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"strconv"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 )
 
@@ -27,12 +26,32 @@ func (s *DB) DeleteObjects(ctx context.Context, deletions []models.Deletion) err
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer func(tx pgx.Tx, ctx context.Context) {
-		err := tx.Rollback(ctx)
-		if err != nil {
-			slog.Error("failed to rollback deletion transaction", "error", err)
+	txClosed := false
+	defer func() {
+		if txClosed {
+			return
 		}
-	}(tx, ctx)
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+			slog.Error("failed to rollback deletion transaction", "error", rollbackErr)
+		}
+	}()
+
+	if err := deleteObjects(ctx, tx, deletions); err != nil {
+		return err
+	}
+
+	err = tx.Commit(ctx)
+	txClosed = true
+	if err != nil {
+		return fmt.Errorf("failed to commit deletion transaction: %w", err)
+	}
+
+	return nil
+}
+
+// deleteObjects executes deletions using the supplied executor. Save passes its
+// transaction here so deletions and upserts share the same atomic boundary.
+func deleteObjects(ctx context.Context, executor commandExecutor, deletions []models.Deletion) error {
 
 	// Process each deletion
 	for _, del := range deletions {
@@ -65,7 +84,7 @@ func (s *DB) DeleteObjects(ctx context.Context, deletions []models.Deletion) err
 		}
 
 		// Execute the delete query
-		commandTag, err := tx.Exec(ctx, query, args...)
+		commandTag, err := executor.Exec(ctx, query, args...)
 		if err != nil {
 			return fmt.Errorf("failed to delete %s with ID %s: %w", del.Object, del.ID, err)
 		}
@@ -78,7 +97,7 @@ func (s *DB) DeleteObjects(ctx context.Context, deletions []models.Deletion) err
 		}
 
 		// Record the deletion in deletion_history table for audit
-		_, err = tx.Exec(ctx, `
+		_, err = executor.Exec(ctx, `
             INSERT INTO deletion_history (
                 object_id, object_type, user_id, deleted_at
             ) VALUES ($1, $2, $3, to_timestamp($4))`,
@@ -87,11 +106,6 @@ func (s *DB) DeleteObjects(ctx context.Context, deletions []models.Deletion) err
 		if err != nil {
 			return fmt.Errorf("failed to record deletion history: %w", err)
 		}
-	}
-
-	// Commit the transaction
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("failed to commit deletion transaction: %w", err)
 	}
 
 	return nil

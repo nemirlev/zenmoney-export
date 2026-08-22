@@ -11,6 +11,10 @@ import (
 // SaveInstruments saves a batch of instruments to the database
 // It performs an upsert operation: inserts new records and updates existing ones based on their ID
 func (s *DB) SaveInstruments(ctx context.Context, instruments []models.Instrument) error {
+	return saveInstruments(ctx, s.pool, instruments)
+}
+
+func saveInstruments(ctx context.Context, db batchSender, instruments []models.Instrument) error {
 	if len(instruments) == 0 {
 		return nil
 	}
@@ -38,7 +42,7 @@ func (s *DB) SaveInstruments(ctx context.Context, instruments []models.Instrumen
 		)
 	}
 
-	br := s.pool.SendBatch(ctx, batch)
+	br := db.SendBatch(ctx, batch)
 	defer br.Close()
 
 	for i := 0; i < batch.Len(); i++ {
@@ -53,6 +57,10 @@ func (s *DB) SaveInstruments(ctx context.Context, instruments []models.Instrumen
 // SaveCountries saves a batch of countries to the database
 // It performs an upsert operation: inserts new records and updates existing ones based on their ID
 func (s *DB) SaveCountries(ctx context.Context, countries []models.Country) error {
+	return saveCountries(ctx, s.pool, countries)
+}
+
+func saveCountries(ctx context.Context, db batchSender, countries []models.Country) error {
 	if len(countries) == 0 {
 		return nil
 	}
@@ -70,7 +78,7 @@ func (s *DB) SaveCountries(ctx context.Context, countries []models.Country) erro
 		batch.Queue(query, country.ID, country.Title, country.Currency, country.Domain)
 	}
 
-	br := s.pool.SendBatch(ctx, batch)
+	br := db.SendBatch(ctx, batch)
 	defer br.Close()
 
 	for i := 0; i < batch.Len(); i++ {
@@ -85,6 +93,10 @@ func (s *DB) SaveCountries(ctx context.Context, countries []models.Country) erro
 // SaveCompanies saves a batch of companies to the database
 // It performs an upsert operation: inserts new records and updates existing ones based on their ID
 func (s *DB) SaveCompanies(ctx context.Context, companies []models.Company) error {
+	return saveCompanies(ctx, s.pool, companies)
+}
+
+func saveCompanies(ctx context.Context, db batchSender, companies []models.Company) error {
 	if len(companies) == 0 {
 		return nil
 	}
@@ -112,7 +124,7 @@ func (s *DB) SaveCompanies(ctx context.Context, companies []models.Company) erro
 		)
 	}
 
-	br := s.pool.SendBatch(ctx, batch)
+	br := db.SendBatch(ctx, batch)
 	defer br.Close()
 
 	for i := 0; i < batch.Len(); i++ {
@@ -127,6 +139,10 @@ func (s *DB) SaveCompanies(ctx context.Context, companies []models.Company) erro
 // SaveUsers saves a batch of users to the database
 // It performs an upsert operation: inserts new records and updates existing ones based on their ID
 func (s *DB) SaveUsers(ctx context.Context, users []models.User) error {
+	return saveUsers(ctx, s.pool, users)
+}
+
+func saveUsers(ctx context.Context, db batchSender, users []models.User) error {
 	if len(users) == 0 {
 		return nil
 	}
@@ -166,7 +182,7 @@ func (s *DB) SaveUsers(ctx context.Context, users []models.User) error {
 		)
 	}
 
-	br := s.pool.SendBatch(ctx, batch)
+	br := db.SendBatch(ctx, batch)
 	defer br.Close()
 
 	for i := 0; i < batch.Len(); i++ {
@@ -180,6 +196,10 @@ func (s *DB) SaveUsers(ctx context.Context, users []models.User) error {
 
 // SaveAccounts saves a batch of accounts to the database
 func (s *DB) SaveAccounts(ctx context.Context, accounts []models.Account) error {
+	return saveAccounts(ctx, s.pool, accounts)
+}
+
+func saveAccounts(ctx context.Context, db batchSender, accounts []models.Account) error {
 	if len(accounts) == 0 {
 		return nil
 	}
@@ -253,7 +273,7 @@ func (s *DB) SaveAccounts(ctx context.Context, accounts []models.Account) error 
 		)
 	}
 
-	br := s.pool.SendBatch(ctx, batch)
+	br := db.SendBatch(ctx, batch)
 	defer br.Close()
 
 	for i := 0; i < batch.Len(); i++ {
@@ -267,6 +287,10 @@ func (s *DB) SaveAccounts(ctx context.Context, accounts []models.Account) error 
 
 // SaveTags saves a batch of tags to the database
 func (s *DB) SaveTags(ctx context.Context, tags []models.Tag) error {
+	return saveTags(ctx, s.pool, tags)
+}
+
+func saveTags(ctx context.Context, db batchSender, tags []models.Tag) error {
 	if len(tags) == 0 {
 		return nil
 	}
@@ -314,7 +338,7 @@ func (s *DB) SaveTags(ctx context.Context, tags []models.Tag) error {
 		)
 	}
 
-	br := s.pool.SendBatch(ctx, batch)
+	br := db.SendBatch(ctx, batch)
 	defer br.Close()
 
 	for i := 0; i < batch.Len(); i++ {
@@ -328,6 +352,10 @@ func (s *DB) SaveTags(ctx context.Context, tags []models.Tag) error {
 
 // SaveMerchants saves a batch of merchants to the database
 func (s *DB) SaveMerchants(ctx context.Context, merchants []models.Merchant) error {
+	return saveMerchants(ctx, s.pool, merchants)
+}
+
+func saveMerchants(ctx context.Context, db batchSender, merchants []models.Merchant) error {
 	if len(merchants) == 0 {
 		return nil
 	}
@@ -352,7 +380,7 @@ func (s *DB) SaveMerchants(ctx context.Context, merchants []models.Merchant) err
 		)
 	}
 
-	br := s.pool.SendBatch(ctx, batch)
+	br := db.SendBatch(ctx, batch)
 	defer br.Close()
 
 	for i := 0; i < batch.Len(); i++ {
@@ -366,6 +394,10 @@ func (s *DB) SaveMerchants(ctx context.Context, merchants []models.Merchant) err
 
 // SaveBudgets saves a batch of budgets to the database
 func (s *DB) SaveBudgets(ctx context.Context, budgets []models.Budget) error {
+	return saveBudgets(ctx, s.pool, budgets)
+}
+
+func saveBudgets(ctx context.Context, db batchSender, budgets []models.Budget) error {
 	if len(budgets) == 0 {
 		return nil
 	}
@@ -392,7 +424,7 @@ func (s *DB) SaveBudgets(ctx context.Context, budgets []models.Budget) error {
 		)
 	}
 
-	br := s.pool.SendBatch(ctx, batch)
+	br := db.SendBatch(ctx, batch)
 	defer br.Close()
 
 	for i := 0; i < batch.Len(); i++ {
@@ -406,6 +438,10 @@ func (s *DB) SaveBudgets(ctx context.Context, budgets []models.Budget) error {
 
 // SaveReminders saves a batch of reminders to the database
 func (s *DB) SaveReminders(ctx context.Context, reminders []models.Reminder) error {
+	return saveReminders(ctx, s.pool, reminders)
+}
+
+func saveReminders(ctx context.Context, db batchSender, reminders []models.Reminder) error {
 	if len(reminders) == 0 {
 		return nil
 	}
@@ -463,7 +499,7 @@ func (s *DB) SaveReminders(ctx context.Context, reminders []models.Reminder) err
 		)
 	}
 
-	br := s.pool.SendBatch(ctx, batch)
+	br := db.SendBatch(ctx, batch)
 	defer br.Close()
 
 	for i := 0; i < batch.Len(); i++ {
@@ -477,6 +513,10 @@ func (s *DB) SaveReminders(ctx context.Context, reminders []models.Reminder) err
 
 // SaveReminderMarkers saves a batch of reminder markers to the database
 func (s *DB) SaveReminderMarkers(ctx context.Context, markers []models.ReminderMarker) error {
+	return saveReminderMarkers(ctx, s.pool, markers)
+}
+
+func saveReminderMarkers(ctx context.Context, db batchSender, markers []models.ReminderMarker) error {
 	if len(markers) == 0 {
 		return nil
 	}
@@ -532,7 +572,7 @@ func (s *DB) SaveReminderMarkers(ctx context.Context, markers []models.ReminderM
 		)
 	}
 
-	br := s.pool.SendBatch(ctx, batch)
+	br := db.SendBatch(ctx, batch)
 	defer br.Close()
 
 	for i := 0; i < batch.Len(); i++ {
@@ -546,6 +586,10 @@ func (s *DB) SaveReminderMarkers(ctx context.Context, markers []models.ReminderM
 
 // SaveTransactions saves a batch of transactions to the database
 func (s *DB) SaveTransactions(ctx context.Context, transactions []models.Transaction) error {
+	return saveTransactions(ctx, s.pool, transactions)
+}
+
+func saveTransactions(ctx context.Context, db batchSender, transactions []models.Transaction) error {
 	if len(transactions) == 0 {
 		return nil
 	}
@@ -628,7 +672,7 @@ func (s *DB) SaveTransactions(ctx context.Context, transactions []models.Transac
 		)
 	}
 
-	br := s.pool.SendBatch(ctx, batch)
+	br := db.SendBatch(ctx, batch)
 	defer br.Close()
 
 	for i := 0; i < batch.Len(); i++ {
