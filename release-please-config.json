@@ -3,16 +3,16 @@
   "release-type": "go",
   "include-component-in-tag": false,
   "changelog-sections": [
-    { "type": "feat", "section": "Features" },
-    { "type": "fix", "section": "Bug Fixes" },
-    { "type": "perf", "section": "Performance Improvements" },
-    { "type": "refactor", "section": "Code Refactoring" },
-    { "type": "docs", "section": "Documentation" },
-    { "type": "test", "section": "Tests" },
-    { "type": "build", "section": "Build System" },
-    { "type": "ci", "section": "Continuous Integration" },
-    { "type": "chore", "section": "Miscellaneous Chores" },
-    { "type": "revert", "section": "Reverts" }
+    { "type": "feat", "section": "🚀 Features" },
+    { "type": "fix", "section": "🐛 Bug Fixes" },
+    { "type": "perf", "section": "⚡ Performance" },
+    { "type": "refactor", "section": "🚜 Refactor" },
+    { "type": "docs", "section": "📚 Documentation" },
+    { "type": "test", "section": "🧪 Testing" },
+    { "type": "build", "section": "📦 Build System" },
+    { "type": "ci", "section": "👷 Continuous Integration" },
+    { "type": "chore", "section": "⚙️ Miscellaneous Tasks" },
+    { "type": "revert", "section": "◀️ Reverts" }
   ],
   "packages": {
     ".": {}
