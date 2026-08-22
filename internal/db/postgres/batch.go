@@ -406,7 +406,15 @@ func saveBudgets(ctx context.Context, db batchSender, budgets []models.Budget) e
         INSERT INTO budget (
             "user", changed, date, tag, income, outcome,
             income_lock, outcome_lock, is_income_forecast, is_outcome_forecast
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        ON CONFLICT ("user", date, tag) DO UPDATE SET
+            changed = EXCLUDED.changed,
+            income = EXCLUDED.income,
+            outcome = EXCLUDED.outcome,
+            income_lock = EXCLUDED.income_lock,
+            outcome_lock = EXCLUDED.outcome_lock,
+            is_income_forecast = EXCLUDED.is_income_forecast,
+            is_outcome_forecast = EXCLUDED.is_outcome_forecast`
 
 	batch := &pgx.Batch{}
 	for _, budget := range budgets {

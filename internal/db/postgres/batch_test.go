@@ -172,12 +172,13 @@ func TestSaveMerchants_Success(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestSaveBudgets_Success(t *testing.T) {
+func TestSaveBudgets_UpsertsByNaturalKey(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	assert.NoError(t, err)
 	defer mock.Close()
 
 	db := &DB{pool: mock}
+	aggregateTag := "00000000-0000-0000-0000-000000000000"
 
 	budgets := []models.Budget{
 		{
@@ -191,12 +192,28 @@ func TestSaveBudgets_Success(t *testing.T) {
 			IsIncomeForecast:  false,
 			IsOutcomeForecast: true,
 		},
+		{
+			User:              1,
+			Changed:           123457,
+			Date:              "2024-02-01",
+			Tag:               &aggregateTag,
+			Income:            7000.0,
+			Outcome:           4000.0,
+			IncomeLock:        true,
+			OutcomeLock:       true,
+			IsIncomeForecast:  false,
+			IsOutcomeForecast: false,
+		},
 	}
 
+	const budgetUpsertPattern = `(?s)INSERT INTO budget .*ON CONFLICT \("user", date, tag\) DO UPDATE SET`
 	batch := mock.ExpectBatch()
-	batch.ExpectExec("INSERT INTO budget").
+	batch.ExpectExec(budgetUpsertPattern).
 		WithArgs(budgets[0].User, budgets[0].Changed, budgets[0].Date, budgets[0].Tag, budgets[0].Income, budgets[0].Outcome, budgets[0].IncomeLock, budgets[0].OutcomeLock, budgets[0].IsIncomeForecast, budgets[0].IsOutcomeForecast).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	batch.ExpectExec(budgetUpsertPattern).
+		WithArgs(budgets[1].User, budgets[1].Changed, budgets[1].Date, budgets[1].Tag, budgets[1].Income, budgets[1].Outcome, budgets[1].IncomeLock, budgets[1].OutcomeLock, budgets[1].IsIncomeForecast, budgets[1].IsOutcomeForecast).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
 	err = db.SaveBudgets(context.Background(), budgets)
 	assert.NoError(t, err)
