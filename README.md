@@ -35,7 +35,9 @@ Global variables:
 - `DB_URL`: Connection string for your database. Example: `postgres://user:password@localhost:5432/dbname`.
 - `DB_TYPE`: Database type. Default: `postgres`.
 - `LOG_LEVEL`: Log level for the exporter. Default: `info`.
-- `FORMAT`: Export format. Default: `json`.
+
+`TOKEN` and `DB_CONFIG` remain supported as legacy aliases for `ZEN_API_TOKEN` and `DB_URL`.
+When both names are set, the canonical name takes precedence.
 
 Command-specific variables:
 
@@ -51,19 +53,24 @@ Default configuration file is `~/.zenexport.yaml`. You can specify a custom file
 
 ```yaml
 db_type: postgres
-db_config: "postgres://postgres:postgres@localhost:5432/postgres"
+db_url: "postgres://postgres:postgres@localhost:5432/postgres"
 log_level: debug
-format: json
 token: not-a-real-token
 ```
 
-### Comannnd-Line Arguments
+The original `db_config` YAML key is also accepted for backward compatibility.
+
+### Command-Line Arguments
 
 Parameters can be set using environment variables or directly via command-line arguments.
+Command-line flags take precedence over environment variables, which take precedence over the configuration file.
 
 ```bash
-go run main.go --token=your-token-here --db-url=postgres://user:password@localhost:5432/dbname
+go run main.go sync --token=your-token-here --db-url=postgres://user:password@localhost:5432/dbname
 ```
+
+Use `--config`, `--db-type`, `--db-url`, `--token`, and `--log-level` as global options.
+Only PostgreSQL is currently supported.
 
 ## Commands
 
@@ -73,9 +80,9 @@ Now app supports the following commands:
 
 ### Sync Command
 
-The `sync` command is used to synchronize data from ZenMoney to your database. If command run first time, it will
-perform a full sync (in demon mode full sync plus incremental sync every `interval` minutes). Otherwise, it will perform
-an incremental sync. Also you can force a full sync using the `--force`
+The `sync` command is used to synchronize data from ZenMoney to your database. If the command runs for the first time, it will
+perform a full sync (in daemon mode, a full sync followed by incremental sync every `interval` minutes). Otherwise, it will perform
+an incremental sync. You can force a full sync using `--force`.
 
 Flags:
 

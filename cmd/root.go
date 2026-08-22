@@ -40,8 +40,9 @@ func (r *RootCommand) addFlags() {
 	flags := r.cmd.PersistentFlags()
 	flags.StringVar(&r.opts.ConfigFile, "config", "", "config file path")
 	flags.StringVar(&r.opts.Token, "token", "", "ZenMoney API token")
+	flags.StringVar(&r.opts.DBType, "db-type", "postgres", "database type (postgres)")
+	flags.StringVar(&r.opts.DBConfig, "db-url", "", "database connection URL")
 	flags.StringVar(&r.opts.LogLevel, "log-level", "info", "log level (debug, info, warn, error)")
-	flags.StringVar(&r.opts.Format, "format", "json", "output format (text, json)")
 
 	err := viper.BindPFlag("token", flags.Lookup("token"))
 	if err != nil {
@@ -53,9 +54,14 @@ func (r *RootCommand) addFlags() {
 		slog.Error("failed to bind log-level flag", "error", err)
 		return
 	}
-	err = viper.BindPFlag("format", flags.Lookup("format"))
+	err = viper.BindPFlag("db_type", flags.Lookup("db-type"))
 	if err != nil {
-		slog.Error("failed to bind format flag", "error", err)
+		slog.Error("failed to bind db-type flag", "error", err)
+		return
+	}
+	err = viper.BindPFlag("db_url", flags.Lookup("db-url"))
+	if err != nil {
+		slog.Error("failed to bind db-url flag", "error", err)
 		return
 	}
 }
@@ -69,7 +75,7 @@ func (r *RootCommand) preRun(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	cfg, err := config.NewConfigFromViper()
+	cfg, err := config.NewConfigFromViper(r.opts.ConfigFile)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}

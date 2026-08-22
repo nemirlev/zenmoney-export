@@ -1,128 +1,84 @@
-# CLI Commands Structure
+# CLI reference
 
-## Root Command (zenexport)
+ZenMoney Export currently provides one command: `sync`.
 
-Global flags available for all commands:
+## Configuration priority
+
+Configuration is resolved in this order, from highest to lowest priority:
+
+1. Command-line flags.
+2. Environment variables.
+3. The selected YAML configuration file.
+4. Built-in defaults.
+
+The default file is `~/.zenexport.yaml`. Select another file with `--config`.
+
+```yaml
+token: your-zenmoney-token
+db_type: postgres
+db_url: postgres://user:password@localhost:5432/zenmoney
+log_level: info
 ```
---config        Path to config file (default: $HOME/.zenexport.yaml)
---token         ZenMoney API token
---log-level    Log level (debug, info, warn, error)
---format       Output format (text, json) for applicable commands
+
+For backward compatibility, the YAML key `db_config` is accepted in place of `db_url`.
+
+Environment variables:
+
+- `ZEN_API_TOKEN` — required ZenMoney API token; legacy alias: `TOKEN`.
+- `DB_URL` — required PostgreSQL connection URL; legacy alias: `DB_CONFIG`.
+- `DB_TYPE` — database type; defaults to `postgres` and currently supports only PostgreSQL.
+- `LOG_LEVEL` — `debug`, `info`, `warn`, or `error`; defaults to `info`.
+
+The canonical environment name takes precedence when both it and its legacy alias are present.
+
+## Root command
+
+```text
+zenexport [global flags] sync [sync flags]
 ```
 
-## Command: sync
-Synchronizes data from ZenMoney to the database.
+Global flags:
 
+```text
+--config string      config file path (default ~/.zenexport.yaml)
+--token string       ZenMoney API token
+--db-type string     database type (postgres) (default "postgres")
+--db-url string      database connection URL
+--log-level string   log level: debug, info, warn, error (default "info")
 ```
+
+## `sync`
+
+Synchronizes ZenMoney data to PostgreSQL. The first run performs a full sync; later runs continue from the last successful synchronization. Use `--force` to ignore the saved cursor.
+
+```text
 zenexport sync [flags]
 ```
 
-Flags:
-```
---db-type          Database type (clickhouse, postgres, mysql)
---db-url           Database connection URL
---daemon, -d       Run in daemon mode
---interval         Sync interval in minutes (for daemon mode)
---from             Start date for sync (format: YYYY-MM-DD)
---to               End date for sync (format: YYYY-MM-DD)
---entities         Comma-separated list of entities to sync (transactions,accounts,tags,merchants)
---batch-size       Number of records to process in one batch
---force            Force full sync ignoring last sync timestamp
---dry-run          Show what would be synced without actually syncing
+Sync flags:
+
+```text
+-d, --daemon          run continuously
+    --interval int    interval in minutes for daemon mode (default 30)
+    --entities string entities to sync (default "all")
+    --force            force a full sync
+    --dry-run          fetch data without writing it to the database
 ```
 
-## Command: migrate
-Manages database migrations.
+Examples:
 
-```
-zenexport migrate [command]
-```
-
-Subcommands:
-```
-up          Apply all or N up migrations
-down        Apply all or N down migrations
-create      Create a new migration file
-status      Show migration status
-version     Show current migration version
-```
-
-Flags:
-```
---db-type          Database type (clickhouse, postgres, mysql)
---db-url           Database connection URL
---path             Path to migration files
---version          Target version for migrate up/down
-```
-
-## Command: check
-Performs various checks and validations.
-
-```
-zenexport check [flags]
-```
-
-Flags:
-```
---db-connection    Check database connection
---api-token        Validate API token
---migrations       Check if migrations are up to date
-```
-
-## Command: info
-Shows various information about the system and sync status.
-
-```
-zenexport info [command]
-```
-
-Subcommands:
-```
-status      Show current sync status and statistics
-config      Show current configuration
-db          Show database information and statistics
-```
-
-## Command: export
-Exports data from the database to various formats.
-
-```
-zenexport export [flags]
-```
-
-Flags:
-```
---format           Export format (csv, json, excel)
---output, -o       Output file path
---entities         Comma-separated list of entities to export
---from             Start date for export (format: YYYY-MM-DD)
---to               End date for export (format: YYYY-MM-DD)
---compress         Compress output file
-```
-
-## Usage Examples
-
-1. Basic sync with default settings:
 ```bash
-zenexport sync --token="your-token" --db-url="clickhouse://..."
-```
+# Use flags
+zenexport sync \
+  --token="your-token" \
+  --db-url="postgres://user:password@localhost:5432/zenmoney"
 
-2. Run sync in daemon mode:
-```bash
-zenexport sync -d --interval=30 --token="your-token" --db-url="clickhouse://..."
-```
+# Use a selected configuration file
+zenexport sync --config=/etc/zenexport.yaml
 
-3. Apply migrations:
-```bash
-zenexport migrate up --db-url="clickhouse://..."
-```
+# Run every five minutes
+zenexport sync --daemon --interval=5
 
-4. Export data:
-```bash
-zenexport export --format=csv --output=./export.csv --entities=transactions
-```
-
-5. Check system status:
-```bash
-zenexport check --db-connection --api-token
+# Force a full sync for selected entities
+zenexport sync --entities=transactions,accounts --force
 ```
