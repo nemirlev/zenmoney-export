@@ -15,7 +15,7 @@ import (
 func (s *DB) GetReminder(ctx context.Context, id string) (*models.Reminder, error) {
 	query := `
         SELECT id, "user", income, outcome, changed, income_instrument,
-               outcome_instrument, step, points, tag, start_date, end_date,
+               outcome_instrument, step, points, tag, start_date::text, end_date::text,
                notify, interval, income_account, outcome_account, comment,
                payee, merchant
         FROM reminder
@@ -70,7 +70,7 @@ func (s *DB) ListReminders(
 
 	query := `
         SELECT id, "user", income, outcome, changed, income_instrument,
-               outcome_instrument, step, points, tag, start_date, end_date,
+               outcome_instrument, step, points, tag, start_date::text, end_date::text,
                notify, interval, income_account, outcome_account, comment,
                payee, merchant
         FROM reminder`
@@ -133,14 +133,16 @@ func (s *DB) CreateReminder(ctx context.Context, reminder *models.Reminder) erro
             outcome_instrument, step, points, tag, start_date, end_date,
             notify, interval, income_account, outcome_account, comment,
             payee, merchant
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 
-                  $14, $15, $16, $17, $18, $19)`
+        ) VALUES ($1, $2, $3::text::numeric, $4::text::numeric, $5, $6, $7,
+                  $8, $9, $10, $11::text::date,
+                  NULLIF(BTRIM($12::text), '')::date, $13, $14,
+                  $15::text::uuid, $16::text::uuid, $17, $18, $19)`
 
 	_, err := s.pool.Exec(ctx, query,
 		reminder.ID,
 		reminder.User,
-		reminder.Income,
-		reminder.Outcome,
+		decimalString(reminder.Income),
+		decimalString(reminder.Outcome),
 		reminder.Changed,
 		reminder.IncomeInstrument,
 		reminder.OutcomeInstrument,
@@ -169,20 +171,20 @@ func (s *DB) UpdateReminder(ctx context.Context, reminder *models.Reminder) erro
 	query := `
         UPDATE reminder SET
             "user" = $2,
-            income = $3,
-            outcome = $4,
+            income = $3::text::numeric,
+            outcome = $4::text::numeric,
             changed = $5,
             income_instrument = $6,
             outcome_instrument = $7,
             step = $8,
             points = $9,
             tag = $10,
-            start_date = $11,
-            end_date = $12,
+            start_date = $11::text::date,
+            end_date = NULLIF(BTRIM($12::text), '')::date,
             notify = $13,
             interval = $14,
-            income_account = $15,
-            outcome_account = $16,
+            income_account = $15::text::uuid,
+            outcome_account = $16::text::uuid,
             comment = $17,
             payee = $18,
             merchant = $19
@@ -191,8 +193,8 @@ func (s *DB) UpdateReminder(ctx context.Context, reminder *models.Reminder) erro
 	commandTag, err := s.pool.Exec(ctx, query,
 		reminder.ID,
 		reminder.User,
-		reminder.Income,
-		reminder.Outcome,
+		decimalString(reminder.Income),
+		decimalString(reminder.Outcome),
 		reminder.Changed,
 		reminder.IncomeInstrument,
 		reminder.OutcomeInstrument,

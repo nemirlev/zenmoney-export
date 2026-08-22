@@ -69,7 +69,7 @@ func TestGetTransaction_Success(t *testing.T) {
 		expectedTransaction.IncomeBankID, expectedTransaction.OutcomeBankID, expectedTransaction.ReminderMarker,
 	)
 
-	mock.ExpectQuery(`SELECT id, "user", date, income, outcome, changed, income_instrument, outcome_instrument, created, original_payee, deleted, viewed, hold, qr_code, source, income_account, outcome_account, tag, comment, payee, op_income, op_outcome, op_income_instrument, op_outcome_instrument, latitude, longitude, merchant, income_bank_id, outcome_bank_id, reminder_marker FROM transaction WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT id, "user", date::text, income, outcome, changed, income_instrument, outcome_instrument, created, original_payee, deleted, viewed, hold, qr_code, source, income_account, outcome_account, tag, comment, payee, op_income, op_outcome, op_income_instrument, op_outcome_instrument, latitude, longitude, merchant, income_bank_id, outcome_bank_id, reminder_marker FROM transaction WHERE id = \$1`).
 		WithArgs("test-id").
 		WillReturnRows(rows)
 
@@ -87,7 +87,7 @@ func TestGetTransaction_NotFound(t *testing.T) {
 
 	db := &DB{pool: mock}
 
-	mock.ExpectQuery(`SELECT id, "user", date, income, outcome, changed, income_instrument, outcome_instrument, created, original_payee, deleted, viewed, hold, qr_code, source, income_account, outcome_account, tag, comment, payee, op_income, op_outcome, op_income_instrument, op_outcome_instrument, latitude, longitude, merchant, income_bank_id, outcome_bank_id, reminder_marker FROM transaction WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT id, "user", date::text, income, outcome, changed, income_instrument, outcome_instrument, created, original_payee, deleted, viewed, hold, qr_code, source, income_account, outcome_account, tag, comment, payee, op_income, op_outcome, op_income_instrument, op_outcome_instrument, latitude, longitude, merchant, income_bank_id, outcome_bank_id, reminder_marker FROM transaction WHERE id = \$1`).
 		WithArgs("non-existing-id").
 		WillReturnError(pgx.ErrNoRows)
 
@@ -106,7 +106,7 @@ func TestGetTransaction_QueryError(t *testing.T) {
 
 	db := &DB{pool: mock}
 
-	mock.ExpectQuery(`SELECT id, "user", date, income, outcome, changed, income_instrument, outcome_instrument, created, original_payee, deleted, viewed, hold, qr_code, source, income_account, outcome_account, tag, comment, payee, op_income, op_outcome, op_income_instrument, op_outcome_instrument, latitude, longitude, merchant, income_bank_id, outcome_bank_id, reminder_marker FROM transaction WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT id, "user", date::text, income, outcome, changed, income_instrument, outcome_instrument, created, original_payee, deleted, viewed, hold, qr_code, source, income_account, outcome_account, tag, comment, payee, op_income, op_outcome, op_income_instrument, op_outcome_instrument, latitude, longitude, merchant, income_bank_id, outcome_bank_id, reminder_marker FROM transaction WHERE id = \$1`).
 		WithArgs("test-id").
 		WillReturnError(errors.New("query error"))
 
@@ -147,7 +147,7 @@ func TestListTransactions_Success(t *testing.T) {
 		), new(4), new(55.7558), new(37.6176), new("Merchant"), new("IncomeBankID"), new("OutcomeBankID"), new("ReminderMarker"),
 	)
 
-	mock.ExpectQuery(`SELECT id, "user", date, income, outcome, changed, income_instrument, outcome_instrument, created, original_payee, deleted, viewed, hold, qr_code, source, income_account, outcome_account, tag, comment, payee, op_income, op_outcome, op_income_instrument, op_outcome_instrument, latitude, longitude, merchant, income_bank_id, outcome_bank_id, reminder_marker FROM transaction WHERE "user" = \$1 ORDER BY date DESC, created DESC LIMIT \$2 OFFSET \$3`).
+	mock.ExpectQuery(`SELECT id, "user", date::text, income, outcome, changed, income_instrument, outcome_instrument, created, original_payee, deleted, viewed, hold, qr_code, source, income_account, outcome_account, tag, comment, payee, op_income, op_outcome, op_income_instrument, op_outcome_instrument, latitude, longitude, merchant, income_bank_id, outcome_bank_id, reminder_marker FROM transaction WHERE "user" = \$1 ORDER BY date DESC, created DESC LIMIT \$2 OFFSET \$3`).
 		WithArgs(1, 10, 0).
 		WillReturnRows(rows)
 
@@ -172,7 +172,7 @@ func TestListTransactions_QueryError(t *testing.T) {
 		Page:   1,
 	}
 
-	mock.ExpectQuery(`SELECT id, "user", date, income, outcome, changed, income_instrument, outcome_instrument, created, original_payee, deleted, viewed, hold, qr_code, source, income_account, outcome_account, tag, comment, payee, op_income, op_outcome, op_income_instrument, op_outcome_instrument, latitude, longitude, merchant, income_bank_id, outcome_bank_id, reminder_marker FROM transaction WHERE "user" = \$1 ORDER BY date DESC, created DESC LIMIT \$2 OFFSET \$3`).
+	mock.ExpectQuery(`SELECT id, "user", date::text, income, outcome, changed, income_instrument, outcome_instrument, created, original_payee, deleted, viewed, hold, qr_code, source, income_account, outcome_account, tag, comment, payee, op_income, op_outcome, op_income_instrument, op_outcome_instrument, latitude, longitude, merchant, income_bank_id, outcome_bank_id, reminder_marker FROM transaction WHERE "user" = \$1 ORDER BY date DESC, created DESC LIMIT \$2 OFFSET \$3`).
 		WithArgs(1, 10, 0).
 		WillReturnError(errors.New("query error"))
 
@@ -226,11 +226,11 @@ func TestCreateTransaction_Success(t *testing.T) {
 
 	mock.ExpectExec(`INSERT INTO transaction`).
 		WithArgs(
-			transaction.ID, transaction.User, transaction.Date, transaction.Income, transaction.Outcome,
+			transaction.ID, transaction.User, transaction.Date, decimalString(transaction.Income), decimalString(transaction.Outcome),
 			transaction.Changed, transaction.IncomeInstrument, transaction.OutcomeInstrument, transaction.Created,
 			transaction.OriginalPayee, transaction.Deleted, transaction.Viewed, transaction.Hold, transaction.QRCode,
 			transaction.Source, transaction.IncomeAccount, transaction.OutcomeAccount, transaction.Tag, transaction.Comment,
-			transaction.Payee, transaction.OpIncome, transaction.OpOutcome, transaction.OpIncomeInstrument,
+			transaction.Payee, decimalString(transaction.OpIncome), decimalString(transaction.OpOutcome), transaction.OpIncomeInstrument,
 			transaction.OpOutcomeInstrument, transaction.Latitude, transaction.Longitude, transaction.Merchant,
 			transaction.IncomeBankID, transaction.OutcomeBankID, transaction.ReminderMarker,
 		).
@@ -284,11 +284,11 @@ func TestCreateTransaction_QueryError(t *testing.T) {
 
 	mock.ExpectExec(`INSERT INTO transaction`).
 		WithArgs(
-			transaction.ID, transaction.User, transaction.Date, transaction.Income, transaction.Outcome,
+			transaction.ID, transaction.User, transaction.Date, decimalString(transaction.Income), decimalString(transaction.Outcome),
 			transaction.Changed, transaction.IncomeInstrument, transaction.OutcomeInstrument, transaction.Created,
 			transaction.OriginalPayee, transaction.Deleted, transaction.Viewed, transaction.Hold, transaction.QRCode,
 			transaction.Source, transaction.IncomeAccount, transaction.OutcomeAccount, transaction.Tag, transaction.Comment,
-			transaction.Payee, transaction.OpIncome, transaction.OpOutcome, transaction.OpIncomeInstrument,
+			transaction.Payee, decimalString(transaction.OpIncome), decimalString(transaction.OpOutcome), transaction.OpIncomeInstrument,
 			transaction.OpOutcomeInstrument, transaction.Latitude, transaction.Longitude, transaction.Merchant,
 			transaction.IncomeBankID, transaction.OutcomeBankID, transaction.ReminderMarker,
 		).
@@ -341,13 +341,13 @@ func TestUpdateTransaction_Success(t *testing.T) {
 		ReminderMarker:      new("ReminderMarker"),
 	}
 
-	mock.ExpectExec(`UPDATE transaction SET "user" = \$2, date = \$3, income = \$4, outcome = \$5, changed = \$6, income_instrument = \$7, outcome_instrument = \$8, created = \$9, original_payee = \$10, deleted = \$11, viewed = \$12, hold = \$13, qr_code = \$14, source = \$15, income_account = \$16, outcome_account = \$17, tag = \$18, comment = \$19, payee = \$20, op_income = \$21, op_outcome = \$22, op_income_instrument = \$23, op_outcome_instrument = \$24, latitude = \$25, longitude = \$26, merchant = \$27, income_bank_id = \$28, outcome_bank_id = \$29, reminder_marker = \$30 WHERE id = \$1`).
+	mock.ExpectExec(`UPDATE transaction SET`).
 		WithArgs(
-			transaction.ID, transaction.User, transaction.Date, transaction.Income, transaction.Outcome, transaction.Changed,
+			transaction.ID, transaction.User, transaction.Date, decimalString(transaction.Income), decimalString(transaction.Outcome), transaction.Changed,
 			transaction.IncomeInstrument, transaction.OutcomeInstrument, transaction.Created, transaction.OriginalPayee,
 			transaction.Deleted, transaction.Viewed, transaction.Hold, transaction.QRCode, transaction.Source,
 			transaction.IncomeAccount, transaction.OutcomeAccount, transaction.Tag, transaction.Comment, transaction.Payee,
-			transaction.OpIncome, transaction.OpOutcome, transaction.OpIncomeInstrument, transaction.OpOutcomeInstrument,
+			decimalString(transaction.OpIncome), decimalString(transaction.OpOutcome), transaction.OpIncomeInstrument, transaction.OpOutcomeInstrument,
 			transaction.Latitude, transaction.Longitude, transaction.Merchant, transaction.IncomeBankID, transaction.OutcomeBankID,
 			transaction.ReminderMarker,
 		).
@@ -371,13 +371,13 @@ func TestUpdateTransaction_QueryError(t *testing.T) {
 		OriginalPayee: "Updated Transaction",
 	}
 
-	mock.ExpectExec(`UPDATE transaction SET "user" = \$2, date = \$3, income = \$4, outcome = \$5, changed = \$6, income_instrument = \$7, outcome_instrument = \$8, created = \$9, original_payee = \$10, deleted = \$11, viewed = \$12, hold = \$13, qr_code = \$14, source = \$15, income_account = \$16, outcome_account = \$17, tag = \$18, comment = \$19, payee = \$20, op_income = \$21, op_outcome = \$22, op_income_instrument = \$23, op_outcome_instrument = \$24, latitude = \$25, longitude = \$26, merchant = \$27, income_bank_id = \$28, outcome_bank_id = \$29, reminder_marker = \$30 WHERE id = \$1`).
+	mock.ExpectExec(`UPDATE transaction SET`).
 		WithArgs(
-			transaction.ID, transaction.User, transaction.Date, transaction.Income, transaction.Outcome, transaction.Changed,
+			transaction.ID, transaction.User, transaction.Date, decimalString(transaction.Income), decimalString(transaction.Outcome), transaction.Changed,
 			transaction.IncomeInstrument, transaction.OutcomeInstrument, transaction.Created, transaction.OriginalPayee,
 			transaction.Deleted, transaction.Viewed, transaction.Hold, transaction.QRCode, transaction.Source,
 			transaction.IncomeAccount, transaction.OutcomeAccount, transaction.Tag, transaction.Comment, transaction.Payee,
-			transaction.OpIncome, transaction.OpOutcome, transaction.OpIncomeInstrument, transaction.OpOutcomeInstrument,
+			decimalString(transaction.OpIncome), decimalString(transaction.OpOutcome), transaction.OpIncomeInstrument, transaction.OpOutcomeInstrument,
 			transaction.Latitude, transaction.Longitude, transaction.Merchant, transaction.IncomeBankID, transaction.OutcomeBankID,
 			transaction.ReminderMarker,
 		).

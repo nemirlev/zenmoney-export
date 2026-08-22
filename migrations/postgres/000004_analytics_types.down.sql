@@ -1,0 +1,49 @@
+DROP INDEX IF EXISTS idx_transaction_tags_gin;
+DROP INDEX IF EXISTS idx_transaction_outcome_instrument_date;
+DROP INDEX IF EXISTS idx_transaction_income_instrument_date;
+DROP INDEX IF EXISTS idx_transaction_merchant_date;
+DROP INDEX IF EXISTS idx_transaction_outcome_account_date;
+DROP INDEX IF EXISTS idx_transaction_income_account_date;
+DROP INDEX IF EXISTS idx_transaction_user_date_created;
+
+ALTER TABLE budget
+    ALTER COLUMN outcome TYPE DOUBLE PRECISION USING outcome::DOUBLE PRECISION,
+    ALTER COLUMN income TYPE DOUBLE PRECISION USING income::DOUBLE PRECISION,
+    ALTER COLUMN date TYPE TEXT USING TO_CHAR(date, 'YYYY-MM-DD');
+
+ALTER TABLE transaction
+    ALTER COLUMN outcome_account TYPE TEXT USING outcome_account::TEXT,
+    ALTER COLUMN income_account TYPE TEXT USING income_account::TEXT,
+    ALTER COLUMN op_outcome TYPE DOUBLE PRECISION USING op_outcome::DOUBLE PRECISION,
+    ALTER COLUMN op_income TYPE DOUBLE PRECISION USING op_income::DOUBLE PRECISION,
+    ALTER COLUMN outcome TYPE DOUBLE PRECISION USING outcome::DOUBLE PRECISION,
+    ALTER COLUMN income TYPE DOUBLE PRECISION USING income::DOUBLE PRECISION,
+    ALTER COLUMN date TYPE TEXT USING TO_CHAR(date, 'YYYY-MM-DD');
+
+ALTER TABLE reminder_marker
+    ALTER COLUMN outcome_account TYPE TEXT USING outcome_account::TEXT,
+    ALTER COLUMN income_account TYPE TEXT USING income_account::TEXT,
+    ALTER COLUMN date TYPE TEXT USING TO_CHAR(date, 'YYYY-MM-DD'),
+    ALTER COLUMN outcome TYPE DOUBLE PRECISION USING outcome::DOUBLE PRECISION,
+    ALTER COLUMN income TYPE DOUBLE PRECISION USING income::DOUBLE PRECISION;
+
+ALTER TABLE reminder
+    ALTER COLUMN outcome_account TYPE TEXT USING outcome_account::TEXT,
+    ALTER COLUMN income_account TYPE TEXT USING income_account::TEXT,
+    ALTER COLUMN end_date TYPE TEXT USING TO_CHAR(end_date, 'YYYY-MM-DD'),
+    ALTER COLUMN start_date TYPE TEXT USING TO_CHAR(start_date, 'YYYY-MM-DD'),
+    ALTER COLUMN outcome TYPE DOUBLE PRECISION USING outcome::DOUBLE PRECISION,
+    ALTER COLUMN income TYPE DOUBLE PRECISION USING income::DOUBLE PRECISION;
+
+ALTER TABLE tag
+    ALTER COLUMN parent TYPE TEXT USING parent::TEXT;
+
+ALTER TABLE account
+    ALTER COLUMN start_date TYPE TEXT USING TO_CHAR(start_date, 'YYYY-MM-DD'),
+    ALTER COLUMN percent TYPE DOUBLE PRECISION USING percent::DOUBLE PRECISION,
+    ALTER COLUMN credit_limit TYPE DOUBLE PRECISION USING credit_limit::DOUBLE PRECISION,
+    ALTER COLUMN start_balance TYPE DOUBLE PRECISION USING start_balance::DOUBLE PRECISION,
+    ALTER COLUMN balance TYPE DOUBLE PRECISION USING balance::DOUBLE PRECISION;
+
+ALTER TABLE instrument
+    ALTER COLUMN rate TYPE DOUBLE PRECISION USING rate::DOUBLE PRECISION;

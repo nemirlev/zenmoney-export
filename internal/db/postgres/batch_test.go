@@ -22,7 +22,7 @@ func TestSaveInstruments_Success(t *testing.T) {
 
 	batch := mock.ExpectBatch()
 	batch.ExpectExec("INSERT INTO instrument").
-		WithArgs(instruments[0].ID, instruments[0].Title, instruments[0].ShortTitle, instruments[0].Symbol, instruments[0].Rate, instruments[0].Changed).
+		WithArgs(instruments[0].ID, instruments[0].Title, instruments[0].ShortTitle, instruments[0].Symbol, decimalString(instruments[0].Rate), instruments[0].Changed).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
 	err = db.SaveInstruments(context.Background(), instruments)
@@ -115,7 +115,7 @@ func TestSaveAccounts_Success(t *testing.T) {
 
 	batch := mock.ExpectBatch()
 	batch.ExpectExec("INSERT INTO account").
-		WithArgs(accounts[0].ID, accounts[0].User, accounts[0].Instrument, accounts[0].Type, accounts[0].Role, accounts[0].Private, accounts[0].Savings, accounts[0].Title, accounts[0].InBalance, accounts[0].CreditLimit, accounts[0].StartBalance, accounts[0].Balance, accounts[0].Company, accounts[0].Archive, accounts[0].EnableCorrection, accounts[0].BalanceCorrectionType, accounts[0].StartDate, accounts[0].Capitalization, accounts[0].Percent, accounts[0].Changed, accounts[0].SyncID, accounts[0].EnableSMS, accounts[0].EndDateOffset, accounts[0].EndDateOffsetInterval, accounts[0].PayoffStep, accounts[0].PayoffInterval).
+		WithArgs(accounts[0].ID, accounts[0].User, accounts[0].Instrument, accounts[0].Type, accounts[0].Role, accounts[0].Private, accounts[0].Savings, accounts[0].Title, accounts[0].InBalance, optionalDecimalString(accounts[0].CreditLimit), optionalDecimalString(accounts[0].StartBalance), optionalDecimalString(accounts[0].Balance), accounts[0].Company, accounts[0].Archive, accounts[0].EnableCorrection, accounts[0].BalanceCorrectionType, accounts[0].StartDate, accounts[0].Capitalization, optionalDecimalString(accounts[0].Percent), accounts[0].Changed, accounts[0].SyncID, accounts[0].EnableSMS, accounts[0].EndDateOffset, accounts[0].EndDateOffsetInterval, accounts[0].PayoffStep, accounts[0].PayoffInterval).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
 	err = db.SaveAccounts(context.Background(), accounts)
@@ -209,10 +209,10 @@ func TestSaveBudgets_UpsertsByNaturalKey(t *testing.T) {
 	const budgetUpsertPattern = `(?s)INSERT INTO budget .*ON CONFLICT \("user", date, tag\) DO UPDATE SET`
 	batch := mock.ExpectBatch()
 	batch.ExpectExec(budgetUpsertPattern).
-		WithArgs(budgets[0].User, budgets[0].Changed, budgets[0].Date, budgets[0].Tag, budgets[0].Income, budgets[0].Outcome, budgets[0].IncomeLock, budgets[0].OutcomeLock, budgets[0].IsIncomeForecast, budgets[0].IsOutcomeForecast).
+		WithArgs(budgets[0].User, budgets[0].Changed, budgets[0].Date, budgets[0].Tag, decimalString(budgets[0].Income), decimalString(budgets[0].Outcome), budgets[0].IncomeLock, budgets[0].OutcomeLock, budgets[0].IsIncomeForecast, budgets[0].IsOutcomeForecast).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	batch.ExpectExec(budgetUpsertPattern).
-		WithArgs(budgets[1].User, budgets[1].Changed, budgets[1].Date, budgets[1].Tag, budgets[1].Income, budgets[1].Outcome, budgets[1].IncomeLock, budgets[1].OutcomeLock, budgets[1].IsIncomeForecast, budgets[1].IsOutcomeForecast).
+		WithArgs(budgets[1].User, budgets[1].Changed, budgets[1].Date, budgets[1].Tag, decimalString(budgets[1].Income), decimalString(budgets[1].Outcome), budgets[1].IncomeLock, budgets[1].OutcomeLock, budgets[1].IsIncomeForecast, budgets[1].IsOutcomeForecast).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
 	err = db.SaveBudgets(context.Background(), budgets)
@@ -253,7 +253,7 @@ func TestSaveReminders_Success(t *testing.T) {
 
 	batch := mock.ExpectBatch()
 	batch.ExpectExec("INSERT INTO reminder").
-		WithArgs(reminders[0].ID, reminders[0].User, reminders[0].Income, reminders[0].Outcome, reminders[0].Changed, reminders[0].IncomeInstrument, reminders[0].OutcomeInstrument, reminders[0].Step, reminders[0].Points, reminders[0].Tag, reminders[0].StartDate, reminders[0].EndDate, reminders[0].Notify, reminders[0].Interval, reminders[0].IncomeAccount, reminders[0].OutcomeAccount, reminders[0].Comment, reminders[0].Payee, reminders[0].Merchant).
+		WithArgs(reminders[0].ID, reminders[0].User, decimalString(reminders[0].Income), decimalString(reminders[0].Outcome), reminders[0].Changed, reminders[0].IncomeInstrument, reminders[0].OutcomeInstrument, reminders[0].Step, reminders[0].Points, reminders[0].Tag, reminders[0].StartDate, reminders[0].EndDate, reminders[0].Notify, reminders[0].Interval, reminders[0].IncomeAccount, reminders[0].OutcomeAccount, reminders[0].Comment, reminders[0].Payee, reminders[0].Merchant).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
 	err = db.SaveReminders(context.Background(), reminders)
@@ -293,7 +293,7 @@ func TestSaveReminderMarkers_Success(t *testing.T) {
 
 	batch := mock.ExpectBatch()
 	batch.ExpectExec("INSERT INTO reminder_marker").
-		WithArgs(markers[0].ID, markers[0].User, markers[0].Date, markers[0].Income, markers[0].Outcome, markers[0].Changed, markers[0].IncomeInstrument, markers[0].OutcomeInstrument, markers[0].State, markers[0].IsForecast, markers[0].Reminder, markers[0].IncomeAccount, markers[0].OutcomeAccount, markers[0].Comment, markers[0].Payee, markers[0].Merchant, markers[0].Notify, markers[0].Tag).
+		WithArgs(markers[0].ID, markers[0].User, markers[0].Date, decimalString(markers[0].Income), decimalString(markers[0].Outcome), markers[0].Changed, markers[0].IncomeInstrument, markers[0].OutcomeInstrument, markers[0].State, markers[0].IsForecast, markers[0].Reminder, markers[0].IncomeAccount, markers[0].OutcomeAccount, markers[0].Comment, markers[0].Payee, markers[0].Merchant, markers[0].Notify, markers[0].Tag).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
 	err = db.SaveReminderMarkers(context.Background(), markers)
@@ -345,7 +345,7 @@ func TestSaveTransactions_Success(t *testing.T) {
 
 	batch := mock.ExpectBatch()
 	batch.ExpectExec("INSERT INTO transaction").
-		WithArgs(transactions[0].ID, transactions[0].User, transactions[0].Date, transactions[0].Income, transactions[0].Outcome, transactions[0].Changed, transactions[0].IncomeInstrument, transactions[0].OutcomeInstrument, transactions[0].Created, transactions[0].OriginalPayee, transactions[0].Deleted, transactions[0].Viewed, transactions[0].Hold, transactions[0].QRCode, transactions[0].Source, transactions[0].IncomeAccount, transactions[0].OutcomeAccount, transactions[0].Tag, transactions[0].Comment, transactions[0].Payee, transactions[0].OpIncome, transactions[0].OpOutcome, transactions[0].OpIncomeInstrument, transactions[0].OpOutcomeInstrument, transactions[0].Latitude, transactions[0].Longitude, transactions[0].Merchant, transactions[0].IncomeBankID, transactions[0].OutcomeBankID, transactions[0].ReminderMarker).
+		WithArgs(transactions[0].ID, transactions[0].User, transactions[0].Date, decimalString(transactions[0].Income), decimalString(transactions[0].Outcome), transactions[0].Changed, transactions[0].IncomeInstrument, transactions[0].OutcomeInstrument, transactions[0].Created, transactions[0].OriginalPayee, transactions[0].Deleted, transactions[0].Viewed, transactions[0].Hold, transactions[0].QRCode, transactions[0].Source, transactions[0].IncomeAccount, transactions[0].OutcomeAccount, transactions[0].Tag, transactions[0].Comment, transactions[0].Payee, decimalString(transactions[0].OpIncome), decimalString(transactions[0].OpOutcome), transactions[0].OpIncomeInstrument, transactions[0].OpOutcomeInstrument, transactions[0].Latitude, transactions[0].Longitude, transactions[0].Merchant, transactions[0].IncomeBankID, transactions[0].OutcomeBankID, transactions[0].ReminderMarker).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
 	err = db.SaveTransactions(context.Background(), transactions)

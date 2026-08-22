@@ -70,7 +70,7 @@ func TestGetReminder_Success(t *testing.T) {
 		expectedReminder.Merchant,
 	)
 
-	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, start_date, end_date, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, start_date::text, end_date::text, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE id = \$1`).
 		WithArgs(id).
 		WillReturnRows(rows)
 
@@ -91,7 +91,7 @@ func TestGetReminder_NotFound(t *testing.T) {
 
 	id := "non-existent-id"
 
-	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, start_date, end_date, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, start_date::text, end_date::text, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE id = \$1`).
 		WithArgs(id).
 		WillReturnError(pgx.ErrNoRows)
 
@@ -112,7 +112,7 @@ func TestGetReminder_QueryError(t *testing.T) {
 
 	id := "test-id"
 
-	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, start_date, end_date, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, start_date::text, end_date::text, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE id = \$1`).
 		WithArgs(id).
 		WillReturnError(errors.New("database error"))
 
@@ -186,7 +186,7 @@ func TestListReminders_Success(t *testing.T) {
 		expectedReminder.Merchant,
 	)
 
-	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, start_date, end_date, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
+	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, start_date::text, end_date::text, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
 		WithArgs(1, 10, 0).
 		WillReturnRows(rows)
 
@@ -211,7 +211,7 @@ func TestListReminders_QueryError(t *testing.T) {
 		Page:   1,
 	}
 
-	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, start_date, end_date, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
+	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, start_date::text, end_date::text, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
 		WithArgs(1, 10, 0).
 		WillReturnError(errors.New("database error"))
 
@@ -252,17 +252,12 @@ func TestCreateReminder_Success(t *testing.T) {
 		Merchant:          new("merchant-id"),
 	}
 
-	mock.ExpectExec(`INSERT INTO reminder \(
-  id, "user", income, outcome, changed, income_instrument,
-  outcome_instrument, step, points, tag, start_date, end_date,
-  notify, interval, income_account, outcome_account, comment,
-  payee, merchant
- \) VALUES \(\$1, \$2, \$3, \$4, \$5, \$6, \$7, \$8, \$9, \$10, \$11, \$12, \$13, \$14, \$15, \$16, \$17, \$18, \$19\)`).
+	mock.ExpectExec(`INSERT INTO reminder`).
 		WithArgs(
 			reminder.ID,
 			reminder.User,
-			reminder.Income,
-			reminder.Outcome,
+			decimalString(reminder.Income),
+			decimalString(reminder.Outcome),
 			reminder.Changed,
 			reminder.IncomeInstrument,
 			reminder.OutcomeInstrument,
@@ -314,17 +309,12 @@ func TestCreateReminder_QueryError(t *testing.T) {
 		Merchant:          new("merchant-id"),
 	}
 
-	mock.ExpectExec(`INSERT INTO reminder \(
-  id, "user", income, outcome, changed, income_instrument,
-  outcome_instrument, step, points, tag, start_date, end_date,
-  notify, interval, income_account, outcome_account, comment,
-  payee, merchant
- \) VALUES \(\$1, \$2, \$3, \$4, \$5, \$6, \$7, \$8, \$9, \$10, \$11, \$12, \$13, \$14, \$15, \$16, \$17, \$18, \$19\)`).
+	mock.ExpectExec(`INSERT INTO reminder`).
 		WithArgs(
 			reminder.ID,
 			reminder.User,
-			reminder.Income,
-			reminder.Outcome,
+			decimalString(reminder.Income),
+			decimalString(reminder.Outcome),
 			reminder.Changed,
 			reminder.IncomeInstrument,
 			reminder.OutcomeInstrument,
@@ -378,31 +368,12 @@ func TestUpdateReminder_Success(t *testing.T) {
 		Merchant:          new("merchant-id"),
 	}
 
-	mock.ExpectExec(`UPDATE reminder SET
-  "user" = \$2,
-  income = \$3,
-  outcome = \$4,
-  changed = \$5,
-  income_instrument = \$6,
-  outcome_instrument = \$7,
-  step = \$8,
-  points = \$9,
-  tag = \$10,
-  start_date = \$11,
-  end_date = \$12,
-  notify = \$13,
-  interval = \$14,
-  income_account = \$15,
-  outcome_account = \$16,
-  comment = \$17,
-  payee = \$18,
-  merchant = \$19
- WHERE id = \$1`).
+	mock.ExpectExec(`UPDATE reminder SET`).
 		WithArgs(
 			reminder.ID,
 			reminder.User,
-			reminder.Income,
-			reminder.Outcome,
+			decimalString(reminder.Income),
+			decimalString(reminder.Outcome),
 			reminder.Changed,
 			reminder.IncomeInstrument,
 			reminder.OutcomeInstrument,
@@ -455,31 +426,12 @@ func TestUpdateReminder_NotFound(t *testing.T) {
 		Merchant:          new("merchant-id"),
 	}
 
-	mock.ExpectExec(`UPDATE reminder SET
-  "user" = \$2,
-  income = \$3,
-  outcome = \$4,
-  changed = \$5,
-  income_instrument = \$6,
-  outcome_instrument = \$7,
-  step = \$8,
-  points = \$9,
-  tag = \$10,
-  start_date = \$11,
-  end_date = \$12,
-  notify = \$13,
-  interval = \$14,
-  income_account = \$15,
-  outcome_account = \$16,
-  comment = \$17,
-  payee = \$18,
-  merchant = \$19
- WHERE id = \$1`).
+	mock.ExpectExec(`UPDATE reminder SET`).
 		WithArgs(
 			reminder.ID,
 			reminder.User,
-			reminder.Income,
-			reminder.Outcome,
+			decimalString(reminder.Income),
+			decimalString(reminder.Outcome),
 			reminder.Changed,
 			reminder.IncomeInstrument,
 			reminder.OutcomeInstrument,
@@ -533,31 +485,12 @@ func TestUpdateReminder_QueryError(t *testing.T) {
 		Merchant:          new("merchant-id"),
 	}
 
-	mock.ExpectExec(`UPDATE reminder SET
-  "user" = \$2,
-  income = \$3,
-  outcome = \$4,
-  changed = \$5,
-  income_instrument = \$6,
-  outcome_instrument = \$7,
-  step = \$8,
-  points = \$9,
-  tag = \$10,
-  start_date = \$11,
-  end_date = \$12,
-  notify = \$13,
-  interval = \$14,
-  income_account = \$15,
-  outcome_account = \$16,
-  comment = \$17,
-  payee = \$18,
-  merchant = \$19
- WHERE id = \$1`).
+	mock.ExpectExec(`UPDATE reminder SET`).
 		WithArgs(
 			reminder.ID,
 			reminder.User,
-			reminder.Income,
-			reminder.Outcome,
+			decimalString(reminder.Income),
+			decimalString(reminder.Outcome),
 			reminder.Changed,
 			reminder.IncomeInstrument,
 			reminder.OutcomeInstrument,

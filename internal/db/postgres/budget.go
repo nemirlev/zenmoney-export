@@ -20,13 +20,13 @@ func (s *DB) GetBudget(
 	date time.Time,
 ) (*models.Budget, error) {
 	query := `
-        SELECT "user", changed, date, tag, income, outcome, 
+        SELECT "user", changed, date::text, tag, income, outcome,
                income_lock, outcome_lock, is_income_forecast, is_outcome_forecast
         FROM budget
         WHERE "user" = $1 AND tag = $2 AND date = $3`
 
 	budget := &models.Budget{}
-	err := s.pool.QueryRow(ctx, query, userID, tagID, date.Format("2006-01-02")).Scan(
+	err := s.pool.QueryRow(ctx, query, userID, tagID, date).Scan(
 		&budget.User,
 		&budget.Changed,
 		&budget.Date,
@@ -63,18 +63,18 @@ func (s *DB) ListBudgets(ctx context.Context, filter interfaces.Filter) ([]model
 
 	if filter.StartDate != nil {
 		conditions = append(conditions, fmt.Sprintf(`date >= $%d`, argNum))
-		args = append(args, filter.StartDate.Format("2006-01-02"))
+		args = append(args, *filter.StartDate)
 		argNum++
 	}
 
 	if filter.EndDate != nil {
 		conditions = append(conditions, fmt.Sprintf(`date <= $%d`, argNum))
-		args = append(args, filter.EndDate.Format("2006-01-02"))
+		args = append(args, *filter.EndDate)
 		argNum++
 	}
 
 	query := `
-        SELECT "user", changed, date, tag, income, outcome,
+        SELECT "user", changed, date::text, tag, income, outcome,
                income_lock, outcome_lock, is_income_forecast, is_outcome_forecast
         FROM budget`
 
@@ -125,15 +125,16 @@ func (s *DB) CreateBudget(ctx context.Context, budget *models.Budget) error {
         INSERT INTO budget (
             "user", changed, date, tag, income, outcome,
             income_lock, outcome_lock, is_income_forecast, is_outcome_forecast
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
+        ) VALUES ($1, $2, $3::text::date, $4, $5::text::numeric,
+                  $6::text::numeric, $7, $8, $9, $10)`
 
 	_, err := s.pool.Exec(ctx, query,
 		budget.User,
 		budget.Changed,
 		budget.Date,
 		budget.Tag,
-		budget.Income,
-		budget.Outcome,
+		decimalString(budget.Income),
+		decimalString(budget.Outcome),
 		budget.IncomeLock,
 		budget.OutcomeLock,
 		budget.IsIncomeForecast,
@@ -151,21 +152,21 @@ func (s *DB) UpdateBudget(ctx context.Context, budget *models.Budget) error {
 	query := `
         UPDATE budget 
         SET changed = $4,
-            income = $5,
-            outcome = $6,
+            income = $5::text::numeric,
+            outcome = $6::text::numeric,
             income_lock = $7,
             outcome_lock = $8,
             is_income_forecast = $9,
             is_outcome_forecast = $10
-        WHERE "user" = $1 AND tag = $2 AND date = $3`
+        WHERE "user" = $1 AND tag = $2 AND date = $3::text::date`
 
 	commandTag, err := s.pool.Exec(ctx, query,
 		budget.User,
 		budget.Tag,
 		budget.Date,
 		budget.Changed,
-		budget.Income,
-		budget.Outcome,
+		decimalString(budget.Income),
+		decimalString(budget.Outcome),
 		budget.IncomeLock,
 		budget.OutcomeLock,
 		budget.IsIncomeForecast,
@@ -187,7 +188,7 @@ func (s *DB) UpdateBudget(ctx context.Context, budget *models.Budget) error {
 func (s *DB) DeleteBudget(ctx context.Context, userID int, tagID string, date time.Time) error {
 	query := `DELETE FROM budget WHERE "user" = $1 AND tag = $2 AND date = $3`
 
-	commandTag, err := s.pool.Exec(ctx, query, userID, tagID, date.Format("2006-01-02"))
+	commandTag, err := s.pool.Exec(ctx, query, userID, tagID, date)
 	if err != nil {
 		return fmt.Errorf("failed to delete budget: %w", err)
 	}

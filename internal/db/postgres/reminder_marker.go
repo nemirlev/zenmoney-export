@@ -14,7 +14,7 @@ import (
 // GetReminderMarker retrieves a specific reminder marker by its ID
 func (s *DB) GetReminderMarker(ctx context.Context, id string) (*models.ReminderMarker, error) {
 	query := `
-        SELECT id, "user", date, income, outcome, changed,
+        SELECT id, "user", date::text, income, outcome, changed,
                income_instrument, outcome_instrument, state, is_forecast,
                reminder, income_account, outcome_account, comment,
                payee, merchant, notify, tag
@@ -69,18 +69,18 @@ func (s *DB) ListReminderMarkers(
 
 	if filter.StartDate != nil {
 		conditions = append(conditions, fmt.Sprintf(`date >= $%d`, argNum))
-		args = append(args, filter.StartDate.Format("2006-01-02"))
+		args = append(args, *filter.StartDate)
 		argNum++
 	}
 
 	if filter.EndDate != nil {
 		conditions = append(conditions, fmt.Sprintf(`date <= $%d`, argNum))
-		args = append(args, filter.EndDate.Format("2006-01-02"))
+		args = append(args, *filter.EndDate)
 		argNum++
 	}
 
 	query := `
-        SELECT id, "user", date, income, outcome, changed,
+        SELECT id, "user", date::text, income, outcome, changed,
                income_instrument, outcome_instrument, state, is_forecast,
                reminder, income_account, outcome_account, comment,
                payee, merchant, notify, tag
@@ -143,15 +143,16 @@ func (s *DB) CreateReminderMarker(ctx context.Context, marker *models.ReminderMa
             income_instrument, outcome_instrument, state, is_forecast,
             reminder, income_account, outcome_account, comment,
             payee, merchant, notify, tag
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 
-                  $13, $14, $15, $16, $17, $18)`
+        ) VALUES ($1, $2, $3::text::date, $4::text::numeric,
+                  $5::text::numeric, $6, $7, $8, $9, $10, $11,
+                  $12::text::uuid, $13::text::uuid, $14, $15, $16, $17, $18)`
 
 	_, err := s.pool.Exec(ctx, query,
 		marker.ID,
 		marker.User,
 		marker.Date,
-		marker.Income,
-		marker.Outcome,
+		decimalString(marker.Income),
+		decimalString(marker.Outcome),
 		marker.Changed,
 		marker.IncomeInstrument,
 		marker.OutcomeInstrument,
@@ -178,17 +179,17 @@ func (s *DB) UpdateReminderMarker(ctx context.Context, marker *models.ReminderMa
 	query := `
         UPDATE reminder_marker SET
             "user" = $2,
-            date = $3,
-            income = $4,
-            outcome = $5,
+            date = $3::text::date,
+            income = $4::text::numeric,
+            outcome = $5::text::numeric,
             changed = $6,
             income_instrument = $7,
             outcome_instrument = $8,
             state = $9,
             is_forecast = $10,
             reminder = $11,
-            income_account = $12,
-            outcome_account = $13,
+            income_account = $12::text::uuid,
+            outcome_account = $13::text::uuid,
             comment = $14,
             payee = $15,
             merchant = $16,
@@ -200,8 +201,8 @@ func (s *DB) UpdateReminderMarker(ctx context.Context, marker *models.ReminderMa
 		marker.ID,
 		marker.User,
 		marker.Date,
-		marker.Income,
-		marker.Outcome,
+		decimalString(marker.Income),
+		decimalString(marker.Outcome),
 		marker.Changed,
 		marker.IncomeInstrument,
 		marker.OutcomeInstrument,

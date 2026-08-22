@@ -14,7 +14,7 @@ import (
 // GetTransaction retrieves a specific transaction by its ID
 func (s *DB) GetTransaction(ctx context.Context, id string) (*models.Transaction, error) {
 	query := `
-        SELECT id, "user", date, income, outcome, changed, income_instrument,
+        SELECT id, "user", date::text, income, outcome, changed, income_instrument,
                outcome_instrument, created, original_payee, deleted, viewed,
                hold, qr_code, source, income_account, outcome_account, tag,
                comment, payee, op_income, op_outcome, op_income_instrument,
@@ -83,18 +83,18 @@ func (s *DB) ListTransactions(
 
 	if filter.StartDate != nil {
 		conditions = append(conditions, fmt.Sprintf(`date >= $%d`, argNum))
-		args = append(args, filter.StartDate.Format("2006-01-02"))
+		args = append(args, *filter.StartDate)
 		argNum++
 	}
 
 	if filter.EndDate != nil {
 		conditions = append(conditions, fmt.Sprintf(`date <= $%d`, argNum))
-		args = append(args, filter.EndDate.Format("2006-01-02"))
+		args = append(args, *filter.EndDate)
 		argNum++
 	}
 
 	query := `
-        SELECT id, "user", date, income, outcome, changed, income_instrument,
+        SELECT id, "user", date::text, income, outcome, changed, income_instrument,
                outcome_instrument, created, original_payee, deleted, viewed,
                hold, qr_code, source, income_account, outcome_account, tag,
                comment, payee, op_income, op_outcome, op_income_instrument,
@@ -174,16 +174,19 @@ func (s *DB) CreateTransaction(ctx context.Context, tx *models.Transaction) erro
             comment, payee, op_income, op_outcome, op_income_instrument,
             op_outcome_instrument, latitude, longitude, merchant,
             income_bank_id, outcome_bank_id, reminder_marker
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-                  $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
+        ) VALUES ($1, $2, $3::text::date, $4::text::numeric,
+                  $5::text::numeric, $6, $7, $8, $9, $10, $11, $12, $13,
+                  $14, $15, $16::text::uuid,
+                  NULLIF(BTRIM($17::text), '')::uuid, $18, $19, $20,
+                  $21::text::numeric, $22::text::numeric, $23, $24,
                   $25, $26, $27, $28, $29, $30)`
 
 	_, err := s.pool.Exec(ctx, query,
 		tx.ID,
 		tx.User,
 		tx.Date,
-		tx.Income,
-		tx.Outcome,
+		decimalString(tx.Income),
+		decimalString(tx.Outcome),
 		tx.Changed,
 		tx.IncomeInstrument,
 		tx.OutcomeInstrument,
@@ -199,8 +202,8 @@ func (s *DB) CreateTransaction(ctx context.Context, tx *models.Transaction) erro
 		tx.Tag,
 		tx.Comment,
 		tx.Payee,
-		tx.OpIncome,
-		tx.OpOutcome,
+		decimalString(tx.OpIncome),
+		decimalString(tx.OpOutcome),
 		tx.OpIncomeInstrument,
 		tx.OpOutcomeInstrument,
 		tx.Latitude,
@@ -222,9 +225,9 @@ func (s *DB) UpdateTransaction(ctx context.Context, tx *models.Transaction) erro
 	query := `
         UPDATE transaction SET
             "user" = $2,
-            date = $3,
-            income = $4,
-            outcome = $5,
+            date = $3::text::date,
+            income = $4::text::numeric,
+            outcome = $5::text::numeric,
             changed = $6,
             income_instrument = $7,
             outcome_instrument = $8,
@@ -235,13 +238,13 @@ func (s *DB) UpdateTransaction(ctx context.Context, tx *models.Transaction) erro
             hold = $13,
             qr_code = $14,
             source = $15,
-            income_account = $16,
-            outcome_account = $17,
+            income_account = $16::text::uuid,
+            outcome_account = NULLIF(BTRIM($17::text), '')::uuid,
             tag = $18,
             comment = $19,
             payee = $20,
-            op_income = $21,
-            op_outcome = $22,
+            op_income = $21::text::numeric,
+            op_outcome = $22::text::numeric,
             op_income_instrument = $23,
             op_outcome_instrument = $24,
             latitude = $25,
@@ -256,8 +259,8 @@ func (s *DB) UpdateTransaction(ctx context.Context, tx *models.Transaction) erro
 		tx.ID,
 		tx.User,
 		tx.Date,
-		tx.Income,
-		tx.Outcome,
+		decimalString(tx.Income),
+		decimalString(tx.Outcome),
 		tx.Changed,
 		tx.IncomeInstrument,
 		tx.OutcomeInstrument,
@@ -273,8 +276,8 @@ func (s *DB) UpdateTransaction(ctx context.Context, tx *models.Transaction) erro
 		tx.Tag,
 		tx.Comment,
 		tx.Payee,
-		tx.OpIncome,
-		tx.OpOutcome,
+		decimalString(tx.OpIncome),
+		decimalString(tx.OpOutcome),
 		tx.OpIncomeInstrument,
 		tx.OpOutcomeInstrument,
 		tx.Latitude,

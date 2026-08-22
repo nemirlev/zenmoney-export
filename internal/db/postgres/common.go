@@ -3,12 +3,31 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 )
+
+// decimalString converts an SDK float into the shortest non-exponential decimal
+// representation that round-trips to the same float. PostgreSQL receives this as
+// text and parses it as NUMERIC, avoiding an additional binary-float conversion
+// in the database protocol.
+func decimalString(value float64) string {
+	return strconv.FormatFloat(value, 'f', -1, 64)
+}
+
+func optionalDecimalString(value *float64) any {
+	if value == nil {
+		// Preserve the typed nil for callers and pgxmock while pgx still encodes
+		// it as SQL NULL before considering the target text format.
+		return value
+	}
+
+	return decimalString(*value)
+}
 
 type DB struct {
 	pool PgxIface

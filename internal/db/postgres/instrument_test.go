@@ -161,8 +161,8 @@ func TestCreateInstrument_Success(t *testing.T) {
 		Changed:    1234567890,
 	}
 
-	mock.ExpectExec(`INSERT INTO instrument \(id, title, short_title, symbol, rate, changed\) VALUES \(\$1, \$2, \$3, \$4, \$5, \$6\)`).
-		WithArgs(instrument.ID, instrument.Title, instrument.ShortTitle, instrument.Symbol, instrument.Rate, instrument.Changed).
+	mock.ExpectExec(`INSERT INTO instrument`).
+		WithArgs(instrument.ID, instrument.Title, instrument.ShortTitle, instrument.Symbol, decimalString(instrument.Rate), instrument.Changed).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
 	err = db.CreateInstrument(context.Background(), instrument)
@@ -187,8 +187,8 @@ func TestCreateInstrument_QueryError(t *testing.T) {
 		Changed:    1234567890,
 	}
 
-	mock.ExpectExec(`INSERT INTO instrument \(id, title, short_title, symbol, rate, changed\) VALUES \(\$1, \$2, \$3, \$4, \$5, \$6\)`).
-		WithArgs(instrument.ID, instrument.Title, instrument.ShortTitle, instrument.Symbol, instrument.Rate, instrument.Changed).
+	mock.ExpectExec(`INSERT INTO instrument`).
+		WithArgs(instrument.ID, instrument.Title, instrument.ShortTitle, instrument.Symbol, decimalString(instrument.Rate), instrument.Changed).
 		WillReturnError(errors.New("insert error"))
 
 	err = db.CreateInstrument(context.Background(), instrument)
@@ -214,8 +214,8 @@ func TestUpdateInstrument_Success(t *testing.T) {
 		Changed:    1234567891,
 	}
 
-	mock.ExpectExec(`UPDATE instrument SET title = \$2, short_title = \$3, symbol = \$4, rate = \$5, changed = \$6 WHERE id = \$1`).
-		WithArgs(instrument.ID, instrument.Title, instrument.ShortTitle, instrument.Symbol, instrument.Rate, instrument.Changed).
+	mock.ExpectExec(`UPDATE instrument`).
+		WithArgs(instrument.ID, instrument.Title, instrument.ShortTitle, instrument.Symbol, decimalString(instrument.Rate), instrument.Changed).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
 	err = db.UpdateInstrument(context.Background(), instrument)
@@ -240,8 +240,8 @@ func TestUpdateInstrument_NotFound(t *testing.T) {
 		Changed:    1234567891,
 	}
 
-	mock.ExpectExec(`UPDATE instrument SET title = \$2, short_title = \$3, symbol = \$4, rate = \$5, changed = \$6 WHERE id = \$1`).
-		WithArgs(instrument.ID, instrument.Title, instrument.ShortTitle, instrument.Symbol, instrument.Rate, instrument.Changed).
+	mock.ExpectExec(`UPDATE instrument`).
+		WithArgs(instrument.ID, instrument.Title, instrument.ShortTitle, instrument.Symbol, decimalString(instrument.Rate), instrument.Changed).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 
 	err = db.UpdateInstrument(context.Background(), instrument)
@@ -267,8 +267,8 @@ func TestUpdateInstrument_QueryError(t *testing.T) {
 		Changed:    1234567891,
 	}
 
-	mock.ExpectExec(`UPDATE instrument SET title = \$2, short_title = \$3, symbol = \$4, rate = \$5, changed = \$6 WHERE id = \$1`).
-		WithArgs(instrument.ID, instrument.Title, instrument.ShortTitle, instrument.Symbol, instrument.Rate, instrument.Changed).
+	mock.ExpectExec(`UPDATE instrument`).
+		WithArgs(instrument.ID, instrument.Title, instrument.ShortTitle, instrument.Symbol, decimalString(instrument.Rate), instrument.Changed).
 		WillReturnError(errors.New("update error"))
 
 	err = db.UpdateInstrument(context.Background(), instrument)

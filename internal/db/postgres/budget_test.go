@@ -54,8 +54,8 @@ func TestGetBudget_Success(t *testing.T) {
 		expectedBudget.IsOutcomeForecast,
 	)
 
-	mock.ExpectQuery(`SELECT "user", changed, date, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget`).
-		WithArgs(userID, tagID, date.Format("2006-01-02")).
+	mock.ExpectQuery(`SELECT "user", changed, date::text, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget`).
+		WithArgs(userID, tagID, date).
 		WillReturnRows(rows)
 
 	result, err := db.GetBudget(context.Background(), userID, tagID, date)
@@ -79,8 +79,8 @@ func TestGetBudget_NotFound(t *testing.T) {
 	tagID := "test-tag"
 	date := time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)
 
-	mock.ExpectQuery(`SELECT "user", changed, date, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget`).
-		WithArgs(userID, tagID, date.Format("2006-01-02")).
+	mock.ExpectQuery(`SELECT "user", changed, date::text, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget`).
+		WithArgs(userID, tagID, date).
 		WillReturnError(pgx.ErrNoRows)
 
 	result, err := db.GetBudget(context.Background(), userID, tagID, date)
@@ -104,8 +104,8 @@ func TestGetBudget_QueryError(t *testing.T) {
 	tagID := "test-tag"
 	date := time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)
 
-	mock.ExpectQuery(`SELECT "user", changed, date, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget`).
-		WithArgs(userID, tagID, date.Format("2006-01-02")).
+	mock.ExpectQuery(`SELECT "user", changed, date::text, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget`).
+		WithArgs(userID, tagID, date).
 		WillReturnError(errors.New("database error"))
 
 	result, err := db.GetBudget(context.Background(), userID, tagID, date)
@@ -140,8 +140,8 @@ func TestListBudgets_Success(t *testing.T) {
 		1, 1234567890, "2025-01-15", new("test-tag"), 1000.0, 500.0, true, false, true, false,
 	)
 
-	mock.ExpectQuery(`SELECT "user", changed, date, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget WHERE "user" = \$1 AND date >= \$2 AND date <= \$3 LIMIT \$4 OFFSET \$5`).
-		WithArgs(1, "2025-01-01", "2025-02-01", 10, 0).
+	mock.ExpectQuery(`SELECT "user", changed, date::text, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget WHERE "user" = \$1 AND date >= \$2 AND date <= \$3 LIMIT \$4 OFFSET \$5`).
+		WithArgs(1, *filter.StartDate, *filter.EndDate, 10, 0).
 		WillReturnRows(rows)
 
 	budgets, err := db.ListBudgets(context.Background(), filter)
@@ -169,8 +169,8 @@ func TestListBudgets_QueryError(t *testing.T) {
 		Page:      1,
 	}
 
-	mock.ExpectQuery(`SELECT "user", changed, date, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget WHERE "user" = \$1 AND date >= \$2 AND date <= \$3 LIMIT \$4 OFFSET \$5`).
-		WithArgs(1, "2025-01-01", "2025-02-01", 10, 0).
+	mock.ExpectQuery(`SELECT "user", changed, date::text, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget WHERE "user" = \$1 AND date >= \$2 AND date <= \$3 LIMIT \$4 OFFSET \$5`).
+		WithArgs(1, *filter.StartDate, *filter.EndDate, 10, 0).
 		WillReturnError(errors.New("database error"))
 
 	budgets, err := db.ListBudgets(context.Background(), filter)
@@ -201,10 +201,10 @@ func TestCreateBudget_Success(t *testing.T) {
 		IsOutcomeForecast: false,
 	}
 
-	mock.ExpectExec(`(?i)INSERT INTO budget \(\s*"user",\s*changed,\s*date,\s*tag,\s*income,\s*outcome,\s*income_lock,\s*outcome_lock,\s*is_income_forecast,\s*is_outcome_forecast\s*\) VALUES \(\s*\$1,\s*\$2,\s*\$3,\s*\$4,\s*\$5,\s*\$6,\s*\$7,\s*\$8,\s*\$9,\s*\$10\s*\)`).
+	mock.ExpectExec(`INSERT INTO budget`).
 		WithArgs(
-			budget.User, budget.Changed, budget.Date, budget.Tag, budget.Income,
-			budget.Outcome, budget.IncomeLock, budget.OutcomeLock,
+			budget.User, budget.Changed, budget.Date, budget.Tag, decimalString(budget.Income),
+			decimalString(budget.Outcome), budget.IncomeLock, budget.OutcomeLock,
 			budget.IsIncomeForecast, budget.IsOutcomeForecast,
 		).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
@@ -234,10 +234,10 @@ func TestCreateBudget_QueryError(t *testing.T) {
 		IsOutcomeForecast: false,
 	}
 
-	mock.ExpectExec(`(?i)INSERT INTO budget \(\s*"user",\s*changed,\s*date,\s*tag,\s*income,\s*outcome,\s*income_lock,\s*outcome_lock,\s*is_income_forecast,\s*is_outcome_forecast\s*\) VALUES \(\s*\$1,\s*\$2,\s*\$3,\s*\$4,\s*\$5,\s*\$6,\s*\$7,\s*\$8,\s*\$9,\s*\$10\s*\)`).
+	mock.ExpectExec(`INSERT INTO budget`).
 		WithArgs(
-			budget.User, budget.Changed, budget.Date, budget.Tag, budget.Income,
-			budget.Outcome, budget.IncomeLock, budget.OutcomeLock,
+			budget.User, budget.Changed, budget.Date, budget.Tag, decimalString(budget.Income),
+			decimalString(budget.Outcome), budget.IncomeLock, budget.OutcomeLock,
 			budget.IsIncomeForecast, budget.IsOutcomeForecast,
 		).
 		WillReturnError(errors.New("insert error"))
@@ -257,10 +257,9 @@ func TestDeleteBudget_Success(t *testing.T) {
 
 	userID := 1
 	tagID := "test-tag"
-	date := "2025-02-01"
 
 	mock.ExpectExec(`DELETE FROM budget WHERE "user" = \$1 AND tag = \$2 AND date = \$3`).
-		WithArgs(userID, tagID, date).
+		WithArgs(userID, tagID, time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)).
 		WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
 	err = db.DeleteBudget(
@@ -282,10 +281,9 @@ func TestDeleteBudget_NotFound(t *testing.T) {
 
 	userID := 1
 	tagID := "test-tag"
-	date := "2025-02-01"
 
 	mock.ExpectExec(`DELETE FROM budget WHERE "user" = \$1 AND tag = \$2 AND date = \$3`).
-		WithArgs(userID, tagID, date).
+		WithArgs(userID, tagID, time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)).
 		WillReturnResult(pgxmock.NewResult("DELETE", 0))
 
 	err = db.DeleteBudget(

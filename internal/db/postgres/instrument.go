@@ -96,14 +96,14 @@ func (s *DB) ListInstruments(
 func (s *DB) CreateInstrument(ctx context.Context, instrument *models.Instrument) error {
 	query := `
         INSERT INTO instrument (id, title, short_title, symbol, rate, changed)
-        VALUES ($1, $2, $3, $4, $5, $6)`
+        VALUES ($1, $2, $3, $4, $5::text::numeric, $6)`
 
 	_, err := s.pool.Exec(ctx, query,
 		instrument.ID,
 		instrument.Title,
 		instrument.ShortTitle,
 		instrument.Symbol,
-		instrument.Rate,
+		decimalString(instrument.Rate),
 		instrument.Changed,
 	)
 	if err != nil {
@@ -117,7 +117,8 @@ func (s *DB) CreateInstrument(ctx context.Context, instrument *models.Instrument
 func (s *DB) UpdateInstrument(ctx context.Context, instrument *models.Instrument) error {
 	query := `
         UPDATE instrument
-        SET title = $2, short_title = $3, symbol = $4, rate = $5, changed = $6
+        SET title = $2, short_title = $3, symbol = $4,
+            rate = $5::text::numeric, changed = $6
         WHERE id = $1`
 
 	commandTag, err := s.pool.Exec(ctx, query,
@@ -125,7 +126,7 @@ func (s *DB) UpdateInstrument(ctx context.Context, instrument *models.Instrument
 		instrument.Title,
 		instrument.ShortTitle,
 		instrument.Symbol,
-		instrument.Rate,
+		decimalString(instrument.Rate),
 		instrument.Changed,
 	)
 	if err != nil {

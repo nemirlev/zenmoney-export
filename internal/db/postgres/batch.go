@@ -21,7 +21,7 @@ func saveInstruments(ctx context.Context, db batchSender, instruments []models.I
 
 	query := `
         INSERT INTO instrument (id, title, short_title, symbol, rate, changed)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5::text::numeric, $6)
         ON CONFLICT (id) DO UPDATE SET
             title = EXCLUDED.title,
             short_title = EXCLUDED.short_title,
@@ -37,7 +37,7 @@ func saveInstruments(ctx context.Context, db batchSender, instruments []models.I
 			inst.Title,
 			inst.ShortTitle,
 			inst.Symbol,
-			inst.Rate,
+			decimalString(inst.Rate),
 			inst.Changed,
 		)
 	}
@@ -212,8 +212,10 @@ func saveAccounts(ctx context.Context, db batchSender, accounts []models.Account
             start_date, capitalization, percent, changed, sync_id,
             enable_sms, end_date_offset, end_date_offset_interval,
             payoff_step, payoff_interval
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-                  $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::text::numeric,
+                  $11::text::numeric, $12::text::numeric, $13, $14, $15, $16,
+                  NULLIF(BTRIM($17::text), '')::date, $18, $19::text::numeric,
+                  $20, $21, $22, $23, $24, $25, $26)
         ON CONFLICT (id) DO UPDATE SET
             "user" = EXCLUDED.user,
             instrument = EXCLUDED.instrument,
@@ -253,16 +255,16 @@ func saveAccounts(ctx context.Context, db batchSender, accounts []models.Account
 			account.Savings,
 			account.Title,
 			account.InBalance,
-			account.CreditLimit,
-			account.StartBalance,
-			account.Balance,
+			optionalDecimalString(account.CreditLimit),
+			optionalDecimalString(account.StartBalance),
+			optionalDecimalString(account.Balance),
 			account.Company,
 			account.Archive,
 			account.EnableCorrection,
 			account.BalanceCorrectionType,
 			account.StartDate,
 			account.Capitalization,
-			account.Percent,
+			optionalDecimalString(account.Percent),
 			account.Changed,
 			account.SyncID,
 			account.EnableSMS,
@@ -300,7 +302,8 @@ func saveTags(ctx context.Context, db batchSender, tags []models.Tag) error {
             id, "user", changed, icon, budget_income, budget_outcome,
             required, archive, color, picture, title, show_income, show_outcome,
             parent, static_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+                  NULLIF(BTRIM($14::text), '')::uuid, $15)
         ON CONFLICT (id) DO UPDATE SET
             "user" = EXCLUDED.user,
             changed = EXCLUDED.changed,
@@ -406,7 +409,8 @@ func saveBudgets(ctx context.Context, db batchSender, budgets []models.Budget) e
         INSERT INTO budget (
             "user", changed, date, tag, income, outcome,
             income_lock, outcome_lock, is_income_forecast, is_outcome_forecast
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        ) VALUES ($1, $2, $3::text::date, $4, $5::text::numeric,
+                  $6::text::numeric, $7, $8, $9, $10)
         ON CONFLICT ("user", date, tag) DO UPDATE SET
             changed = EXCLUDED.changed,
             income = EXCLUDED.income,
@@ -423,8 +427,8 @@ func saveBudgets(ctx context.Context, db batchSender, budgets []models.Budget) e
 			budget.Changed,
 			budget.Date,
 			budget.Tag,
-			budget.Income,
-			budget.Outcome,
+			decimalString(budget.Income),
+			decimalString(budget.Outcome),
 			budget.IncomeLock,
 			budget.OutcomeLock,
 			budget.IsIncomeForecast,
@@ -460,8 +464,10 @@ func saveReminders(ctx context.Context, db batchSender, reminders []models.Remin
             outcome_instrument, step, points, tag, start_date, end_date,
             notify, interval, income_account, outcome_account, comment,
             payee, merchant
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-                  $14, $15, $16, $17, $18, $19)
+        ) VALUES ($1, $2, $3::text::numeric, $4::text::numeric, $5, $6, $7,
+                  $8, $9, $10, $11::text::date,
+                  NULLIF(BTRIM($12::text), '')::date, $13, $14,
+                  $15::text::uuid, $16::text::uuid, $17, $18, $19)
         ON CONFLICT (id) DO UPDATE SET
             "user" = EXCLUDED.user,
             income = EXCLUDED.income,
@@ -487,8 +493,8 @@ func saveReminders(ctx context.Context, db batchSender, reminders []models.Remin
 		batch.Queue(query,
 			reminder.ID,
 			reminder.User,
-			reminder.Income,
-			reminder.Outcome,
+			decimalString(reminder.Income),
+			decimalString(reminder.Outcome),
 			reminder.Changed,
 			reminder.IncomeInstrument,
 			reminder.OutcomeInstrument,
@@ -535,8 +541,9 @@ func saveReminderMarkers(ctx context.Context, db batchSender, markers []models.R
             income_instrument, outcome_instrument, state, is_forecast,
             reminder, income_account, outcome_account, comment,
             payee, merchant, notify, tag
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-                  $14, $15, $16, $17, $18)
+        ) VALUES ($1, $2, $3::text::date, $4::text::numeric,
+                  $5::text::numeric, $6, $7, $8, $9, $10, $11,
+                  $12::text::uuid, $13::text::uuid, $14, $15, $16, $17, $18)
         ON CONFLICT (id) DO UPDATE SET
             "user" = EXCLUDED.user,
             date = EXCLUDED.date,
@@ -562,8 +569,8 @@ func saveReminderMarkers(ctx context.Context, db batchSender, markers []models.R
 			marker.ID,
 			marker.User,
 			marker.Date,
-			marker.Income,
-			marker.Outcome,
+			decimalString(marker.Income),
+			decimalString(marker.Outcome),
 			marker.Changed,
 			marker.IncomeInstrument,
 			marker.OutcomeInstrument,
@@ -610,8 +617,11 @@ func saveTransactions(ctx context.Context, db batchSender, transactions []models
            comment, payee, op_income, op_outcome, op_income_instrument,
            op_outcome_instrument, latitude, longitude, merchant,
            income_bank_id, outcome_bank_id, reminder_marker
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-                 $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
+       ) VALUES ($1, $2, $3::text::date, $4::text::numeric,
+                 $5::text::numeric, $6, $7, $8, $9, $10, $11, $12, $13,
+                 $14, $15, $16::text::uuid,
+                 NULLIF(BTRIM($17::text), '')::uuid, $18, $19, $20,
+                 $21::text::numeric, $22::text::numeric, $23, $24,
                  $25, $26, $27, $28, $29, $30)
        ON CONFLICT (id) DO UPDATE SET
            "user" = EXCLUDED.user,
@@ -650,8 +660,8 @@ func saveTransactions(ctx context.Context, db batchSender, transactions []models
 			tx.ID,
 			tx.User,
 			tx.Date,
-			tx.Income,
-			tx.Outcome,
+			decimalString(tx.Income),
+			decimalString(tx.Outcome),
 			tx.Changed,
 			tx.IncomeInstrument,
 			tx.OutcomeInstrument,
@@ -667,8 +677,8 @@ func saveTransactions(ctx context.Context, db batchSender, transactions []models
 			tx.Tag,
 			tx.Comment,
 			tx.Payee,
-			tx.OpIncome,
-			tx.OpOutcome,
+			decimalString(tx.OpIncome),
+			decimalString(tx.OpOutcome),
 			tx.OpIncomeInstrument,
 			tx.OpOutcomeInstrument,
 			tx.Latitude,

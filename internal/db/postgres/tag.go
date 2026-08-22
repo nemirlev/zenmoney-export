@@ -121,7 +121,8 @@ func (s *DB) CreateTag(ctx context.Context, tag *models.Tag) error {
             id, "user", changed, icon, budget_income, budget_outcome,
             required, archive, color, picture, title, show_income, show_outcome,
             parent, static_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+                  NULLIF(BTRIM($14::text), '')::uuid, $15)`
 
 	_, err := s.pool.Exec(ctx, query,
 		tag.ID,
@@ -163,7 +164,7 @@ func (s *DB) UpdateTag(ctx context.Context, tag *models.Tag) error {
             title = $11,
             show_income = $12,
             show_outcome = $13,
-            parent = $14,
+            parent = NULLIF(BTRIM($14::text), '')::uuid,
             static_id = $15
         WHERE id = $1`
 

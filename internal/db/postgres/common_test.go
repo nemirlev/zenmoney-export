@@ -18,6 +18,37 @@ func TestNewPostgresStorage(t *testing.T) {
 	})
 }
 
+func TestDecimalStringUsesCanonicalNonExponentialRepresentation(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		value float64
+		want  string
+	}{
+		"fraction":      {value: 0.1, want: "0.1"},
+		"trailing zero": {value: 12.50, want: "12.5"},
+		"small amount":  {value: 0.00000001, want: "0.00000001"},
+		"large amount":  {value: 1e20, want: "100000000000000000000"},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, decimalString(tt.value))
+		})
+	}
+}
+
+func TestOptionalDecimalStringPreservesNull(t *testing.T) {
+	t.Parallel()
+
+	var value *float64
+	assert.Equal(t, value, optionalDecimalString(value))
+
+	amount := 42.125
+	assert.Equal(t, "42.125", optionalDecimalString(&amount))
+}
+
 // Тест для метода Close
 func TestDB_Close(t *testing.T) {
 	mock, err := pgxmock.NewPool()
