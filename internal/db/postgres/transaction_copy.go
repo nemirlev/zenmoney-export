@@ -53,10 +53,14 @@ var transactionCopyColumns = []string{
 }
 
 const mergeTransactionStagingSQL = `
-WITH latest_staging_transaction AS (
-    SELECT DISTINCT ON (id) *
+WITH normalized_staging_transaction AS (
+    SELECT staging_transaction.*, id::uuid AS normalized_id
     FROM staging_transaction
-    ORDER BY id, staging_order DESC
+),
+latest_staging_transaction AS (
+    SELECT DISTINCT ON (normalized_id) *
+    FROM normalized_staging_transaction
+    ORDER BY normalized_id, staging_order DESC
 )
 INSERT INTO transaction (
     id, "user", date, income, outcome, changed, income_instrument,
@@ -67,7 +71,7 @@ INSERT INTO transaction (
     income_bank_id, outcome_bank_id, reminder_marker
 )
 SELECT
-    id::uuid,
+    normalized_id,
     "user",
     date::date,
     income::numeric,

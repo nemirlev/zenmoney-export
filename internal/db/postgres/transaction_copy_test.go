@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
@@ -50,6 +51,42 @@ func TestTransactionCopyMergeCastsAnalyticalTypes(t *testing.T) {
 	require.Contains(t, mergeTransactionStagingSQL, "income_account::uuid")
 	require.Contains(t, mergeTransactionStagingSQL, "outcome_account), '')::uuid")
 	require.Contains(t, mergeTransactionStagingSQL, "tag::uuid[]")
+}
+
+func TestTransactionCopyMergeDeduplicatesEquivalentUUIDSpellingsAfterNormalization(t *testing.T) {
+	uuidSpellings := []string{
+		"A0EBC9B4-91A0-4E6D-931A-7114F21A03F7",
+		"a0ebc9b491a04e6d931a7114f21a03f7",
+		"{a0ebc9b4-91a0-4e6d-931a-7114f21a03f7}",
+	}
+	transactions := make([]models.Transaction, 0, len(uuidSpellings))
+	for _, id := range uuidSpellings {
+		transactions = append(transactions, models.Transaction{
+			ID:            id,
+			Date:          "2026-08-22",
+			IncomeAccount: "00000000-0000-0000-0000-000000000001",
+		})
+	}
+
+	tx := &recordingTx{}
+	db := &DB{pool: &recordingPool{tx: tx}}
+	err := db.Save(context.Background(), &models.Response{Transaction: transactions}, interfaces.SaveOptions{
+		WriteMode: interfaces.WriteModeCopy,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, len(uuidSpellings), tx.copiedRows)
+	for i, id := range uuidSpellings {
+		require.Equal(t, id, tx.copiedValues[i][0])
+	}
+
+	normalizedSQL := strings.Join(strings.Fields(mergeTransactionStagingSQL), " ")
+	require.Contains(t, normalizedSQL, "id::uuid AS normalized_id")
+	require.Contains(t, normalizedSQL, "SELECT DISTINCT ON (normalized_id) * FROM normalized_staging_transaction")
+	require.Contains(t, normalizedSQL, "ORDER BY normalized_id, staging_order DESC")
+	require.Contains(t, normalizedSQL, "INSERT INTO transaction")
+	require.Contains(t, normalizedSQL, "SELECT normalized_id, \"user\"")
+	require.NotContains(t, normalizedSQL, "DISTINCT ON (id)")
 }
 
 func TestSaveCopyModeRollsBackCopyFailureWithoutCompletedCursor(t *testing.T) {
