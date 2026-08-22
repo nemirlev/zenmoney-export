@@ -11,3 +11,7 @@ DROP TABLE IF EXISTS company;
 DROP TABLE IF EXISTS instrument;
 DROP TABLE IF EXISTS sync_status;
 DROP TABLE IF EXISTS deletion_history;
+
+-- Enum types must be removed after all tables that may depend on them.
+DROP TYPE IF EXISTS status;
+DROP TYPE IF EXISTS sync_type;
