@@ -24,6 +24,11 @@ generate your token.
 docker compose --env-file ./docker/.env -f ./docker/docker-compose.postgres.yml up -d
 ```
 
+By default, Compose builds the exporter from the current checkout so the binary and the mounted
+migrations stay compatible. To use a prebuilt image, set `ZENEXPORT_IMAGE` and
+`ZENEXPORT_PULL_POLICY=always` in `./docker/.env`; the selected image must support the schema
+created by the migrations in this checkout.
+
 The example keeps PostgreSQL on the private Docker network and does not publish its port to the
 host. Its `sslmode=disable` setting is intended only for this local development stack; use a
 TLS-verified connection URL for an external or production database.

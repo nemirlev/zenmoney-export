@@ -1,6 +1,10 @@
 services:
     app:
-        image: nemirlev/zenexport:v2.0.3
+        image: "${ZENEXPORT_IMAGE:-zenexport:local}"
+        build:
+            context: ..
+            dockerfile: docker/Dockerfile
+        pull_policy: "${ZENEXPORT_PULL_POLICY:-build}"
         container_name: zenexport_app
         environment:
             DB_URL: "${DB_URL:?Set DB_URL to the internal PostgreSQL connection URL}"
@@ -12,7 +16,7 @@ services:
             migrations:
                 condition: service_completed_successfully
     postgres:
-        image: postgres:17.7-alpine3.23
+        image: postgres:17.11-alpine3.23
         container_name: zenexport_postgres
         environment:
             POSTGRES_USER: "${POSTGRES_USER:?Set POSTGRES_USER}"
