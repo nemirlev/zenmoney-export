@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
-	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
+	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 )
@@ -25,12 +25,13 @@ func TestGetMerchant_Success(t *testing.T) {
 		User:    1,
 		Title:   "Test Merchant",
 		Changed: 1234567890,
+		MCC:     ptr(5411),
 	}
 
-	rows := mock.NewRows([]string{"id", "user", "title", "changed"}).
-		AddRow(expectedMerchant.ID, expectedMerchant.User, expectedMerchant.Title, expectedMerchant.Changed)
+	rows := mock.NewRows([]string{"id", "user", "title", "changed", "mcc"}).
+		AddRow(expectedMerchant.ID, expectedMerchant.User, expectedMerchant.Title, expectedMerchant.Changed, expectedMerchant.MCC)
 
-	mock.ExpectQuery(`SELECT id, "user", title, changed FROM merchant WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT id, "user", title, changed, mcc FROM merchant WHERE id = \$1`).
 		WithArgs(merchantID).
 		WillReturnRows(rows)
 
@@ -50,7 +51,7 @@ func TestGetMerchant_NotFound(t *testing.T) {
 
 	merchantID := "non-existing-id"
 
-	mock.ExpectQuery(`SELECT id, "user", title, changed FROM merchant WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT id, "user", title, changed, mcc FROM merchant WHERE id = \$1`).
 		WithArgs(merchantID).
 		WillReturnError(pgx.ErrNoRows)
 
@@ -71,7 +72,7 @@ func TestGetMerchant_QueryError(t *testing.T) {
 
 	merchantID := "test-id"
 
-	mock.ExpectQuery(`SELECT id, "user", title, changed FROM merchant WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT id, "user", title, changed, mcc FROM merchant WHERE id = \$1`).
 		WithArgs(merchantID).
 		WillReturnError(errors.New("query error"))
 
@@ -96,10 +97,10 @@ func TestListMerchants_Success(t *testing.T) {
 		Page:   1,
 	}
 
-	rows := mock.NewRows([]string{"id", "user", "title", "changed"}).
-		AddRow("test-id", 1, "Test Merchant", 1234567890)
+	rows := mock.NewRows([]string{"id", "user", "title", "changed", "mcc"}).
+		AddRow("test-id", 1, "Test Merchant", 1234567890, ptr(5411))
 
-	mock.ExpectQuery(`SELECT id, "user", title, changed FROM merchant WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
+	mock.ExpectQuery(`SELECT id, "user", title, changed, mcc FROM merchant WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
 		WithArgs(1, 10, 0).
 		WillReturnRows(rows)
 
@@ -107,6 +108,7 @@ func TestListMerchants_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, merchants, 1)
 	assert.Equal(t, "test-id", merchants[0].ID)
+	assert.Equal(t, 5411, *merchants[0].MCC)
 
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -124,7 +126,7 @@ func TestListMerchants_QueryError(t *testing.T) {
 		Page:   1,
 	}
 
-	mock.ExpectQuery(`SELECT id, "user", title, changed FROM merchant WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
+	mock.ExpectQuery(`SELECT id, "user", title, changed, mcc FROM merchant WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
 		WithArgs(1, 10, 0).
 		WillReturnError(errors.New("query error"))
 
@@ -149,9 +151,9 @@ func TestListMerchants_NoResults(t *testing.T) {
 		Page:   1,
 	}
 
-	mock.ExpectQuery(`SELECT id, "user", title, changed FROM merchant WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
+	mock.ExpectQuery(`SELECT id, "user", title, changed, mcc FROM merchant WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
 		WithArgs(1, 10, 0).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "user", "title", "changed"}))
+		WillReturnRows(pgxmock.NewRows([]string{"id", "user", "title", "changed", "mcc"}))
 
 	merchants, err := db.ListMerchants(context.Background(), filter)
 	assert.NoError(t, err)
@@ -172,10 +174,11 @@ func TestCreateMerchant_Success(t *testing.T) {
 		User:    1,
 		Title:   "Test Merchant",
 		Changed: 1234567890,
+		MCC:     ptr(5411),
 	}
 
-	mock.ExpectExec(`INSERT INTO merchant \(id, "user", title, changed\) VALUES \(\$1, \$2, \$3, \$4\)`).
-		WithArgs(merchant.ID, merchant.User, merchant.Title, merchant.Changed).
+	mock.ExpectExec(`INSERT INTO merchant \(id, "user", title, changed, mcc\) VALUES \(\$1, \$2, \$3, \$4, \$5\)`).
+		WithArgs(merchant.ID, merchant.User, merchant.Title, merchant.Changed, merchant.MCC).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
 	err = db.CreateMerchant(context.Background(), merchant)
@@ -196,10 +199,11 @@ func TestCreateMerchant_QueryError(t *testing.T) {
 		User:    1,
 		Title:   "Test Merchant",
 		Changed: 1234567890,
+		MCC:     ptr(5411),
 	}
 
-	mock.ExpectExec(`INSERT INTO merchant \(id, "user", title, changed\) VALUES \(\$1, \$2, \$3, \$4\)`).
-		WithArgs(merchant.ID, merchant.User, merchant.Title, merchant.Changed).
+	mock.ExpectExec(`INSERT INTO merchant \(id, "user", title, changed, mcc\) VALUES \(\$1, \$2, \$3, \$4, \$5\)`).
+		WithArgs(merchant.ID, merchant.User, merchant.Title, merchant.Changed, merchant.MCC).
 		WillReturnError(errors.New("query error"))
 
 	err = db.CreateMerchant(context.Background(), merchant)
@@ -221,10 +225,11 @@ func TestUpdateMerchant_Success(t *testing.T) {
 		User:    1,
 		Title:   "Test Merchant",
 		Changed: 1234567890,
+		MCC:     ptr(5411),
 	}
 
-	mock.ExpectExec(`UPDATE merchant SET "user" = \$2, title = \$3, changed = \$4 WHERE id = \$1`).
-		WithArgs(merchant.ID, merchant.User, merchant.Title, merchant.Changed).
+	mock.ExpectExec(`UPDATE merchant SET "user" = \$2, title = \$3, changed = \$4, mcc = \$5 WHERE id = \$1`).
+		WithArgs(merchant.ID, merchant.User, merchant.Title, merchant.Changed, merchant.MCC).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
 	err = db.UpdateMerchant(context.Background(), merchant)
@@ -245,10 +250,11 @@ func TestUpdateMerchant_QueryError(t *testing.T) {
 		User:    1,
 		Title:   "Test Merchant",
 		Changed: 1234567890,
+		MCC:     ptr(5411),
 	}
 
-	mock.ExpectExec(`UPDATE merchant SET "user" = \$2, title = \$3, changed = \$4 WHERE id = \$1`).
-		WithArgs(merchant.ID, merchant.User, merchant.Title, merchant.Changed).
+	mock.ExpectExec(`UPDATE merchant SET "user" = \$2, title = \$3, changed = \$4, mcc = \$5 WHERE id = \$1`).
+		WithArgs(merchant.ID, merchant.User, merchant.Title, merchant.Changed, merchant.MCC).
 		WillReturnError(errors.New("query error"))
 
 	err = db.UpdateMerchant(context.Background(), merchant)

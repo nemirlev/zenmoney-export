@@ -8,7 +8,7 @@ import (
 	interfaces "github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	mock "github.com/stretchr/testify/mock"
 
-	models "github.com/nemirlev/zenmoney-go-sdk/v2/models"
+	models "github.com/nemirlev/zenmoney-go-sdk/v3/models"
 
 	time "time"
 )

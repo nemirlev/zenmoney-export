@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
-	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
+	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 )
 
 // GetReminder retrieves a specific reminder by its ID

@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
-	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
+	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 )
@@ -115,7 +115,7 @@ func TestListInstruments_Success(t *testing.T) {
 	assert.Equal(t, "USD", instruments[0].ShortTitle)
 	assert.Equal(t, "$", instruments[0].Symbol)
 	assert.Equal(t, 1.0, instruments[0].Rate)
-	assert.Equal(t, 1234567890, instruments[0].Changed)
+	assert.Equal(t, int64(1234567890), instruments[0].Changed)
 
 	assert.NoError(t, mock.ExpectationsWereMet())
 }

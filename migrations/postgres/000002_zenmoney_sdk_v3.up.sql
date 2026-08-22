@@ -1,0 +1,29 @@
+ALTER TABLE instrument
+    ALTER COLUMN changed TYPE BIGINT;
+
+ALTER TABLE company
+    ALTER COLUMN changed TYPE BIGINT;
+
+ALTER TABLE account
+    ALTER COLUMN changed TYPE BIGINT;
+
+ALTER TABLE tag
+    ALTER COLUMN changed TYPE BIGINT,
+    ADD COLUMN archive BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE merchant
+    ALTER COLUMN changed TYPE BIGINT,
+    ADD COLUMN mcc INT;
+
+ALTER TABLE reminder
+    ALTER COLUMN changed TYPE BIGINT;
+
+ALTER TABLE reminder_marker
+    ALTER COLUMN changed TYPE BIGINT;
+
+ALTER TABLE transaction
+    ALTER COLUMN changed TYPE BIGINT,
+    ALTER COLUMN created TYPE BIGINT;
+
+ALTER TABLE budget
+    ALTER COLUMN changed TYPE BIGINT;

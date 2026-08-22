@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
+	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 )
 
 // StorageType represents the type of storage

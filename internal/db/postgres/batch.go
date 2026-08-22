@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
+	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 )
 
 // SaveInstruments saves a batch of instruments to the database
@@ -274,9 +274,9 @@ func (s *DB) SaveTags(ctx context.Context, tags []models.Tag) error {
 	query := `
         INSERT INTO tag (
             id, "user", changed, icon, budget_income, budget_outcome,
-            required, color, picture, title, show_income, show_outcome,
+            required, archive, color, picture, title, show_income, show_outcome,
             parent, static_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         ON CONFLICT (id) DO UPDATE SET
             "user" = EXCLUDED.user,
             changed = EXCLUDED.changed,
@@ -284,6 +284,7 @@ func (s *DB) SaveTags(ctx context.Context, tags []models.Tag) error {
             budget_income = EXCLUDED.budget_income,
             budget_outcome = EXCLUDED.budget_outcome,
             required = EXCLUDED.required,
+            archive = EXCLUDED.archive,
             color = EXCLUDED.color,
             picture = EXCLUDED.picture,
             title = EXCLUDED.title,
@@ -302,6 +303,7 @@ func (s *DB) SaveTags(ctx context.Context, tags []models.Tag) error {
 			tag.BudgetIncome,
 			tag.BudgetOutcome,
 			tag.Required,
+			tag.Archive,
 			tag.Color,
 			tag.Picture,
 			tag.Title,
@@ -331,12 +333,13 @@ func (s *DB) SaveMerchants(ctx context.Context, merchants []models.Merchant) err
 	}
 
 	query := `
-        INSERT INTO merchant (id, "user", title, changed)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO merchant (id, "user", title, changed, mcc)
+        VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (id) DO UPDATE SET
             "user" = EXCLUDED.user,
             title = EXCLUDED.title,
-            changed = EXCLUDED.changed`
+            changed = EXCLUDED.changed,
+            mcc = EXCLUDED.mcc`
 
 	batch := &pgx.Batch{}
 	for _, merchant := range merchants {
@@ -345,6 +348,7 @@ func (s *DB) SaveMerchants(ctx context.Context, merchants []models.Merchant) err
 			merchant.User,
 			merchant.Title,
 			merchant.Changed,
+			merchant.MCC,
 		)
 	}
 

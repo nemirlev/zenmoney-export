@@ -7,7 +7,7 @@ import (
 	"github.com/nemirlev/zenmoney-export/v2/config"
 	"github.com/nemirlev/zenmoney-export/v2/internal/db"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
-	"github.com/nemirlev/zenmoney-go-sdk/v2/api"
+	"github.com/nemirlev/zenmoney-go-sdk/v3/api"
 )
 
 type Application struct {
@@ -27,7 +27,7 @@ func NewApplication(ctx context.Context, cfg *config.Config) (*Application, erro
 		return nil, err
 	}
 
-	zc, err := api.NewClient(cfg.ZenMoneyToken)
+	zc, err := api.NewClient(cfg.ZenMoneyToken, api.WithLogger(logger))
 	if err != nil {
 		return nil, err
 	}

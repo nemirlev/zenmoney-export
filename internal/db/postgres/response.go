@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
-	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
+	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 )
 
 // Save saves the entire API response to database
@@ -28,7 +28,7 @@ func (s *DB) Save(ctx context.Context, response *models.Response) error {
 		StartedAt:        time.Now(),
 		FinishedAt:       nil,
 		SyncType:         "full", // TODO: implement incremental sync type
-		ServerTimestamp:  int64(response.ServerTimestamp),
+		ServerTimestamp:  response.ServerTimestamp,
 		RecordsProcessed: s.countRecords(response),
 		Status:           "in_progress",
 		ErrorMessage:     nil,

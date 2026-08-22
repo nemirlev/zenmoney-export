@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
-	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
+	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 )
@@ -28,6 +28,7 @@ func TestGetTag_Success(t *testing.T) {
 		BudgetIncome:  true,
 		BudgetOutcome: false,
 		Required:      ptr(true),
+		Archive:       true,
 		Color:         ptr(int64(123456)),
 		Picture:       ptr("picture"),
 		Title:         "Test Tag",
@@ -39,16 +40,16 @@ func TestGetTag_Success(t *testing.T) {
 
 	rows := mock.NewRows([]string{
 		"id", "user", "changed", "icon", "budget_income", "budget_outcome",
-		"required", "color", "picture", "title", "show_income", "show_outcome",
+		"required", "archive", "color", "picture", "title", "show_income", "show_outcome",
 		"parent", "static_id",
 	}).AddRow(
 		expectedTag.ID, expectedTag.User, expectedTag.Changed, expectedTag.Icon,
 		expectedTag.BudgetIncome, expectedTag.BudgetOutcome, expectedTag.Required,
-		expectedTag.Color, expectedTag.Picture, expectedTag.Title, expectedTag.ShowIncome,
+		expectedTag.Archive, expectedTag.Color, expectedTag.Picture, expectedTag.Title, expectedTag.ShowIncome,
 		expectedTag.ShowOutcome, expectedTag.Parent, expectedTag.StaticID,
 	)
 
-	mock.ExpectQuery(`SELECT id, "user", changed, icon, budget_income, budget_outcome, required, color, picture, title, show_income, show_outcome, parent, static_id FROM tag WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT id, "user", changed, icon, budget_income, budget_outcome, required, archive, color, picture, title, show_income, show_outcome, parent, static_id FROM tag WHERE id = \$1`).
 		WithArgs(tagID).
 		WillReturnRows(rows)
 
@@ -68,7 +69,7 @@ func TestGetTag_NotFound(t *testing.T) {
 
 	tagID := "non-existing-id"
 
-	mock.ExpectQuery(`SELECT id, "user", changed, icon, budget_income, budget_outcome, required, color, picture, title, show_income, show_outcome, parent, static_id FROM tag WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT id, "user", changed, icon, budget_income, budget_outcome, required, archive, color, picture, title, show_income, show_outcome, parent, static_id FROM tag WHERE id = \$1`).
 		WithArgs(tagID).
 		WillReturnError(pgx.ErrNoRows)
 
@@ -89,7 +90,7 @@ func TestGetTag_QueryError(t *testing.T) {
 
 	tagID := "test-id"
 
-	mock.ExpectQuery(`SELECT id, "user", changed, icon, budget_income, budget_outcome, required, color, picture, title, show_income, show_outcome, parent, static_id FROM tag WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT id, "user", changed, icon, budget_income, budget_outcome, required, archive, color, picture, title, show_income, show_outcome, parent, static_id FROM tag WHERE id = \$1`).
 		WithArgs(tagID).
 		WillReturnError(errors.New("query error"))
 
@@ -116,15 +117,15 @@ func TestListTags_Success(t *testing.T) {
 
 	rows := mock.NewRows([]string{
 		"id", "user", "changed", "icon", "budget_income", "budget_outcome",
-		"required", "color", "picture", "title", "show_income", "show_outcome",
+		"required", "archive", "color", "picture", "title", "show_income", "show_outcome",
 		"parent", "static_id",
 	}).AddRow(
 		"test-id", 1, 1234567890, ptr("icon"), true, false,
-		ptr(true), ptr(int64(123456)), ptr("picture"), "Test Tag", true, false,
+		ptr(true), true, ptr(int64(123456)), ptr("picture"), "Test Tag", true, false,
 		ptr("parent-id"), "static-id",
 	)
 
-	mock.ExpectQuery(`SELECT id, "user", changed, icon, budget_income, budget_outcome, required, color, picture, title, show_income, show_outcome, parent, static_id FROM tag WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
+	mock.ExpectQuery(`SELECT id, "user", changed, icon, budget_income, budget_outcome, required, archive, color, picture, title, show_income, show_outcome, parent, static_id FROM tag WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
 		WithArgs(1, 10, 0).
 		WillReturnRows(rows)
 
@@ -149,7 +150,7 @@ func TestListTags_QueryError(t *testing.T) {
 		Page:   1,
 	}
 
-	mock.ExpectQuery(`SELECT id, "user", changed, icon, budget_income, budget_outcome, required, color, picture, title, show_income, show_outcome, parent, static_id FROM tag WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
+	mock.ExpectQuery(`SELECT id, "user", changed, icon, budget_income, budget_outcome, required, archive, color, picture, title, show_income, show_outcome, parent, static_id FROM tag WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
 		WithArgs(1, 10, 0).
 		WillReturnError(errors.New("query error"))
 
@@ -176,11 +177,11 @@ func TestListTags_NoResults(t *testing.T) {
 
 	rows := mock.NewRows([]string{
 		"id", "user", "changed", "icon", "budget_income", "budget_outcome",
-		"required", "color", "picture", "title", "show_income", "show_outcome",
+		"required", "archive", "color", "picture", "title", "show_income", "show_outcome",
 		"parent", "static_id",
 	})
 
-	mock.ExpectQuery(`SELECT id, "user", changed, icon, budget_income, budget_outcome, required, color, picture, title, show_income, show_outcome, parent, static_id FROM tag WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
+	mock.ExpectQuery(`SELECT id, "user", changed, icon, budget_income, budget_outcome, required, archive, color, picture, title, show_income, show_outcome, parent, static_id FROM tag WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
 		WithArgs(1, 10, 0).
 		WillReturnRows(rows)
 
@@ -206,6 +207,7 @@ func TestCreateTag_Success(t *testing.T) {
 		BudgetIncome:  true,
 		BudgetOutcome: false,
 		Required:      ptr(true),
+		Archive:       true,
 		Color:         ptr(int64(123456)),
 		Picture:       ptr("picture"),
 		Title:         "Test Tag",
@@ -218,7 +220,7 @@ func TestCreateTag_Success(t *testing.T) {
 	mock.ExpectExec(`INSERT INTO tag`).
 		WithArgs(
 			tag.ID, tag.User, tag.Changed, tag.Icon, tag.BudgetIncome, tag.BudgetOutcome,
-			tag.Required, tag.Color, tag.Picture, tag.Title, tag.ShowIncome, tag.ShowOutcome,
+			tag.Required, tag.Archive, tag.Color, tag.Picture, tag.Title, tag.ShowIncome, tag.ShowOutcome,
 			tag.Parent, tag.StaticID,
 		).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
@@ -244,6 +246,7 @@ func TestCreateTag_QueryError(t *testing.T) {
 		BudgetIncome:  true,
 		BudgetOutcome: false,
 		Required:      ptr(true),
+		Archive:       true,
 		Color:         ptr(int64(123456)),
 		Picture:       ptr("picture"),
 		Title:         "Test Tag",
@@ -256,7 +259,7 @@ func TestCreateTag_QueryError(t *testing.T) {
 	mock.ExpectExec(`INSERT INTO tag`).
 		WithArgs(
 			tag.ID, tag.User, tag.Changed, tag.Icon, tag.BudgetIncome, tag.BudgetOutcome,
-			tag.Required, tag.Color, tag.Picture, tag.Title, tag.ShowIncome, tag.ShowOutcome,
+			tag.Required, tag.Archive, tag.Color, tag.Picture, tag.Title, tag.ShowIncome, tag.ShowOutcome,
 			tag.Parent, tag.StaticID,
 		).
 		WillReturnError(errors.New("insert error"))
@@ -283,6 +286,7 @@ func TestUpdateTag_Success(t *testing.T) {
 		BudgetIncome:  true,
 		BudgetOutcome: false,
 		Required:      ptr(true),
+		Archive:       true,
 		Color:         ptr(int64(123456)),
 		Picture:       ptr("picture"),
 		Title:         "Updated Tag",
@@ -295,7 +299,7 @@ func TestUpdateTag_Success(t *testing.T) {
 	mock.ExpectExec(`UPDATE tag SET`).
 		WithArgs(
 			tag.ID, tag.User, tag.Changed, tag.Icon, tag.BudgetIncome, tag.BudgetOutcome,
-			tag.Required, tag.Color, tag.Picture, tag.Title, tag.ShowIncome, tag.ShowOutcome,
+			tag.Required, tag.Archive, tag.Color, tag.Picture, tag.Title, tag.ShowIncome, tag.ShowOutcome,
 			tag.Parent, tag.StaticID,
 		).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
@@ -321,6 +325,7 @@ func TestUpdateTag_NotFound(t *testing.T) {
 		BudgetIncome:  true,
 		BudgetOutcome: false,
 		Required:      ptr(true),
+		Archive:       true,
 		Color:         ptr(int64(123456)),
 		Picture:       ptr("picture"),
 		Title:         "Updated Tag",
@@ -333,7 +338,7 @@ func TestUpdateTag_NotFound(t *testing.T) {
 	mock.ExpectExec(`UPDATE tag SET`).
 		WithArgs(
 			tag.ID, tag.User, tag.Changed, tag.Icon, tag.BudgetIncome, tag.BudgetOutcome,
-			tag.Required, tag.Color, tag.Picture, tag.Title, tag.ShowIncome, tag.ShowOutcome,
+			tag.Required, tag.Archive, tag.Color, tag.Picture, tag.Title, tag.ShowIncome, tag.ShowOutcome,
 			tag.Parent, tag.StaticID,
 		).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 0))
@@ -360,6 +365,7 @@ func TestUpdateTag_QueryError(t *testing.T) {
 		BudgetIncome:  true,
 		BudgetOutcome: false,
 		Required:      ptr(true),
+		Archive:       true,
 		Color:         ptr(int64(123456)),
 		Picture:       ptr("picture"),
 		Title:         "Updated Tag",
@@ -372,7 +378,7 @@ func TestUpdateTag_QueryError(t *testing.T) {
 	mock.ExpectExec(`UPDATE tag SET`).
 		WithArgs(
 			tag.ID, tag.User, tag.Changed, tag.Icon, tag.BudgetIncome, tag.BudgetOutcome,
-			tag.Required, tag.Color, tag.Picture, tag.Title, tag.ShowIncome, tag.ShowOutcome,
+			tag.Required, tag.Archive, tag.Color, tag.Picture, tag.Title, tag.ShowIncome, tag.ShowOutcome,
 			tag.Parent, tag.StaticID,
 		).
 		WillReturnError(errors.New("update error"))

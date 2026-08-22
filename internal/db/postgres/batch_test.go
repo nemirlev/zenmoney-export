@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
+	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 )
@@ -62,7 +62,7 @@ func TestSaveCompanies_Success(t *testing.T) {
 		{
 			ID:          1,
 			Title:       "Bank",
-			FullTitle:   "Bank Inc.",
+			FullTitle:   ptr("Bank Inc."),
 			Www:         "www.bank.com",
 			Country:     1,
 			Deleted:     false,
@@ -131,12 +131,19 @@ func TestSaveTags_Success(t *testing.T) {
 	db := &DB{pool: mock}
 
 	tags := []models.Tag{
-		{ID: "tag-1", User: 1, Title: "Groceries", ShowIncome: false, ShowOutcome: true},
+		{
+			ID:          "tag-1",
+			User:        1,
+			Title:       "Groceries",
+			ShowIncome:  false,
+			ShowOutcome: true,
+			Archive:     true,
+		},
 	}
 
 	batch := mock.ExpectBatch()
 	batch.ExpectExec("INSERT INTO tag").
-		WithArgs(tags[0].ID, tags[0].User, tags[0].Changed, tags[0].Icon, tags[0].BudgetIncome, tags[0].BudgetOutcome, tags[0].Required, tags[0].Color, tags[0].Picture, tags[0].Title, tags[0].ShowIncome, tags[0].ShowOutcome, tags[0].Parent, tags[0].StaticID).
+		WithArgs(tags[0].ID, tags[0].User, tags[0].Changed, tags[0].Icon, tags[0].BudgetIncome, tags[0].BudgetOutcome, tags[0].Required, tags[0].Archive, tags[0].Color, tags[0].Picture, tags[0].Title, tags[0].ShowIncome, tags[0].ShowOutcome, tags[0].Parent, tags[0].StaticID).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
 	err = db.SaveTags(context.Background(), tags)
@@ -152,12 +159,12 @@ func TestSaveMerchants_Success(t *testing.T) {
 	db := &DB{pool: mock}
 
 	merchants := []models.Merchant{
-		{ID: "merchant-1", User: 1, Title: "Amazon", Changed: 123456},
+		{ID: "merchant-1", User: 1, Title: "Amazon", Changed: 123456, MCC: ptr(5411)},
 	}
 
 	batch := mock.ExpectBatch()
 	batch.ExpectExec("INSERT INTO merchant").
-		WithArgs(merchants[0].ID, merchants[0].User, merchants[0].Title, merchants[0].Changed).
+		WithArgs(merchants[0].ID, merchants[0].User, merchants[0].Title, merchants[0].Changed, merchants[0].MCC).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
 	err = db.SaveMerchants(context.Background(), merchants)
@@ -221,7 +228,7 @@ func TestSaveReminders_Success(t *testing.T) {
 			Interval:          nil,
 			IncomeAccount:     "acc-1",
 			OutcomeAccount:    "acc-2",
-			Comment:           "Test Reminder",
+			Comment:           ptr("Test Reminder"),
 			Payee:             nil,
 			Merchant:          nil,
 		},

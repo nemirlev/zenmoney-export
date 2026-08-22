@@ -8,13 +8,13 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
-	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
+	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 )
 
 // GetMerchant retrieves a specific merchant by its ID
 func (s *DB) GetMerchant(ctx context.Context, id string) (*models.Merchant, error) {
 	query := `
-       SELECT id, "user", title, changed
+       SELECT id, "user", title, changed, mcc
        FROM merchant
        WHERE id = $1`
 
@@ -24,6 +24,7 @@ func (s *DB) GetMerchant(ctx context.Context, id string) (*models.Merchant, erro
 		&merchant.User,
 		&merchant.Title,
 		&merchant.Changed,
+		&merchant.MCC,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -51,7 +52,7 @@ func (s *DB) ListMerchants(
 	}
 
 	query := `
-       SELECT id, "user", title, changed
+       SELECT id, "user", title, changed, mcc
        FROM merchant`
 
 	if len(conditions) > 0 {
@@ -75,6 +76,7 @@ func (s *DB) ListMerchants(
 			&merchant.User,
 			&merchant.Title,
 			&merchant.Changed,
+			&merchant.MCC,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan merchant: %w", err)
@@ -92,14 +94,15 @@ func (s *DB) ListMerchants(
 // CreateMerchant creates a new merchant record
 func (s *DB) CreateMerchant(ctx context.Context, merchant *models.Merchant) error {
 	query := `
-       INSERT INTO merchant (id, "user", title, changed)
-       VALUES ($1, $2, $3, $4)`
+       INSERT INTO merchant (id, "user", title, changed, mcc)
+       VALUES ($1, $2, $3, $4, $5)`
 
 	_, err := s.pool.Exec(ctx, query,
 		merchant.ID,
 		merchant.User,
 		merchant.Title,
 		merchant.Changed,
+		merchant.MCC,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create merchant: %w", err)
@@ -112,7 +115,7 @@ func (s *DB) CreateMerchant(ctx context.Context, merchant *models.Merchant) erro
 func (s *DB) UpdateMerchant(ctx context.Context, merchant *models.Merchant) error {
 	query := `
        UPDATE merchant 
-       SET "user" = $2, title = $3, changed = $4
+       SET "user" = $2, title = $3, changed = $4, mcc = $5
        WHERE id = $1`
 
 	commandTag, err := s.pool.Exec(ctx, query,
@@ -120,6 +123,7 @@ func (s *DB) UpdateMerchant(ctx context.Context, merchant *models.Merchant) erro
 		merchant.User,
 		merchant.Title,
 		merchant.Changed,
+		merchant.MCC,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update merchant: %w", err)

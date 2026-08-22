@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
+	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 )
 
 // DeleteObjects handles deletion of multiple objects from different tables
@@ -36,7 +37,15 @@ func (s *DB) DeleteObjects(ctx context.Context, deletions []models.Deletion) err
 	// Process each deletion
 	for _, del := range deletions {
 		query := ""
+		args := []any{del.ID, del.User}
 		switch del.Object {
+		case string(models.EntityTypeCountry):
+			countryID, parseErr := strconv.Atoi(del.ID)
+			if parseErr != nil {
+				return fmt.Errorf("invalid country ID %q: %w", del.ID, parseErr)
+			}
+			query = `DELETE FROM country WHERE id = $1`
+			args = []any{countryID}
 		case string(models.EntityTypeAccount):
 			query = `DELETE FROM account WHERE id = $1 AND "user" = $2`
 		case string(models.EntityTypeTag):
@@ -56,7 +65,7 @@ func (s *DB) DeleteObjects(ctx context.Context, deletions []models.Deletion) err
 		}
 
 		// Execute the delete query
-		commandTag, err := tx.Exec(ctx, query, del.ID, del.User)
+		commandTag, err := tx.Exec(ctx, query, args...)
 		if err != nil {
 			return fmt.Errorf("failed to delete %s with ID %s: %w", del.Object, del.ID, err)
 		}

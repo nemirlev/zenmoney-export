@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
-	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
+	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 )
@@ -26,7 +26,7 @@ func TestGetCompany_Success(t *testing.T) {
 	expectedCompany := &models.Company{
 		ID:          companyID,
 		Title:       "Test Company",
-		FullTitle:   "Test Company Full Title",
+		FullTitle:   ptr("Test Company Full Title"),
 		Www:         "https://testcompany.com",
 		Country:     1,
 		Deleted:     false,
@@ -97,7 +97,7 @@ func TestListCompanies_Success(t *testing.T) {
 	rows := mock.NewRows([]string{
 		"id", "title", "full_title", "www", "country", "deleted", "country_code", "changed",
 	}).AddRow(
-		1, "Test Company", "Test Company Full Title", "https://testcompany.com", 1, false, "TC", 1234567890,
+		1, "Test Company", ptr("Test Company Full Title"), "https://testcompany.com", 1, false, "TC", 1234567890,
 	)
 
 	mock.ExpectQuery(`SELECT id, title, full_title, www, country, deleted, country_code, changed FROM company WHERE user_id = \$1 LIMIT \$2 OFFSET \$3`).
@@ -149,7 +149,7 @@ func TestCreateCompany_Success(t *testing.T) {
 	company := &models.Company{
 		ID:          1,
 		Title:       "Test Company",
-		FullTitle:   "Test Company Full Title",
+		FullTitle:   ptr("Test Company Full Title"),
 		Www:         "https://testcompany.com",
 		Country:     1,
 		Deleted:     false,
@@ -181,7 +181,7 @@ func TestCreateCompany_QueryError(t *testing.T) {
 	company := &models.Company{
 		ID:          1,
 		Title:       "Test Company",
-		FullTitle:   "Test Company Full Title",
+		FullTitle:   ptr("Test Company Full Title"),
 		Www:         "https://testcompany.com",
 		Country:     1,
 		Deleted:     false,
@@ -214,7 +214,7 @@ func TestUpdateCompany_Success(t *testing.T) {
 	company := &models.Company{
 		ID:          1,
 		Title:       "Updated Company",
-		FullTitle:   "Updated Company Full Title",
+		FullTitle:   ptr("Updated Company Full Title"),
 		Www:         "https://updatedcompany.com",
 		Country:     1,
 		Deleted:     false,
@@ -246,7 +246,7 @@ func TestUpdateCompany_NotFound(t *testing.T) {
 	company := &models.Company{
 		ID:          1,
 		Title:       "Updated Company",
-		FullTitle:   "Updated Company Full Title",
+		FullTitle:   ptr("Updated Company Full Title"),
 		Www:         "https://updatedcompany.com",
 		Country:     1,
 		Deleted:     false,

@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
-	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
+	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 )
@@ -38,7 +38,7 @@ func TestGetReminder_Success(t *testing.T) {
 		Interval:          ptr("week"),
 		IncomeAccount:     "income-account",
 		OutcomeAccount:    "outcome-account",
-		Comment:           "test comment",
+		Comment:           ptr("test comment"),
 		Payee:             ptr("payee-id"),
 		Merchant:          ptr("merchant-id"),
 	}
@@ -154,7 +154,7 @@ func TestListReminders_Success(t *testing.T) {
 		Interval:          ptr("week"),
 		IncomeAccount:     "income-account",
 		OutcomeAccount:    "outcome-account",
-		Comment:           "test comment",
+		Comment:           ptr("test comment"),
 		Payee:             ptr("payee-id"),
 		Merchant:          ptr("merchant-id"),
 	}
@@ -247,7 +247,7 @@ func TestCreateReminder_Success(t *testing.T) {
 		Interval:          ptr("week"),
 		IncomeAccount:     "income-account",
 		OutcomeAccount:    "outcome-account",
-		Comment:           "test comment",
+		Comment:           ptr("test comment"),
 		Payee:             ptr("payee-id"),
 		Merchant:          ptr("merchant-id"),
 	}
@@ -309,7 +309,7 @@ func TestCreateReminder_QueryError(t *testing.T) {
 		Interval:          ptr("week"),
 		IncomeAccount:     "income-account",
 		OutcomeAccount:    "outcome-account",
-		Comment:           "test comment",
+		Comment:           ptr("test comment"),
 		Payee:             ptr("payee-id"),
 		Merchant:          ptr("merchant-id"),
 	}
@@ -373,7 +373,7 @@ func TestUpdateReminder_Success(t *testing.T) {
 		Interval:          ptr("week"),
 		IncomeAccount:     "income-account",
 		OutcomeAccount:    "outcome-account",
-		Comment:           "test comment",
+		Comment:           ptr("test comment"),
 		Payee:             ptr("payee-id"),
 		Merchant:          ptr("merchant-id"),
 	}
@@ -450,7 +450,7 @@ func TestUpdateReminder_NotFound(t *testing.T) {
 		Interval:          ptr("week"),
 		IncomeAccount:     "income-account",
 		OutcomeAccount:    "outcome-account",
-		Comment:           "test comment",
+		Comment:           ptr("test comment"),
 		Payee:             ptr("payee-id"),
 		Merchant:          ptr("merchant-id"),
 	}
@@ -528,7 +528,7 @@ func TestUpdateReminder_QueryError(t *testing.T) {
 		Interval:          ptr("week"),
 		IncomeAccount:     "income-account",
 		OutcomeAccount:    "outcome-account",
-		Comment:           "test comment",
+		Comment:           ptr("test comment"),
 		Payee:             ptr("payee-id"),
 		Merchant:          ptr("merchant-id"),
 	}

@@ -26,13 +26,13 @@ func main() {
         Limit:     100,
     })
 
-	// Save all Zen Money Response (github.com/nemirlev/zenmoney-go-sdk/v2/models.Response)
+	// Save all Zen Money Response (github.com/nemirlev/zenmoney-go-sdk/v3/models.Response)
 	err = storage.Save(ctx, response)
 
     // Bulk operations in sync process
     err = storage.SaveTransactions(ctx, newTransactions)
 
-	// Delete from delete array (github.com/nemirlev/zenmoney-go-sdk/v2/models.Deletion)
+	// Delete from delete array (github.com/nemirlev/zenmoney-go-sdk/v3/models.Deletion)
     err = storage.DeleteObjects(ctx, []Deletions{
 				{Object: "transaction", ID: 123},
 				{Object: "transaction", ID: 124},)

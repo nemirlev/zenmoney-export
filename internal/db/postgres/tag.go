@@ -8,14 +8,14 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
-	"github.com/nemirlev/zenmoney-go-sdk/v2/models"
+	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 )
 
 // GetTag retrieves a specific tag by its ID
 func (s *DB) GetTag(ctx context.Context, id string) (*models.Tag, error) {
 	query := `
         SELECT id, "user", changed, icon, budget_income, budget_outcome,
-               required, color, picture, title, show_income, show_outcome,
+               required, archive, color, picture, title, show_income, show_outcome,
                parent, static_id
         FROM tag
         WHERE id = $1`
@@ -29,6 +29,7 @@ func (s *DB) GetTag(ctx context.Context, id string) (*models.Tag, error) {
 		&tag.BudgetIncome,
 		&tag.BudgetOutcome,
 		&tag.Required,
+		&tag.Archive,
 		&tag.Color,
 		&tag.Picture,
 		&tag.Title,
@@ -62,7 +63,7 @@ func (s *DB) ListTags(ctx context.Context, filter interfaces.Filter) ([]models.T
 
 	query := `
         SELECT id, "user", changed, icon, budget_income, budget_outcome,
-               required, color, picture, title, show_income, show_outcome,
+               required, archive, color, picture, title, show_income, show_outcome,
                parent, static_id
         FROM tag`
 
@@ -91,6 +92,7 @@ func (s *DB) ListTags(ctx context.Context, filter interfaces.Filter) ([]models.T
 			&tag.BudgetIncome,
 			&tag.BudgetOutcome,
 			&tag.Required,
+			&tag.Archive,
 			&tag.Color,
 			&tag.Picture,
 			&tag.Title,
@@ -117,9 +119,9 @@ func (s *DB) CreateTag(ctx context.Context, tag *models.Tag) error {
 	query := `
         INSERT INTO tag (
             id, "user", changed, icon, budget_income, budget_outcome,
-            required, color, picture, title, show_income, show_outcome,
+            required, archive, color, picture, title, show_income, show_outcome,
             parent, static_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`
 
 	_, err := s.pool.Exec(ctx, query,
 		tag.ID,
@@ -129,6 +131,7 @@ func (s *DB) CreateTag(ctx context.Context, tag *models.Tag) error {
 		tag.BudgetIncome,
 		tag.BudgetOutcome,
 		tag.Required,
+		tag.Archive,
 		tag.Color,
 		tag.Picture,
 		tag.Title,
@@ -154,13 +157,14 @@ func (s *DB) UpdateTag(ctx context.Context, tag *models.Tag) error {
             budget_income = $5,
             budget_outcome = $6,
             required = $7,
-            color = $8,
-            picture = $9,
-            title = $10,
-            show_income = $11,
-            show_outcome = $12,
-            parent = $13,
-            static_id = $14
+            archive = $8,
+            color = $9,
+            picture = $10,
+            title = $11,
+            show_income = $12,
+            show_outcome = $13,
+            parent = $14,
+            static_id = $15
         WHERE id = $1`
 
 	commandTag, err := s.pool.Exec(ctx, query,
@@ -171,6 +175,7 @@ func (s *DB) UpdateTag(ctx context.Context, tag *models.Tag) error {
 		tag.BudgetIncome,
 		tag.BudgetOutcome,
 		tag.Required,
+		tag.Archive,
 		tag.Color,
 		tag.Picture,
 		tag.Title,
