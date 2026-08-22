@@ -45,6 +45,7 @@ type SyncParams struct {
 	ToDate    string
 	Entities  string
 	BatchSize int
+	WriteMode interfaces.WriteMode
 	Force     bool
 	DryRun    bool
 }
@@ -225,7 +226,7 @@ func (s *SyncService) Sync(ctx context.Context, p *SyncParams) (syncErr error) {
 		if batchSize <= 0 {
 			batchSize = interfaces.DefaultBatchSize
 		}
-		err = s.app.db.Save(ctx, &data, interfaces.SaveOptions{BatchSize: batchSize})
+		err = s.app.db.Save(ctx, &data, interfaces.SaveOptions{BatchSize: batchSize, WriteMode: p.WriteMode})
 		if err != nil {
 			return err
 		}

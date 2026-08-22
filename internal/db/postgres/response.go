@@ -14,6 +14,13 @@ import (
 // Save saves the entire API response to database
 func (s *DB) Save(ctx context.Context, response *models.Response, options interfaces.SaveOptions) error {
 	batchSize := normalizeBatchSize(options.BatchSize)
+	writeMode := options.WriteMode
+	if writeMode == "" {
+		writeMode = interfaces.WriteModeBatch
+	}
+	if writeMode != interfaces.WriteModeBatch && writeMode != interfaces.WriteModeCopy {
+		return fmt.Errorf("unsupported write mode %q", writeMode)
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -120,7 +127,12 @@ func (s *DB) Save(ctx context.Context, response *models.Response, options interf
 	}
 
 	if len(response.Transaction) > 0 {
-		if err = saveTransactions(ctx, tx, response.Transaction, batchSize); err != nil {
+		if writeMode == interfaces.WriteModeCopy {
+			err = copyTransactions(ctx, tx, response.Transaction)
+		} else {
+			err = saveTransactions(ctx, tx, response.Transaction, batchSize)
+		}
+		if err != nil {
 			return fail(fmt.Errorf("failed to save transactions: %w", err))
 		}
 	}

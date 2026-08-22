@@ -99,20 +99,28 @@ func TestSyncCommandRejectsInvalidDaemonInterval(t *testing.T) {
 func TestSyncCommandBatchSizeValidationAndWiring(t *testing.T) {
 	cmd := NewSyncCommand(&RootCommand{})
 	require.Equal(t, "1000", cmd.Flags().Lookup("batch-size").DefValue)
+	require.Equal(t, "batch", cmd.Flags().Lookup("write-mode").DefValue)
 
 	for _, value := range []string{"0", "-1"} {
 		require.NoError(t, cmd.Flags().Set("batch-size", value))
 		require.ErrorContains(t, cmd.Args(cmd, nil), "--batch-size must be greater than zero")
 	}
 
-	opts := &config.SyncOptions{Entities: "all", BatchSize: 37, Force: true, DryRun: true}
+	opts := &config.SyncOptions{Entities: "all", BatchSize: 37, WriteMode: "copy", Force: true, DryRun: true}
 	require.Equal(t, &app.SyncParams{
 		Entities:  "all",
 		BatchSize: 37,
+		WriteMode: interfaces.WriteModeCopy,
 		Force:     true,
 		DryRun:    true,
 	}, syncParamsFromOptions(opts))
 	require.Equal(t, 1000, interfaces.DefaultBatchSize)
+}
+
+func TestSyncCommandRejectsUnknownWriteMode(t *testing.T) {
+	cmd := NewSyncCommand(&RootCommand{})
+	require.NoError(t, cmd.Flags().Set("write-mode", "COPY"))
+	require.ErrorContains(t, cmd.Args(cmd, nil), "--write-mode must be one of: batch, copy")
 }
 
 func TestRunSyncAndCloseAlwaysClosesDatabase(t *testing.T) {

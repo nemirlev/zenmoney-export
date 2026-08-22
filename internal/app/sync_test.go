@@ -348,6 +348,25 @@ func TestSyncPassesConfiguredBatchSizeToStorage(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestSyncPassesCopyWriteModeToStorage(t *testing.T) {
+	storage := mocks.NewStorage(t)
+	storage.On("AcquireSyncLock", mock.Anything).Return(&testSyncLock{}, nil).Once()
+	storage.On("GetLastSyncStatus", mock.Anything).Return(interfaces.SyncStatus{}, nil).Once()
+	response := models.Response{ServerTimestamp: 42}
+	storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{
+		BatchSize: interfaces.DefaultBatchSize,
+		WriteMode: interfaces.WriteModeCopy,
+	}).Return(nil).Once()
+	service := &SyncService{
+		app:    &Application{cfg: &config.Config{DBType: "postgres"}, db: storage},
+		client: &recordingSyncClient{response: response},
+	}
+
+	err := service.Sync(context.Background(), &SyncParams{Entities: "all", WriteMode: interfaces.WriteModeCopy})
+
+	require.NoError(t, err)
+}
+
 func TestSyncReturnsBusyLockWithoutReadingCursorOrCallingAPI(t *testing.T) {
 	storage := mocks.NewStorage(t)
 	storage.On("AcquireSyncLock", mock.Anything).

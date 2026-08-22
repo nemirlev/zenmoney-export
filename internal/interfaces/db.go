@@ -22,10 +22,18 @@ type StorageType string
 
 const DefaultBatchSize = 1000
 
+type WriteMode string
+
+const (
+	WriteModeBatch WriteMode = "batch"
+	WriteModeCopy  WriteMode = "copy"
+)
+
 // SaveOptions controls how an API response is persisted without changing its
 // transaction boundaries.
 type SaveOptions struct {
 	BatchSize int
+	WriteMode WriteMode
 }
 
 const (

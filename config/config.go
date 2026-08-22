@@ -31,6 +31,7 @@ type SyncOptions struct {
 	Interval  int
 	Entities  string
 	BatchSize int
+	WriteMode string
 	Force     bool
 	DryRun    bool
 }

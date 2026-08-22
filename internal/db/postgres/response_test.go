@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -155,6 +156,13 @@ type recordingTx struct {
 	commitCalls    int
 	execCalls      int
 	lastStatus     string
+	copyFromCalls  int
+	copiedRows     int
+	copiedValues   [][]any
+	failCopy       bool
+	failMerge      bool
+	stagingCreated bool
+	mergeExecuted  bool
 }
 
 func (tx *recordingTx) SendBatch(_ context.Context, batch *pgx.Batch) pgx.BatchResults {
@@ -185,9 +193,43 @@ func (tx *recordingTx) Commit(context.Context) error {
 	return nil
 }
 
-func (tx *recordingTx) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
+func (tx *recordingTx) Exec(_ context.Context, sql string, _ ...any) (pgconn.CommandTag, error) {
 	tx.execCalls++
+	if strings.Contains(sql, "CREATE TEMP TABLE staging_transaction") {
+		tx.stagingCreated = true
+	}
+	if strings.Contains(sql, "FROM latest_staging_transaction") {
+		tx.mergeExecuted = true
+		if tx.failMerge {
+			return pgconn.CommandTag{}, errors.New("merge failed")
+		}
+	}
 	return pgconn.NewCommandTag("DELETE 1"), nil
+}
+
+func (tx *recordingTx) CopyFrom(
+	_ context.Context,
+	_ pgx.Identifier,
+	_ []string,
+	rowSrc pgx.CopyFromSource,
+) (int64, error) {
+	tx.copyFromCalls++
+	if tx.failCopy {
+		return 0, errors.New("copy failed")
+	}
+
+	for rowSrc.Next() {
+		values, err := rowSrc.Values()
+		if err != nil {
+			return int64(tx.copiedRows), err
+		}
+		tx.copiedValues = append(tx.copiedValues, values)
+		tx.copiedRows++
+	}
+	if err := rowSrc.Err(); err != nil {
+		return int64(tx.copiedRows), err
+	}
+	return int64(tx.copiedRows), nil
 }
 
 type recordingBatchResults struct {

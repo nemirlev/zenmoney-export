@@ -101,11 +101,18 @@ Flags:
 - `--force`: Force a full sync, ignoring any previous sync state.
 - `-h`, `--help`: Show help information for the sync command.
 - `--interval int`: Set the sync interval in minutes (default 30).
+- `--write-mode string`: Select `batch` (default) or the hybrid `copy` mode. In `copy` mode transactions are streamed into a temporary PostgreSQL staging table with `COPY` and merged with one upsert; other entities continue to use chunked batches. Both modes commit the full response and sync cursor in one transaction.
 
 Example for full sync entities `transactions` and `accounts` plus getting the latest data:
 
 ```bash
 go run main.go sync --entities transactions,accounts --force
+```
+
+For a large full sync, use the hybrid PostgreSQL `COPY` path:
+
+```bash
+go run main.go sync --force --write-mode copy
 ```
 
 Example for incremental sync with a 5-minute interval:
