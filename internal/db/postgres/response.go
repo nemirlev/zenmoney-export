@@ -12,7 +12,8 @@ import (
 )
 
 // Save saves the entire API response to database
-func (s *DB) Save(ctx context.Context, response *models.Response) error {
+func (s *DB) Save(ctx context.Context, response *models.Response, options interfaces.SaveOptions) error {
+	batchSize := normalizeBatchSize(options.BatchSize)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -59,67 +60,67 @@ func (s *DB) Save(ctx context.Context, response *models.Response) error {
 	}
 
 	if len(response.Instrument) > 0 {
-		if err = saveInstruments(ctx, tx, response.Instrument); err != nil {
+		if err = saveInstruments(ctx, tx, response.Instrument, batchSize); err != nil {
 			return fail(fmt.Errorf("failed to save instruments: %w", err))
 		}
 	}
 
 	if len(response.Country) > 0 {
-		if err = saveCountries(ctx, tx, response.Country); err != nil {
+		if err = saveCountries(ctx, tx, response.Country, batchSize); err != nil {
 			return fail(fmt.Errorf("failed to save countries: %w", err))
 		}
 	}
 
 	if len(response.Company) > 0 {
-		if err = saveCompanies(ctx, tx, response.Company); err != nil {
+		if err = saveCompanies(ctx, tx, response.Company, batchSize); err != nil {
 			return fail(fmt.Errorf("failed to save companies: %w", err))
 		}
 	}
 
 	if len(response.User) > 0 {
-		if err = saveUsers(ctx, tx, response.User); err != nil {
+		if err = saveUsers(ctx, tx, response.User, batchSize); err != nil {
 			return fail(fmt.Errorf("failed to save users: %w", err))
 		}
 	}
 
 	if len(response.Account) > 0 {
-		if err = saveAccounts(ctx, tx, response.Account); err != nil {
+		if err = saveAccounts(ctx, tx, response.Account, batchSize); err != nil {
 			return fail(fmt.Errorf("failed to save accounts: %w", err))
 		}
 	}
 
 	if len(response.Tag) > 0 {
-		if err = saveTags(ctx, tx, response.Tag); err != nil {
+		if err = saveTags(ctx, tx, response.Tag, batchSize); err != nil {
 			return fail(fmt.Errorf("failed to save tags: %w", err))
 		}
 	}
 
 	if len(response.Merchant) > 0 {
-		if err = saveMerchants(ctx, tx, response.Merchant); err != nil {
+		if err = saveMerchants(ctx, tx, response.Merchant, batchSize); err != nil {
 			return fail(fmt.Errorf("failed to save merchants: %w", err))
 		}
 	}
 
 	if len(response.Budget) > 0 {
-		if err = saveBudgets(ctx, tx, response.Budget); err != nil {
+		if err = saveBudgets(ctx, tx, response.Budget, batchSize); err != nil {
 			return fail(fmt.Errorf("failed to save budgets: %w", err))
 		}
 	}
 
 	if len(response.Reminder) > 0 {
-		if err = saveReminders(ctx, tx, response.Reminder); err != nil {
+		if err = saveReminders(ctx, tx, response.Reminder, batchSize); err != nil {
 			return fail(fmt.Errorf("failed to save reminders: %w", err))
 		}
 	}
 
 	if len(response.ReminderMarker) > 0 {
-		if err = saveReminderMarkers(ctx, tx, response.ReminderMarker); err != nil {
+		if err = saveReminderMarkers(ctx, tx, response.ReminderMarker, batchSize); err != nil {
 			return fail(fmt.Errorf("failed to save reminder markers: %w", err))
 		}
 	}
 
 	if len(response.Transaction) > 0 {
-		if err = saveTransactions(ctx, tx, response.Transaction); err != nil {
+		if err = saveTransactions(ctx, tx, response.Transaction, batchSize); err != nil {
 			return fail(fmt.Errorf("failed to save transactions: %w", err))
 		}
 	}

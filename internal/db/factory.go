@@ -27,7 +27,7 @@ func main() {
     })
 
 	// Save all Zen Money Response (github.com/nemirlev/zenmoney-go-sdk/v3/models.Response)
-	err = storage.Save(ctx, response)
+	err = storage.Save(ctx, response, interfaces.SaveOptions{BatchSize: interfaces.DefaultBatchSize})
 
     // Bulk operations in sync process
     err = storage.SaveTransactions(ctx, newTransactions)

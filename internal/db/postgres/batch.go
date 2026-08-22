@@ -2,19 +2,72 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 )
+
+func normalizeBatchSize(batchSize int) int {
+	if batchSize <= 0 {
+		return interfaces.DefaultBatchSize
+	}
+	return batchSize
+}
+
+func saveInChunks[T any](
+	ctx context.Context,
+	db batchSender,
+	entity string,
+	items []T,
+	batchSize int,
+	queue func(*pgx.Batch, T),
+) error {
+	batchSize = normalizeBatchSize(batchSize)
+	for start := 0; start < len(items); start += batchSize {
+		end := min(start+batchSize, len(items))
+		batch := &pgx.Batch{}
+		for _, item := range items[start:end] {
+			queue(batch, item)
+		}
+		if err := executeBatch(ctx, db, entity, start, batch); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func executeBatch(
+	ctx context.Context,
+	db batchSender,
+	entity string,
+	start int,
+	batch *pgx.Batch,
+) (err error) {
+	results := db.SendBatch(ctx, batch)
+	defer func() {
+		if closeErr := results.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close %s batch starting at %d: %w", entity, start, closeErr))
+		}
+	}()
+
+	for i := 0; i < batch.Len(); i++ {
+		if _, execErr := results.Exec(); execErr != nil {
+			return fmt.Errorf("failed to save %s %d: %w", entity, start+i, execErr)
+		}
+	}
+	return nil
+}
 
 // SaveInstruments saves a batch of instruments to the database
 // It performs an upsert operation: inserts new records and updates existing ones based on their ID
 func (s *DB) SaveInstruments(ctx context.Context, instruments []models.Instrument) error {
-	return saveInstruments(ctx, s.pool, instruments)
+	return saveInstruments(ctx, s.pool, instruments, interfaces.DefaultBatchSize)
 }
 
-func saveInstruments(ctx context.Context, db batchSender, instruments []models.Instrument) error {
+func saveInstruments(ctx context.Context, db batchSender, instruments []models.Instrument, batchSize int) error {
 	if len(instruments) == 0 {
 		return nil
 	}
@@ -29,8 +82,7 @@ func saveInstruments(ctx context.Context, db batchSender, instruments []models.I
             rate = EXCLUDED.rate,
             changed = EXCLUDED.changed`
 
-	batch := &pgx.Batch{}
-	for _, inst := range instruments {
+	return saveInChunks(ctx, db, "instrument", instruments, batchSize, func(batch *pgx.Batch, inst models.Instrument) {
 		batch.Queue(
 			query,
 			inst.ID,
@@ -40,27 +92,16 @@ func saveInstruments(ctx context.Context, db batchSender, instruments []models.I
 			decimalString(inst.Rate),
 			inst.Changed,
 		)
-	}
-
-	br := db.SendBatch(ctx, batch)
-	defer br.Close()
-
-	for i := 0; i < batch.Len(); i++ {
-		if _, err := br.Exec(); err != nil {
-			return fmt.Errorf("failed to save instrument %d: %w", i, err)
-		}
-	}
-
-	return nil
+	})
 }
 
 // SaveCountries saves a batch of countries to the database
 // It performs an upsert operation: inserts new records and updates existing ones based on their ID
 func (s *DB) SaveCountries(ctx context.Context, countries []models.Country) error {
-	return saveCountries(ctx, s.pool, countries)
+	return saveCountries(ctx, s.pool, countries, interfaces.DefaultBatchSize)
 }
 
-func saveCountries(ctx context.Context, db batchSender, countries []models.Country) error {
+func saveCountries(ctx context.Context, db batchSender, countries []models.Country, batchSize int) error {
 	if len(countries) == 0 {
 		return nil
 	}
@@ -73,30 +114,18 @@ func saveCountries(ctx context.Context, db batchSender, countries []models.Count
             currency = EXCLUDED.currency,
             domain = EXCLUDED.domain`
 
-	batch := &pgx.Batch{}
-	for _, country := range countries {
+	return saveInChunks(ctx, db, "country", countries, batchSize, func(batch *pgx.Batch, country models.Country) {
 		batch.Queue(query, country.ID, country.Title, country.Currency, country.Domain)
-	}
-
-	br := db.SendBatch(ctx, batch)
-	defer br.Close()
-
-	for i := 0; i < batch.Len(); i++ {
-		if _, err := br.Exec(); err != nil {
-			return fmt.Errorf("failed to save country %d: %w", i, err)
-		}
-	}
-
-	return nil
+	})
 }
 
 // SaveCompanies saves a batch of companies to the database
 // It performs an upsert operation: inserts new records and updates existing ones based on their ID
 func (s *DB) SaveCompanies(ctx context.Context, companies []models.Company) error {
-	return saveCompanies(ctx, s.pool, companies)
+	return saveCompanies(ctx, s.pool, companies, interfaces.DefaultBatchSize)
 }
 
-func saveCompanies(ctx context.Context, db batchSender, companies []models.Company) error {
+func saveCompanies(ctx context.Context, db batchSender, companies []models.Company, batchSize int) error {
 	if len(companies) == 0 {
 		return nil
 	}
@@ -115,34 +144,22 @@ func saveCompanies(ctx context.Context, db batchSender, companies []models.Compa
             country_code = EXCLUDED.country_code,
             changed = EXCLUDED.changed`
 
-	batch := &pgx.Batch{}
-	for _, company := range companies {
+	return saveInChunks(ctx, db, "company", companies, batchSize, func(batch *pgx.Batch, company models.Company) {
 		batch.Queue(query,
 			company.ID, company.Title, company.FullTitle,
 			company.Www, company.Country, company.Deleted,
 			company.CountryCode, company.Changed,
 		)
-	}
-
-	br := db.SendBatch(ctx, batch)
-	defer br.Close()
-
-	for i := 0; i < batch.Len(); i++ {
-		if _, err := br.Exec(); err != nil {
-			return fmt.Errorf("failed to save company %d: %w", i, err)
-		}
-	}
-
-	return nil
+	})
 }
 
 // SaveUsers saves a batch of users to the database
 // It performs an upsert operation: inserts new records and updates existing ones based on their ID
 func (s *DB) SaveUsers(ctx context.Context, users []models.User) error {
-	return saveUsers(ctx, s.pool, users)
+	return saveUsers(ctx, s.pool, users, interfaces.DefaultBatchSize)
 }
 
-func saveUsers(ctx context.Context, db batchSender, users []models.User) error {
+func saveUsers(ctx context.Context, db batchSender, users []models.User, batchSize int) error {
 	if len(users) == 0 {
 		return nil
 	}
@@ -170,8 +187,7 @@ func saveUsers(ctx context.Context, db batchSender, users []models.User) error {
             subscription = EXCLUDED.subscription,
             subscription_renewal_date = EXCLUDED.subscription_renewal_date`
 
-	batch := &pgx.Batch{}
-	for _, user := range users {
+	return saveInChunks(ctx, db, "user", users, batchSize, func(batch *pgx.Batch, user models.User) {
 		batch.Queue(query,
 			user.ID, user.Country, user.Login, user.Parent,
 			user.CountryCode, user.Email, user.Changed,
@@ -180,26 +196,15 @@ func saveUsers(ctx context.Context, db batchSender, users []models.User) error {
 			user.PlanSettings, user.Subscription,
 			user.SubscriptionRenewalDate,
 		)
-	}
-
-	br := db.SendBatch(ctx, batch)
-	defer br.Close()
-
-	for i := 0; i < batch.Len(); i++ {
-		if _, err := br.Exec(); err != nil {
-			return fmt.Errorf("failed to save user %d: %w", i, err)
-		}
-	}
-
-	return nil
+	})
 }
 
 // SaveAccounts saves a batch of accounts to the database
 func (s *DB) SaveAccounts(ctx context.Context, accounts []models.Account) error {
-	return saveAccounts(ctx, s.pool, accounts)
+	return saveAccounts(ctx, s.pool, accounts, interfaces.DefaultBatchSize)
 }
 
-func saveAccounts(ctx context.Context, db batchSender, accounts []models.Account) error {
+func saveAccounts(ctx context.Context, db batchSender, accounts []models.Account, batchSize int) error {
 	if len(accounts) == 0 {
 		return nil
 	}
@@ -243,8 +248,7 @@ func saveAccounts(ctx context.Context, db batchSender, accounts []models.Account
             payoff_step = EXCLUDED.payoff_step,
             payoff_interval = EXCLUDED.payoff_interval`
 
-	batch := &pgx.Batch{}
-	for _, account := range accounts {
+	return saveInChunks(ctx, db, "account", accounts, batchSize, func(batch *pgx.Batch, account models.Account) {
 		batch.Queue(query,
 			account.ID,
 			account.User,
@@ -273,26 +277,15 @@ func saveAccounts(ctx context.Context, db batchSender, accounts []models.Account
 			account.PayoffStep,
 			account.PayoffInterval,
 		)
-	}
-
-	br := db.SendBatch(ctx, batch)
-	defer br.Close()
-
-	for i := 0; i < batch.Len(); i++ {
-		if _, err := br.Exec(); err != nil {
-			return fmt.Errorf("failed to save account %d: %w", i, err)
-		}
-	}
-
-	return nil
+	})
 }
 
 // SaveTags saves a batch of tags to the database
 func (s *DB) SaveTags(ctx context.Context, tags []models.Tag) error {
-	return saveTags(ctx, s.pool, tags)
+	return saveTags(ctx, s.pool, tags, interfaces.DefaultBatchSize)
 }
 
-func saveTags(ctx context.Context, db batchSender, tags []models.Tag) error {
+func saveTags(ctx context.Context, db batchSender, tags []models.Tag, batchSize int) error {
 	if len(tags) == 0 {
 		return nil
 	}
@@ -320,8 +313,7 @@ func saveTags(ctx context.Context, db batchSender, tags []models.Tag) error {
             parent = EXCLUDED.parent,
             static_id = EXCLUDED.static_id`
 
-	batch := &pgx.Batch{}
-	for _, tag := range tags {
+	return saveInChunks(ctx, db, "tag", tags, batchSize, func(batch *pgx.Batch, tag models.Tag) {
 		batch.Queue(query,
 			tag.ID,
 			tag.User,
@@ -339,26 +331,15 @@ func saveTags(ctx context.Context, db batchSender, tags []models.Tag) error {
 			tag.Parent,
 			tag.StaticID,
 		)
-	}
-
-	br := db.SendBatch(ctx, batch)
-	defer br.Close()
-
-	for i := 0; i < batch.Len(); i++ {
-		if _, err := br.Exec(); err != nil {
-			return fmt.Errorf("failed to save tag %d: %w", i, err)
-		}
-	}
-
-	return nil
+	})
 }
 
 // SaveMerchants saves a batch of merchants to the database
 func (s *DB) SaveMerchants(ctx context.Context, merchants []models.Merchant) error {
-	return saveMerchants(ctx, s.pool, merchants)
+	return saveMerchants(ctx, s.pool, merchants, interfaces.DefaultBatchSize)
 }
 
-func saveMerchants(ctx context.Context, db batchSender, merchants []models.Merchant) error {
+func saveMerchants(ctx context.Context, db batchSender, merchants []models.Merchant, batchSize int) error {
 	if len(merchants) == 0 {
 		return nil
 	}
@@ -372,8 +353,7 @@ func saveMerchants(ctx context.Context, db batchSender, merchants []models.Merch
             changed = EXCLUDED.changed,
             mcc = EXCLUDED.mcc`
 
-	batch := &pgx.Batch{}
-	for _, merchant := range merchants {
+	return saveInChunks(ctx, db, "merchant", merchants, batchSize, func(batch *pgx.Batch, merchant models.Merchant) {
 		batch.Queue(query,
 			merchant.ID,
 			merchant.User,
@@ -381,26 +361,15 @@ func saveMerchants(ctx context.Context, db batchSender, merchants []models.Merch
 			merchant.Changed,
 			merchant.MCC,
 		)
-	}
-
-	br := db.SendBatch(ctx, batch)
-	defer br.Close()
-
-	for i := 0; i < batch.Len(); i++ {
-		if _, err := br.Exec(); err != nil {
-			return fmt.Errorf("failed to save merchant %d: %w", i, err)
-		}
-	}
-
-	return nil
+	})
 }
 
 // SaveBudgets saves a batch of budgets to the database
 func (s *DB) SaveBudgets(ctx context.Context, budgets []models.Budget) error {
-	return saveBudgets(ctx, s.pool, budgets)
+	return saveBudgets(ctx, s.pool, budgets, interfaces.DefaultBatchSize)
 }
 
-func saveBudgets(ctx context.Context, db batchSender, budgets []models.Budget) error {
+func saveBudgets(ctx context.Context, db batchSender, budgets []models.Budget, batchSize int) error {
 	if len(budgets) == 0 {
 		return nil
 	}
@@ -420,8 +389,7 @@ func saveBudgets(ctx context.Context, db batchSender, budgets []models.Budget) e
             is_income_forecast = EXCLUDED.is_income_forecast,
             is_outcome_forecast = EXCLUDED.is_outcome_forecast`
 
-	batch := &pgx.Batch{}
-	for _, budget := range budgets {
+	return saveInChunks(ctx, db, "budget", budgets, batchSize, func(batch *pgx.Batch, budget models.Budget) {
 		batch.Queue(query,
 			budget.User,
 			budget.Changed,
@@ -434,26 +402,15 @@ func saveBudgets(ctx context.Context, db batchSender, budgets []models.Budget) e
 			budget.IsIncomeForecast,
 			budget.IsOutcomeForecast,
 		)
-	}
-
-	br := db.SendBatch(ctx, batch)
-	defer br.Close()
-
-	for i := 0; i < batch.Len(); i++ {
-		if _, err := br.Exec(); err != nil {
-			return fmt.Errorf("failed to save budget %d: %w", i, err)
-		}
-	}
-
-	return nil
+	})
 }
 
 // SaveReminders saves a batch of reminders to the database
 func (s *DB) SaveReminders(ctx context.Context, reminders []models.Reminder) error {
-	return saveReminders(ctx, s.pool, reminders)
+	return saveReminders(ctx, s.pool, reminders, interfaces.DefaultBatchSize)
 }
 
-func saveReminders(ctx context.Context, db batchSender, reminders []models.Reminder) error {
+func saveReminders(ctx context.Context, db batchSender, reminders []models.Reminder, batchSize int) error {
 	if len(reminders) == 0 {
 		return nil
 	}
@@ -488,8 +445,7 @@ func saveReminders(ctx context.Context, db batchSender, reminders []models.Remin
             payee = EXCLUDED.payee,
             merchant = EXCLUDED.merchant`
 
-	batch := &pgx.Batch{}
-	for _, reminder := range reminders {
+	return saveInChunks(ctx, db, "reminder", reminders, batchSize, func(batch *pgx.Batch, reminder models.Reminder) {
 		batch.Queue(query,
 			reminder.ID,
 			reminder.User,
@@ -511,26 +467,15 @@ func saveReminders(ctx context.Context, db batchSender, reminders []models.Remin
 			reminder.Payee,
 			reminder.Merchant,
 		)
-	}
-
-	br := db.SendBatch(ctx, batch)
-	defer br.Close()
-
-	for i := 0; i < batch.Len(); i++ {
-		if _, err := br.Exec(); err != nil {
-			return fmt.Errorf("failed to save reminder %d: %w", i, err)
-		}
-	}
-
-	return nil
+	})
 }
 
 // SaveReminderMarkers saves a batch of reminder markers to the database
 func (s *DB) SaveReminderMarkers(ctx context.Context, markers []models.ReminderMarker) error {
-	return saveReminderMarkers(ctx, s.pool, markers)
+	return saveReminderMarkers(ctx, s.pool, markers, interfaces.DefaultBatchSize)
 }
 
-func saveReminderMarkers(ctx context.Context, db batchSender, markers []models.ReminderMarker) error {
+func saveReminderMarkers(ctx context.Context, db batchSender, markers []models.ReminderMarker, batchSize int) error {
 	if len(markers) == 0 {
 		return nil
 	}
@@ -563,8 +508,7 @@ func saveReminderMarkers(ctx context.Context, db batchSender, markers []models.R
             notify = EXCLUDED.notify,
             tag = EXCLUDED.tag`
 
-	batch := &pgx.Batch{}
-	for _, marker := range markers {
+	return saveInChunks(ctx, db, "reminder marker", markers, batchSize, func(batch *pgx.Batch, marker models.ReminderMarker) {
 		batch.Queue(query,
 			marker.ID,
 			marker.User,
@@ -585,26 +529,15 @@ func saveReminderMarkers(ctx context.Context, db batchSender, markers []models.R
 			marker.Notify,
 			marker.Tag,
 		)
-	}
-
-	br := db.SendBatch(ctx, batch)
-	defer br.Close()
-
-	for i := 0; i < batch.Len(); i++ {
-		if _, err := br.Exec(); err != nil {
-			return fmt.Errorf("failed to save reminder marker %d: %w", i, err)
-		}
-	}
-
-	return nil
+	})
 }
 
 // SaveTransactions saves a batch of transactions to the database
 func (s *DB) SaveTransactions(ctx context.Context, transactions []models.Transaction) error {
-	return saveTransactions(ctx, s.pool, transactions)
+	return saveTransactions(ctx, s.pool, transactions, interfaces.DefaultBatchSize)
 }
 
-func saveTransactions(ctx context.Context, db batchSender, transactions []models.Transaction) error {
+func saveTransactions(ctx context.Context, db batchSender, transactions []models.Transaction, batchSize int) error {
 	if len(transactions) == 0 {
 		return nil
 	}
@@ -654,8 +587,7 @@ func saveTransactions(ctx context.Context, db batchSender, transactions []models
            outcome_bank_id = EXCLUDED.outcome_bank_id,
            reminder_marker = EXCLUDED.reminder_marker`
 
-	batch := &pgx.Batch{}
-	for _, tx := range transactions {
+	return saveInChunks(ctx, db, "transaction", transactions, batchSize, func(batch *pgx.Batch, tx models.Transaction) {
 		batch.Queue(query,
 			tx.ID,
 			tx.User,
@@ -688,16 +620,5 @@ func saveTransactions(ctx context.Context, db batchSender, transactions []models
 			tx.OutcomeBankID,
 			tx.ReminderMarker,
 		)
-	}
-
-	br := db.SendBatch(ctx, batch)
-	defer br.Close()
-
-	for i := 0; i < batch.Len(); i++ {
-		if _, err := br.Exec(); err != nil {
-			return fmt.Errorf("failed to save transaction %d: %w", i, err)
-		}
-	}
-
-	return nil
+	})
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +22,7 @@ func TestSaveRollsBackEarlierEntitiesWhenLateEntityFails(t *testing.T) {
 		Transaction:     []models.Transaction{{ID: "transaction-1"}},
 	}
 
-	err := db.Save(context.Background(), response)
+	err := db.Save(context.Background(), response, interfaces.SaveOptions{BatchSize: interfaces.DefaultBatchSize})
 
 	require.ErrorContains(t, err, "failed to save transactions")
 	require.Equal(t, 2, tx.sendBatchCalls, "both entity batches must use the transaction")
@@ -45,7 +46,7 @@ func TestSaveDoesNotRollbackAfterSuccessfulCommit(t *testing.T) {
 		}},
 	}
 
-	err := db.Save(context.Background(), response)
+	err := db.Save(context.Background(), response, interfaces.SaveOptions{BatchSize: interfaces.DefaultBatchSize})
 
 	require.NoError(t, err)
 	require.Equal(t, 1, tx.sendBatchCalls)
@@ -56,6 +57,65 @@ func TestSaveDoesNotRollbackAfterSuccessfulCommit(t *testing.T) {
 	require.Zero(t, tx.rollbackCalls, "a committed transaction must not be rolled back")
 	require.Equal(t, "completed", tx.lastStatus, "completed cursor must be part of the transaction")
 	require.Zero(t, pool.statusWrites)
+}
+
+func TestSaveChunksEntityBatchesWithinOneTransaction(t *testing.T) {
+	tx := &recordingTx{}
+	pool := &recordingPool{tx: tx}
+	db := &DB{pool: pool}
+	response := &models.Response{
+		ServerTimestamp: 42,
+		Transaction: []models.Transaction{
+			{ID: "transaction-0"},
+			{ID: "transaction-1"},
+			{ID: "transaction-2"},
+			{ID: "transaction-3"},
+			{ID: "transaction-4"},
+		},
+	}
+
+	err := db.Save(context.Background(), response, interfaces.SaveOptions{BatchSize: 2})
+
+	require.NoError(t, err)
+	require.Equal(t, []int{2, 2, 1}, tx.batchSizes)
+	require.Equal(t, 3, tx.closedBatches)
+	require.Equal(t, 1, tx.commitCalls)
+	require.Zero(t, tx.rollbackCalls)
+	require.Equal(t, "completed", tx.lastStatus)
+}
+
+func TestSaveRollsBackWhenLaterChunkFails(t *testing.T) {
+	tx := &recordingTx{failBatch: 2}
+	pool := &recordingPool{tx: tx}
+	db := &DB{pool: pool}
+	response := &models.Response{
+		ServerTimestamp: 42,
+		Transaction: []models.Transaction{
+			{ID: "transaction-0"},
+			{ID: "transaction-1"},
+			{ID: "transaction-2"},
+			{ID: "transaction-3"},
+		},
+	}
+
+	err := db.Save(context.Background(), response, interfaces.SaveOptions{BatchSize: 2})
+
+	require.ErrorContains(t, err, "failed to save transaction 2")
+	require.Equal(t, []int{2, 2}, tx.batchSizes)
+	require.Equal(t, 2, tx.closedBatches)
+	require.Equal(t, 1, tx.rollbackCalls)
+	require.Zero(t, tx.commitCalls)
+	require.Empty(t, tx.lastStatus, "completed cursor must not be written in the rolled-back transaction")
+	require.Equal(t, "failed", pool.lastStatus)
+}
+
+func TestSaveInChunksSkipsEmptySlice(t *testing.T) {
+	tx := &recordingTx{}
+
+	err := saveTransactions(context.Background(), tx, nil, 2)
+
+	require.NoError(t, err)
+	require.Zero(t, tx.sendBatchCalls)
 }
 
 type recordingPool struct {
@@ -88,6 +148,8 @@ func (p *recordingPool) QueryRow(_ context.Context, _ string, args ...any) pgx.R
 type recordingTx struct {
 	pgx.Tx
 	sendBatchCalls int
+	batchSizes     []int
+	closedBatches  int
 	failBatch      int
 	rollbackCalls  int
 	commitCalls    int
@@ -97,7 +159,11 @@ type recordingTx struct {
 
 func (tx *recordingTx) SendBatch(_ context.Context, batch *pgx.Batch) pgx.BatchResults {
 	tx.sendBatchCalls++
-	results := &recordingBatchResults{remaining: batch.Len()}
+	tx.batchSizes = append(tx.batchSizes, batch.Len())
+	results := &recordingBatchResults{
+		remaining: batch.Len(),
+		onClose:   func() { tx.closedBatches++ },
+	}
 	if tx.sendBatchCalls == tx.failBatch {
 		results.err = errors.New("late entity write failed")
 	}
@@ -128,6 +194,7 @@ type recordingBatchResults struct {
 	pgx.BatchResults
 	remaining int
 	err       error
+	onClose   func()
 }
 
 func (r *recordingBatchResults) Exec() (pgconn.CommandTag, error) {
@@ -143,6 +210,9 @@ func (r *recordingBatchResults) Exec() (pgconn.CommandTag, error) {
 }
 
 func (r *recordingBatchResults) Close() error {
+	if r.onClose != nil {
+		r.onClose()
+	}
 	return nil
 }
 

@@ -41,11 +41,12 @@ func NewSyncService(app *Application) *SyncService {
 }
 
 type SyncParams struct {
-	FromDate string
-	ToDate   string
-	Entities string
-	Force    bool
-	DryRun   bool
+	FromDate  string
+	ToDate    string
+	Entities  string
+	BatchSize int
+	Force     bool
+	DryRun    bool
 }
 
 type syncSummary struct {
@@ -220,7 +221,11 @@ func (s *SyncService) Sync(ctx context.Context, p *SyncParams) (syncErr error) {
 
 	summary := summarizeResponse(&data)
 	if !p.DryRun {
-		err = s.app.db.Save(ctx, &data)
+		batchSize := p.BatchSize
+		if batchSize <= 0 {
+			batchSize = interfaces.DefaultBatchSize
+		}
+		err = s.app.db.Save(ctx, &data, interfaces.SaveOptions{BatchSize: batchSize})
 		if err != nil {
 			return err
 		}

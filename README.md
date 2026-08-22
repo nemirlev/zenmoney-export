@@ -89,6 +89,7 @@ an incremental sync. You can force a full sync using `--force`.
 
 Flags:
 
+- `--batch-size int`: Set the maximum number of records sent in one database batch (default 1000). The full API response and sync cursor are still committed atomically.
 - `-d`, `--daemon`: Run the sync in daemon mode, continuously syncing at intervals.
 - `--dry-run`: Fetch data and print per-entity counts without saving data or advancing the sync cursor.
 - `--entities string`: Specify which entities to sync (default "all").

@@ -20,6 +20,14 @@ type SyncLock interface {
 // StorageType represents the type of storage
 type StorageType string
 
+const DefaultBatchSize = 1000
+
+// SaveOptions controls how an API response is persisted without changing its
+// transaction boundaries.
+type SaveOptions struct {
+	BatchSize int
+}
+
 const (
 	PostgresStorage   StorageType = "postgres"
 	MySQLStorage      StorageType = "mysql"
@@ -38,7 +46,7 @@ type Storage interface {
 	SaveSyncStatus(ctx context.Context, status SyncStatus) error
 	GetLastSyncStatus(ctx context.Context) (SyncStatus, error)
 
-	Save(ctx context.Context, response *models.Response) error
+	Save(ctx context.Context, response *models.Response, options SaveOptions) error
 
 	SaveInstruments(ctx context.Context, instruments []models.Instrument) error
 	SaveCountries(ctx context.Context, countries []models.Country) error

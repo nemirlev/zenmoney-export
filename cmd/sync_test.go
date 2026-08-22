@@ -5,7 +5,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/nemirlev/zenmoney-export/v2/config"
 	"github.com/nemirlev/zenmoney-export/v2/internal/app"
+	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/stretchr/testify/require"
 )
 
@@ -92,6 +94,25 @@ func TestSyncCommandRejectsInvalidDaemonInterval(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestSyncCommandBatchSizeValidationAndWiring(t *testing.T) {
+	cmd := NewSyncCommand(&RootCommand{})
+	require.Equal(t, "1000", cmd.Flags().Lookup("batch-size").DefValue)
+
+	for _, value := range []string{"0", "-1"} {
+		require.NoError(t, cmd.Flags().Set("batch-size", value))
+		require.ErrorContains(t, cmd.Args(cmd, nil), "--batch-size must be greater than zero")
+	}
+
+	opts := &config.SyncOptions{Entities: "all", BatchSize: 37, Force: true, DryRun: true}
+	require.Equal(t, &app.SyncParams{
+		Entities:  "all",
+		BatchSize: 37,
+		Force:     true,
+		DryRun:    true,
+	}, syncParamsFromOptions(opts))
+	require.Equal(t, 1000, interfaces.DefaultBatchSize)
 }
 
 func TestRunSyncAndCloseAlwaysClosesDatabase(t *testing.T) {

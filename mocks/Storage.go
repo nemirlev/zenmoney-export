@@ -1182,17 +1182,17 @@ func (_m *Storage) Ping(ctx context.Context) error {
 	return r0
 }
 
-// Save provides a mock function with given fields: ctx, response
-func (_m *Storage) Save(ctx context.Context, response *models.Response) error {
-	ret := _m.Called(ctx, response)
+// Save provides a mock function with given fields: ctx, response, options
+func (_m *Storage) Save(ctx context.Context, response *models.Response, options interfaces.SaveOptions) error {
+	ret := _m.Called(ctx, response, options)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Save")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *models.Response) error); ok {
-		r0 = rf(ctx, response)
+	if rf, ok := ret.Get(0).(func(context.Context, *models.Response, interfaces.SaveOptions) error); ok {
+		r0 = rf(ctx, response, options)
 	} else {
 		r0 = ret.Error(0)
 	}

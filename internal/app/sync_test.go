@@ -121,7 +121,7 @@ func TestSyncSelectsSDKMethod(t *testing.T) {
 			storage.On("GetLastSyncStatus", mock.Anything).Return(tt.lastSync, nil).Once()
 
 			response := models.Response{ServerTimestamp: 999}
-			storage.On("Save", mock.Anything, &response).Return(nil).Once()
+			storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{BatchSize: interfaces.DefaultBatchSize}).Return(nil).Once()
 			client := &recordingSyncClient{response: response}
 			service := &SyncService{
 				app: &Application{
@@ -258,7 +258,7 @@ func TestSyncDryRunLogsSummaryWithoutSaving(t *testing.T) {
 	err := service.Sync(context.Background(), &SyncParams{Entities: "all", DryRun: true})
 
 	require.NoError(t, err)
-	storage.AssertNotCalled(t, "Save", mock.Anything, mock.Anything)
+	storage.AssertNotCalled(t, "Save", mock.Anything, mock.Anything, mock.Anything)
 	storage.AssertNotCalled(t, "SaveSyncStatus", mock.Anything, mock.Anything)
 	storage.AssertNotCalled(t, "AcquireSyncLock", mock.Anything)
 	require.NotContains(t, logs.String(), "sensitive account name")
@@ -314,7 +314,7 @@ func TestSyncHoldsLockAcrossCursorFetchAndSave(t *testing.T) {
 		Return(interfaces.SyncStatus{}, nil).
 		Once()
 	response := models.Response{ServerTimestamp: 42}
-	storage.On("Save", mock.Anything, &response).
+	storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{BatchSize: interfaces.DefaultBatchSize}).
 		Run(func(mock.Arguments) { events = append(events, "save") }).
 		Return(nil).
 		Once()
@@ -330,6 +330,22 @@ func TestSyncHoldsLockAcrossCursorFetchAndSave(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, []string{"lock", "cursor", "fetch", "save", "unlock"}, events)
+}
+
+func TestSyncPassesConfiguredBatchSizeToStorage(t *testing.T) {
+	storage := mocks.NewStorage(t)
+	storage.On("AcquireSyncLock", mock.Anything).Return(&testSyncLock{}, nil).Once()
+	storage.On("GetLastSyncStatus", mock.Anything).Return(interfaces.SyncStatus{}, nil).Once()
+	response := models.Response{ServerTimestamp: 42}
+	storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{BatchSize: 37}).Return(nil).Once()
+	service := &SyncService{
+		app:    &Application{cfg: &config.Config{DBType: "postgres"}, db: storage},
+		client: &recordingSyncClient{response: response},
+	}
+
+	err := service.Sync(context.Background(), &SyncParams{Entities: "all", BatchSize: 37})
+
+	require.NoError(t, err)
 }
 
 func TestSyncReturnsBusyLockWithoutReadingCursorOrCallingAPI(t *testing.T) {
@@ -349,7 +365,7 @@ func TestSyncReturnsBusyLockWithoutReadingCursorOrCallingAPI(t *testing.T) {
 	require.ErrorContains(t, err, "another exporter instance")
 	require.Empty(t, client.method)
 	storage.AssertNotCalled(t, "GetLastSyncStatus", mock.Anything)
-	storage.AssertNotCalled(t, "Save", mock.Anything, mock.Anything)
+	storage.AssertNotCalled(t, "Save", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestSyncReturnsUnlockFailureAfterSaving(t *testing.T) {
@@ -360,7 +376,7 @@ func TestSyncReturnsUnlockFailureAfterSaving(t *testing.T) {
 		Once()
 	storage.On("GetLastSyncStatus", mock.Anything).Return(interfaces.SyncStatus{}, nil).Once()
 	response := models.Response{ServerTimestamp: 42}
-	storage.On("Save", mock.Anything, &response).Return(nil).Once()
+	storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{BatchSize: interfaces.DefaultBatchSize}).Return(nil).Once()
 	service := &SyncService{
 		app:    &Application{cfg: &config.Config{DBType: "postgres"}, db: storage},
 		client: &recordingSyncClient{response: response},
