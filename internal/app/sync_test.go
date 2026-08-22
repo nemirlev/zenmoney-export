@@ -23,14 +23,17 @@ type recordingSyncClient struct {
 	since    time.Time
 	entities []models.EntityType
 	response models.Response
+	events   *[]string
 }
 
 func (c *recordingSyncClient) FullSync(context.Context) (models.Response, error) {
+	c.record("fetch")
 	c.method = "full"
 	return c.response, nil
 }
 
 func (c *recordingSyncClient) SyncSince(_ context.Context, since time.Time) (models.Response, error) {
+	c.record("fetch")
 	c.method = "since"
 	c.since = since
 	return c.response, nil
@@ -41,10 +44,29 @@ func (c *recordingSyncClient) ForceSyncEntitiesSince(
 	since time.Time,
 	entities ...models.EntityType,
 ) (models.Response, error) {
+	c.record("fetch")
 	c.method = "force-entities"
 	c.since = since
 	c.entities = append([]models.EntityType(nil), entities...)
 	return c.response, nil
+}
+
+func (c *recordingSyncClient) record(event string) {
+	if c.events != nil {
+		*c.events = append(*c.events, event)
+	}
+}
+
+type testSyncLock struct {
+	onUnlock func()
+	err      error
+}
+
+func (l *testSyncLock) Unlock(context.Context) error {
+	if l.onUnlock != nil {
+		l.onUnlock()
+	}
+	return l.err
 }
 
 func TestSyncSelectsSDKMethod(t *testing.T) {
@@ -95,6 +117,7 @@ func TestSyncSelectsSDKMethod(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			storage := mocks.NewStorage(t)
+			storage.On("AcquireSyncLock", mock.Anything).Return(&testSyncLock{}, nil).Once()
 			storage.On("GetLastSyncStatus", mock.Anything).Return(tt.lastSync, nil).Once()
 
 			response := models.Response{ServerTimestamp: 999}
@@ -166,6 +189,7 @@ func TestSyncRejectsInvalidEntitiesBeforeStorageOrAPI(t *testing.T) {
 			require.ErrorContains(t, err, "invalid entities")
 			require.Empty(t, client.method)
 			storage.AssertNotCalled(t, "GetLastSyncStatus", mock.Anything)
+			storage.AssertNotCalled(t, "AcquireSyncLock", mock.Anything)
 		})
 	}
 }
@@ -236,6 +260,7 @@ func TestSyncDryRunLogsSummaryWithoutSaving(t *testing.T) {
 	require.NoError(t, err)
 	storage.AssertNotCalled(t, "Save", mock.Anything, mock.Anything)
 	storage.AssertNotCalled(t, "SaveSyncStatus", mock.Anything, mock.Anything)
+	storage.AssertNotCalled(t, "AcquireSyncLock", mock.Anything)
 	require.NotContains(t, logs.String(), "sensitive account name")
 	require.NotContains(t, logs.String(), "private category")
 	require.NotContains(t, logs.String(), "sensitive-deletion-id")
@@ -274,6 +299,77 @@ func TestSyncDryRunLogsSummaryWithoutSaving(t *testing.T) {
 		"transactions":     0,
 		"deletions":        1,
 	}, summaryLog.Counts)
+}
+
+func TestSyncHoldsLockAcrossCursorFetchAndSave(t *testing.T) {
+	storage := mocks.NewStorage(t)
+	events := make([]string, 0, 5)
+	lock := &testSyncLock{onUnlock: func() { events = append(events, "unlock") }}
+	storage.On("AcquireSyncLock", mock.Anything).
+		Run(func(mock.Arguments) { events = append(events, "lock") }).
+		Return(lock, nil).
+		Once()
+	storage.On("GetLastSyncStatus", mock.Anything).
+		Run(func(mock.Arguments) { events = append(events, "cursor") }).
+		Return(interfaces.SyncStatus{}, nil).
+		Once()
+	response := models.Response{ServerTimestamp: 42}
+	storage.On("Save", mock.Anything, &response).
+		Run(func(mock.Arguments) { events = append(events, "save") }).
+		Return(nil).
+		Once()
+	service := &SyncService{
+		app: &Application{cfg: &config.Config{DBType: "postgres"}, db: storage},
+		client: &recordingSyncClient{
+			response: response,
+			events:   &events,
+		},
+	}
+
+	err := service.Sync(context.Background(), &SyncParams{Entities: "all"})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"lock", "cursor", "fetch", "save", "unlock"}, events)
+}
+
+func TestSyncReturnsBusyLockWithoutReadingCursorOrCallingAPI(t *testing.T) {
+	storage := mocks.NewStorage(t)
+	storage.On("AcquireSyncLock", mock.Anything).
+		Return(nil, interfaces.ErrSyncAlreadyRunning).
+		Once()
+	client := &recordingSyncClient{}
+	service := &SyncService{
+		app:    &Application{cfg: &config.Config{DBType: "postgres"}, db: storage},
+		client: client,
+	}
+
+	err := service.Sync(context.Background(), &SyncParams{Entities: "all"})
+
+	require.ErrorIs(t, err, interfaces.ErrSyncAlreadyRunning)
+	require.ErrorContains(t, err, "another exporter instance")
+	require.Empty(t, client.method)
+	storage.AssertNotCalled(t, "GetLastSyncStatus", mock.Anything)
+	storage.AssertNotCalled(t, "Save", mock.Anything, mock.Anything)
+}
+
+func TestSyncReturnsUnlockFailureAfterSaving(t *testing.T) {
+	unlockErr := errors.New("unlock failed")
+	storage := mocks.NewStorage(t)
+	storage.On("AcquireSyncLock", mock.Anything).
+		Return(&testSyncLock{err: unlockErr}, nil).
+		Once()
+	storage.On("GetLastSyncStatus", mock.Anything).Return(interfaces.SyncStatus{}, nil).Once()
+	response := models.Response{ServerTimestamp: 42}
+	storage.On("Save", mock.Anything, &response).Return(nil).Once()
+	service := &SyncService{
+		app:    &Application{cfg: &config.Config{DBType: "postgres"}, db: storage},
+		client: &recordingSyncClient{response: response},
+	}
+
+	err := service.Sync(context.Background(), &SyncParams{Entities: "all"})
+
+	require.ErrorIs(t, err, unlockErr)
+	require.ErrorContains(t, err, "release sync lock")
 }
 
 func TestDaemonSyncRejectsNonPositiveIntervals(t *testing.T) {
@@ -319,6 +415,35 @@ func TestRunDaemonSyncUsesExponentialRetryAndResetsAfterSuccess(t *testing.T) {
 		10 * time.Second,
 		time.Second,
 	}, waits)
+}
+
+func TestRunDaemonSyncTreatsBusyLockAsNormalInterval(t *testing.T) {
+	stopError := errors.New("stop test loop")
+	waits := make([]time.Duration, 0, 2)
+	results := []error{errors.Join(errors.New("acquire sync lock"), interfaces.ErrSyncAlreadyRunning), errors.New("real failure")}
+	syncCalls := 0
+
+	err := runDaemonSync(
+		context.Background(),
+		func(context.Context, *SyncParams) error {
+			result := results[syncCalls]
+			syncCalls++
+			return result
+		},
+		&SyncParams{},
+		10*time.Second,
+		&exponentialBackoff{initial: time.Second, maximum: 4 * time.Second},
+		func(_ context.Context, duration time.Duration) error {
+			waits = append(waits, duration)
+			if len(waits) == len(results) {
+				return stopError
+			}
+			return nil
+		},
+	)
+
+	require.ErrorIs(t, err, stopError)
+	require.Equal(t, []time.Duration{10 * time.Second, time.Second}, waits)
 }
 
 func TestRunDaemonSyncCancellationInterruptsWaitCleanly(t *testing.T) {

@@ -2,11 +2,13 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
+	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 )
 
@@ -171,7 +173,7 @@ func ParseSyncEntities(value string) (bool, []models.EntityType, error) {
 	return all, entities, nil
 }
 
-func (s *SyncService) Sync(ctx context.Context, p *SyncParams) error {
+func (s *SyncService) Sync(ctx context.Context, p *SyncParams) (syncErr error) {
 	allEntities, entities, err := ParseSyncEntities(p.Entities)
 	if err != nil {
 		return fmt.Errorf("invalid entities: %w", err)
@@ -182,6 +184,18 @@ func (s *SyncService) Sync(ctx context.Context, p *SyncParams) error {
 		"entities", p.Entities,
 		"force", p.Force,
 	)
+
+	if !p.DryRun {
+		lock, err := s.app.db.AcquireSyncLock(ctx)
+		if err != nil {
+			return fmt.Errorf("acquire sync lock: %w", err)
+		}
+		defer func() {
+			if err := lock.Unlock(context.WithoutCancel(ctx)); err != nil {
+				syncErr = errors.Join(syncErr, fmt.Errorf("release sync lock: %w", err))
+			}
+		}()
+	}
 
 	lastSync, err := s.app.db.GetLastSyncStatus(ctx)
 	if err != nil {
@@ -257,7 +271,10 @@ func runDaemonSync(
 		}
 
 		delay := interval
-		if err != nil {
+		if errors.Is(err, interfaces.ErrSyncAlreadyRunning) {
+			slog.Info("Skipping sync because another exporter instance is already running")
+			backoff.Reset()
+		} else if err != nil {
 			slog.Error("sync failed", "error", err)
 			delay = backoff.Next()
 		} else {

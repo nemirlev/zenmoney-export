@@ -18,6 +18,32 @@ type Storage struct {
 	mock.Mock
 }
 
+// AcquireSyncLock provides a mock function with given fields: ctx
+func (_m *Storage) AcquireSyncLock(ctx context.Context) (interfaces.SyncLock, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AcquireSyncLock")
+	}
+
+	var r0 interfaces.SyncLock
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) (interfaces.SyncLock, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) interfaces.SyncLock); ok {
+		r0 = rf(ctx)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).(interfaces.SyncLock)
+	}
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
 // Close provides a mock function with given fields: ctx
 func (_m *Storage) Close(ctx context.Context) error {
 	ret := _m.Called(ctx)

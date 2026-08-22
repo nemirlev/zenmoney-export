@@ -2,10 +2,20 @@ package interfaces
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 )
+
+// ErrSyncAlreadyRunning indicates that another process holds the database-wide
+// synchronization lock.
+var ErrSyncAlreadyRunning = errors.New("another exporter instance is already synchronizing this database")
+
+// SyncLock is held for the complete read-fetch-save synchronization cycle.
+type SyncLock interface {
+	Unlock(ctx context.Context) error
+}
 
 // StorageType represents the type of storage
 type StorageType string
@@ -23,6 +33,7 @@ const (
 type Storage interface {
 	Close(ctx context.Context) error
 	Ping(ctx context.Context) error
+	AcquireSyncLock(ctx context.Context) (SyncLock, error)
 
 	SaveSyncStatus(ctx context.Context, status SyncStatus) error
 	GetLastSyncStatus(ctx context.Context) (SyncStatus, error)
