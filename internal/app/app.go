@@ -20,7 +20,7 @@ type Application struct {
 }
 
 func NewApplication(ctx context.Context, cfg *config.Config) (*Application, error) {
-	logger := config.NewLogger(cfg)
+	logger := installDefaultLogger(cfg)
 
 	storage, err := db.NewStorage(ctx, interfaces.StorageType(cfg.DBType), cfg.DBConfig)
 	if err != nil {
@@ -42,4 +42,10 @@ func NewApplication(ctx context.Context, cfg *config.Config) (*Application, erro
 	app.SyncService = NewSyncService(app)
 
 	return app, nil
+}
+
+func installDefaultLogger(cfg *config.Config) *slog.Logger {
+	logger := config.NewLogger(cfg)
+	slog.SetDefault(logger)
+	return logger
 }
