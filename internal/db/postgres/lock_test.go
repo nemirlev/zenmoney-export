@@ -4,155 +4,205 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/stretchr/testify/require"
 )
 
-func TestAcquireSyncLockAndUnlockUseSameDedicatedConnection(t *testing.T) {
+func TestDBSyncLockUsesRawConnectionOutsidePool(t *testing.T) {
+	connConfig := &pgx.ConnConfig{}
+	pool := &configOnlyPool{config: &pgxpool.Config{ConnConfig: connConfig}}
 	conn := &recordingLockConnection{rows: []lockRow{{value: true}, {value: true}}}
+	factory := &recordingLockFactory{connections: []syncLockConnection{conn}}
+	db := &DB{pool: pool}
 
-	lock, err := acquireSyncLock(context.Background(), recordingLockAcquirer{conn: conn})
+	lock, err := db.acquireSyncLock(context.Background(), factory)
 	require.NoError(t, err)
-	require.Zero(t, conn.releaseCalls, "the acquired connection must stay checked out")
+	require.Zero(t, pool.acquireCalls, "the advisory lock must not consume a working pool slot")
+	require.Len(t, factory.configs, 1)
+	require.NotSame(t, connConfig, factory.configs[0], "the raw connection must receive an isolated config copy")
+	require.Zero(t, conn.closeCalls, "the raw connection must remain open while the lock is held")
 
-	err = lock.Unlock(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, 1, conn.releaseCalls)
-	require.Zero(t, conn.destroyCalls)
+	require.NoError(t, lock.Unlock(context.Background()))
+	require.Equal(t, 1, conn.closeCalls)
 	require.Equal(t, []string{
 		"SELECT pg_try_advisory_lock($1, $2)",
 		"SELECT pg_advisory_unlock($1, $2)",
 	}, conn.queries)
 
-	// Unlock is intentionally idempotent so deferred cleanup cannot reuse a
-	// connection that has already returned to the pool.
 	require.NoError(t, lock.Unlock(context.Background()))
-	require.Equal(t, 1, conn.releaseCalls)
+	require.Equal(t, 1, conn.closeCalls)
 }
 
-func TestAcquireSyncLockReturnsBusySentinel(t *testing.T) {
+func TestAcquireSyncLockReturnsBusySentinelAndClosesRawConnection(t *testing.T) {
 	conn := &recordingLockConnection{rows: []lockRow{{value: false}}}
+	factory := &recordingLockFactory{connections: []syncLockConnection{conn}}
 
-	lock, err := acquireSyncLock(context.Background(), recordingLockAcquirer{conn: conn})
+	lock, err := acquireSyncLock(context.Background(), factory, nil)
 
 	require.Nil(t, lock)
 	require.ErrorIs(t, err, interfaces.ErrSyncAlreadyRunning)
-	require.Equal(t, 1, conn.releaseCalls)
-	require.Zero(t, conn.destroyCalls)
+	require.Equal(t, 1, conn.closeCalls)
 }
 
 func TestConcurrentSyncLockAttemptIsRejectedUntilOwnerUnlocks(t *testing.T) {
 	ownerConn := &recordingLockConnection{rows: []lockRow{{value: true}, {value: true}}}
 	contenderConn := &recordingLockConnection{rows: []lockRow{{value: false}}}
-	acquirer := &sequenceLockAcquirer{connections: []syncLockConnection{ownerConn, contenderConn}}
+	factory := &recordingLockFactory{connections: []syncLockConnection{ownerConn, contenderConn}}
 
-	owner, err := acquireSyncLock(context.Background(), acquirer)
+	owner, err := acquireSyncLock(context.Background(), factory, nil)
 	require.NoError(t, err)
 
-	contender, err := acquireSyncLock(context.Background(), acquirer)
+	contender, err := acquireSyncLock(context.Background(), factory, nil)
 	require.Nil(t, contender)
 	require.ErrorIs(t, err, interfaces.ErrSyncAlreadyRunning)
-	require.Zero(t, ownerConn.releaseCalls, "owner must retain its dedicated connection while contender checks")
-	require.Equal(t, 1, contenderConn.releaseCalls)
+	require.Zero(t, ownerConn.closeCalls, "owner must retain its raw connection while contender checks")
+	require.Equal(t, 1, contenderConn.closeCalls)
 
 	require.NoError(t, owner.Unlock(context.Background()))
-	require.Equal(t, 1, ownerConn.releaseCalls)
+	require.Equal(t, 1, ownerConn.closeCalls)
 }
 
-func TestAcquireSyncLockDestroysConnectionAfterAmbiguousQueryError(t *testing.T) {
+func TestAcquireSyncLockClosesConnectionAfterAmbiguousQueryError(t *testing.T) {
 	queryErr := errors.New("query failed")
 	conn := &recordingLockConnection{rows: []lockRow{{err: queryErr}}}
+	factory := &recordingLockFactory{connections: []syncLockConnection{conn}}
 
-	lock, err := acquireSyncLock(context.Background(), recordingLockAcquirer{conn: conn})
+	lock, err := acquireSyncLock(context.Background(), factory, nil)
 
 	require.Nil(t, lock)
 	require.ErrorIs(t, err, queryErr)
-	require.Zero(t, conn.releaseCalls)
-	require.Equal(t, 1, conn.destroyCalls)
+	require.Equal(t, 1, conn.closeCalls)
 }
 
-func TestUnlockDestroysConnectionWhenAdvisoryUnlockFails(t *testing.T) {
+func TestUnlockClosesConnectionWhenAdvisoryUnlockFails(t *testing.T) {
 	unlockErr := errors.New("connection interrupted")
 	conn := &recordingLockConnection{rows: []lockRow{{value: true}, {err: unlockErr}}}
+	factory := &recordingLockFactory{connections: []syncLockConnection{conn}}
 
-	lock, err := acquireSyncLock(context.Background(), recordingLockAcquirer{conn: conn})
+	lock, err := acquireSyncLock(context.Background(), factory, nil)
+	require.NoError(t, err)
+
+	err = lock.Unlock(context.Background())
+
+	require.ErrorIs(t, err, unlockErr)
+	require.Equal(t, 1, conn.closeCalls, "closing the raw session guarantees lock release")
+}
+
+func TestUnlockClosesConnectionWhenLockIsNotHeld(t *testing.T) {
+	conn := &recordingLockConnection{rows: []lockRow{{value: true}, {value: false}}}
+	factory := &recordingLockFactory{connections: []syncLockConnection{conn}}
+
+	lock, err := acquireSyncLock(context.Background(), factory, nil)
+	require.NoError(t, err)
+
+	err = lock.Unlock(context.Background())
+
+	require.ErrorContains(t, err, "was not held")
+	require.Equal(t, 1, conn.closeCalls)
+}
+
+func TestUnlockUsesFreshBoundedContextAfterCallerCancellation(t *testing.T) {
+	conn := &recordingLockConnection{rows: []lockRow{{value: true}, {value: true}}}
+	factory := &recordingLockFactory{connections: []syncLockConnection{conn}}
+	lock, err := acquireSyncLock(context.Background(), factory, nil)
 	require.NoError(t, err)
 
 	canceledCtx, cancel := context.WithCancel(context.Background())
 	cancel()
 	err = lock.Unlock(canceledCtx)
 
-	require.ErrorIs(t, err, unlockErr)
-	require.Zero(t, conn.releaseCalls, "a possibly locked session must not return to the pool")
-	require.Equal(t, 1, conn.destroyCalls)
-	require.NoError(t, conn.destroyContextErr, "connection destruction must survive caller cancellation")
+	require.NoError(t, err)
+	require.NoError(t, conn.queryContextErrors[1], "unlock must not inherit caller cancellation")
+	require.NoError(t, conn.closeContextErrors[0])
 }
 
-func TestUnlockDestroysConnectionWhenLockIsNotHeld(t *testing.T) {
-	conn := &recordingLockConnection{rows: []lockRow{{value: true}, {value: false}}}
-
-	lock, err := acquireSyncLock(context.Background(), recordingLockAcquirer{conn: conn})
+func TestUnlockDeadlineClosesBlackholedRawConnection(t *testing.T) {
+	conn := &recordingLockConnection{rows: []lockRow{{value: true}, {block: true}}}
+	factory := &recordingLockFactory{connections: []syncLockConnection{conn}}
+	lock, err := acquireSyncLock(context.Background(), factory, nil)
 	require.NoError(t, err)
+	lock.(*postgresSyncLock).cleanupTimeout = 20 * time.Millisecond
 
+	started := time.Now()
 	err = lock.Unlock(context.Background())
 
-	require.ErrorContains(t, err, "was not held")
-	require.Zero(t, conn.releaseCalls)
-	require.Equal(t, 1, conn.destroyCalls)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Less(t, time.Since(started), time.Second, "cleanup must be bounded")
+	require.Equal(t, 1, conn.closeCalls, "deadline must still physically close the raw session")
+	require.ErrorIs(t, conn.closeContextErrors[0], context.DeadlineExceeded)
 }
 
-type recordingLockAcquirer struct {
-	conn syncLockConnection
-	err  error
+type configOnlyPool struct {
+	PgxIface
+	config       *pgxpool.Config
+	acquireCalls int
 }
 
-type sequenceLockAcquirer struct {
+func (p *configOnlyPool) Config() *pgxpool.Config {
+	return p.config
+}
+
+func (p *configOnlyPool) Acquire(context.Context) (*pgxpool.Conn, error) {
+	p.acquireCalls++
+	return nil, errors.New("working pool must not be used for advisory lock")
+}
+
+type recordingLockFactory struct {
 	connections []syncLockConnection
+	configs     []*pgx.ConnConfig
+	err         error
 }
 
-func (a *sequenceLockAcquirer) Acquire(context.Context) (syncLockConnection, error) {
-	conn := a.connections[0]
-	a.connections = a.connections[1:]
+func (f *recordingLockFactory) Connect(_ context.Context, config *pgx.ConnConfig) (syncLockConnection, error) {
+	f.configs = append(f.configs, config)
+	if f.err != nil {
+		return nil, f.err
+	}
+	conn := f.connections[0]
+	f.connections = f.connections[1:]
 	return conn, nil
 }
 
-func (a recordingLockAcquirer) Acquire(context.Context) (syncLockConnection, error) {
-	return a.conn, a.err
-}
-
 type recordingLockConnection struct {
-	rows              []lockRow
-	queries           []string
-	releaseCalls      int
-	destroyCalls      int
-	destroyContextErr error
+	rows               []lockRow
+	queries            []string
+	queryContextErrors []error
+	closeCalls         int
+	closeContextErrors []error
+	closeErr           error
 }
 
-func (c *recordingLockConnection) QueryRow(_ context.Context, query string, _ ...any) pgx.Row {
+func (c *recordingLockConnection) QueryRow(ctx context.Context, query string, _ ...any) pgx.Row {
 	c.queries = append(c.queries, query)
+	c.queryContextErrors = append(c.queryContextErrors, ctx.Err())
 	row := c.rows[0]
 	c.rows = c.rows[1:]
-	return row
+	row.ctx = ctx
+	return &row
 }
 
-func (c *recordingLockConnection) Release() {
-	c.releaseCalls++
-}
-
-func (c *recordingLockConnection) Destroy(ctx context.Context) error {
-	c.destroyCalls++
-	c.destroyContextErr = ctx.Err()
-	return nil
+func (c *recordingLockConnection) Close(ctx context.Context) error {
+	c.closeCalls++
+	c.closeContextErrors = append(c.closeContextErrors, ctx.Err())
+	return c.closeErr
 }
 
 type lockRow struct {
+	ctx   context.Context
 	value bool
 	err   error
+	block bool
 }
 
-func (r lockRow) Scan(dest ...any) error {
+func (r *lockRow) Scan(dest ...any) error {
+	if r.block {
+		<-r.ctx.Done()
+		return r.ctx.Err()
+	}
 	if r.err != nil {
 		return r.err
 	}
