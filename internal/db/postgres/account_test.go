@@ -45,7 +45,7 @@ func TestGetAccount_Success(t *testing.T) {
 		false, nil, nil, nil, nil,
 	)
 
-	mock.ExpectQuery(`SELECT id, "user", instrument, type, role, private, savings,`).
+	mock.ExpectQuery(`(?s)SELECT id, "user", instrument, type, role, private, savings,.*to_char[(]start_date, 'YYYY-MM-DD'[)] AS start_date`).
 		WithArgs(accountID).
 		WillReturnRows(rows)
 
@@ -74,7 +74,7 @@ func TestGetAccount_NotFound(t *testing.T) {
 
 	accountID := "non-existing-id"
 
-	mock.ExpectQuery(`SELECT id, "user", instrument, type, role, private, savings,`).
+	mock.ExpectQuery(`(?s)SELECT id, "user", instrument, type, role, private, savings,.*to_char[(]start_date, 'YYYY-MM-DD'[)] AS start_date`).
 		WithArgs(accountID).
 		WillReturnError(pgx.ErrNoRows)
 
@@ -115,7 +115,7 @@ func TestListAccounts_Success(t *testing.T) {
 		false, nil, nil, nil, nil,
 	)
 
-	mock.ExpectQuery(`SELECT id, "user", instrument, type, role, private, savings,`).
+	mock.ExpectQuery(`(?s)SELECT id, "user", instrument, type, role, private, savings,.*to_char[(]start_date, 'YYYY-MM-DD'[)] AS start_date`).
 		WithArgs(1, 10, 0).
 		WillReturnRows(rows)
 
@@ -140,7 +140,7 @@ func TestListAccounts_QueryError(t *testing.T) {
 		Page:   1,
 	}
 
-	mock.ExpectQuery(`SELECT id, "user", instrument, type, role, private, savings,`).
+	mock.ExpectQuery(`(?s)SELECT id, "user", instrument, type, role, private, savings,.*to_char[(]start_date, 'YYYY-MM-DD'[)] AS start_date`).
 		WithArgs(1, 10, 0).
 		WillReturnError(errors.New("query error"))
 

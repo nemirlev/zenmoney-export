@@ -20,7 +20,8 @@ func (s *DB) GetBudget(
 	date time.Time,
 ) (*models.Budget, error) {
 	query := `
-        SELECT "user", changed, date::text, tag, income, outcome,
+        SELECT "user", changed, to_char(date, 'YYYY-MM-DD') AS date,
+               tag, income, outcome,
                income_lock, outcome_lock, is_income_forecast, is_outcome_forecast
         FROM budget
         WHERE "user" = $1 AND tag = $2 AND date = $3`
@@ -74,7 +75,8 @@ func (s *DB) ListBudgets(ctx context.Context, filter interfaces.Filter) ([]model
 	}
 
 	query := `
-        SELECT "user", changed, date::text, tag, income, outcome,
+        SELECT "user", changed, to_char(date, 'YYYY-MM-DD') AS date,
+               tag, income, outcome,
                income_lock, outcome_lock, is_income_forecast, is_outcome_forecast
         FROM budget`
 

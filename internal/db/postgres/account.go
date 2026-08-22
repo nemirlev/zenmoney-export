@@ -17,7 +17,8 @@ func (s *DB) GetAccount(ctx context.Context, id string) (*models.Account, error)
         SELECT id, "user", instrument, type, role, private, savings,
                title, in_balance, credit_limit, start_balance, balance,
                company, archive, enable_correction, balance_correction_type,
-               start_date::text, capitalization, percent, changed, sync_id,
+               to_char(start_date, 'YYYY-MM-DD') AS start_date,
+               capitalization, percent, changed, sync_id,
                enable_sms, end_date_offset, end_date_offset_interval,
                payoff_step, payoff_interval
         FROM account
@@ -79,7 +80,8 @@ func (s *DB) ListAccounts(ctx context.Context, filter interfaces.Filter) ([]mode
         SELECT id, "user", instrument, type, role, private, savings,
                title, in_balance, credit_limit, start_balance, balance,
                company, archive, enable_correction, balance_correction_type,
-               start_date::text, capitalization, percent, changed, sync_id,
+               to_char(start_date, 'YYYY-MM-DD') AS start_date,
+               capitalization, percent, changed, sync_id,
                enable_sms, end_date_offset, end_date_offset_interval,
                payoff_step, payoff_interval
         FROM account`

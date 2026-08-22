@@ -14,7 +14,8 @@ import (
 // GetTransaction retrieves a specific transaction by its ID
 func (s *DB) GetTransaction(ctx context.Context, id string) (*models.Transaction, error) {
 	query := `
-        SELECT id, "user", date::text, income, outcome, changed, income_instrument,
+        SELECT id, "user", to_char(date, 'YYYY-MM-DD') AS date,
+               income, outcome, changed, income_instrument,
                outcome_instrument, created, original_payee, deleted, viewed,
                hold, qr_code, source, income_account, outcome_account, tag,
                comment, payee, op_income, op_outcome, op_income_instrument,
@@ -94,7 +95,8 @@ func (s *DB) ListTransactions(
 	}
 
 	query := `
-        SELECT id, "user", date::text, income, outcome, changed, income_instrument,
+        SELECT id, "user", to_char(date, 'YYYY-MM-DD') AS date,
+               income, outcome, changed, income_instrument,
                outcome_instrument, created, original_payee, deleted, viewed,
                hold, qr_code, source, income_account, outcome_account, tag,
                comment, payee, op_income, op_outcome, op_income_instrument,

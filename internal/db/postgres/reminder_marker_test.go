@@ -67,7 +67,7 @@ func TestGetReminderMarker_Success(t *testing.T) {
 		expectedMarker.Tag,
 	)
 
-	mock.ExpectQuery(`SELECT id, "user", date::text, income, outcome, changed, income_instrument, outcome_instrument, state, is_forecast, reminder, income_account, outcome_account, comment, payee, merchant, notify, tag FROM reminder_marker WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT id, "user", to_char[(]date, 'YYYY-MM-DD'[)] AS date, income, outcome, changed, income_instrument, outcome_instrument, state, is_forecast, reminder, income_account, outcome_account, comment, payee, merchant, notify, tag FROM reminder_marker WHERE id = \$1`).
 		WithArgs("test-id").
 		WillReturnRows(rows)
 
@@ -86,7 +86,7 @@ func TestGetReminderMarker_NotFound(t *testing.T) {
 
 	db := &DB{pool: mock}
 
-	mock.ExpectQuery(`SELECT id, "user", date::text, income, outcome, changed, income_instrument, outcome_instrument, state, is_forecast, reminder, income_account, outcome_account, comment, payee, merchant, notify, tag FROM reminder_marker WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT id, "user", to_char[(]date, 'YYYY-MM-DD'[)] AS date, income, outcome, changed, income_instrument, outcome_instrument, state, is_forecast, reminder, income_account, outcome_account, comment, payee, merchant, notify, tag FROM reminder_marker WHERE id = \$1`).
 		WithArgs("test-id").
 		WillReturnError(pgx.ErrNoRows)
 
@@ -105,7 +105,7 @@ func TestGetReminderMarker_QueryError(t *testing.T) {
 
 	db := &DB{pool: mock}
 
-	mock.ExpectQuery(`SELECT id, "user", date::text, income, outcome, changed, income_instrument, outcome_instrument, state, is_forecast, reminder, income_account, outcome_account, comment, payee, merchant, notify, tag FROM reminder_marker WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT id, "user", to_char[(]date, 'YYYY-MM-DD'[)] AS date, income, outcome, changed, income_instrument, outcome_instrument, state, is_forecast, reminder, income_account, outcome_account, comment, payee, merchant, notify, tag FROM reminder_marker WHERE id = \$1`).
 		WithArgs("test-id").
 		WillReturnError(errors.New("database error"))
 
@@ -179,7 +179,7 @@ func TestListReminderMarkers_Success(t *testing.T) {
 		expectedMarker.Tag,
 	)
 
-	mock.ExpectQuery(`SELECT id, "user", date::text, income, outcome, changed, income_instrument, outcome_instrument, state, is_forecast, reminder, income_account, outcome_account, comment, payee, merchant, notify, tag FROM reminder_marker WHERE "user" = \$1 AND date >= \$2 AND date <= \$3 LIMIT \$4 OFFSET \$5`).
+	mock.ExpectQuery(`SELECT id, "user", to_char[(]date, 'YYYY-MM-DD'[)] AS date, income, outcome, changed, income_instrument, outcome_instrument, state, is_forecast, reminder, income_account, outcome_account, comment, payee, merchant, notify, tag FROM reminder_marker WHERE "user" = \$1 AND date >= \$2 AND date <= \$3 LIMIT \$4 OFFSET \$5`).
 		WithArgs(1, *filter.StartDate, *filter.EndDate, 10, 0).
 		WillReturnRows(rows)
 
@@ -206,7 +206,7 @@ func TestListReminderMarkers_QueryError(t *testing.T) {
 		Page:      1,
 	}
 
-	mock.ExpectQuery(`SELECT id, "user", date::text, income, outcome, changed, income_instrument, outcome_instrument, state, is_forecast, reminder, income_account, outcome_account, comment, payee, merchant, notify, tag FROM reminder_marker WHERE "user" = \$1 AND date >= \$2 AND date <= \$3 LIMIT \$4 OFFSET \$5`).
+	mock.ExpectQuery(`SELECT id, "user", to_char[(]date, 'YYYY-MM-DD'[)] AS date, income, outcome, changed, income_instrument, outcome_instrument, state, is_forecast, reminder, income_account, outcome_account, comment, payee, merchant, notify, tag FROM reminder_marker WHERE "user" = \$1 AND date >= \$2 AND date <= \$3 LIMIT \$4 OFFSET \$5`).
 		WithArgs(1, *filter.StartDate, *filter.EndDate, 10, 0).
 		WillReturnError(errors.New("database error"))
 

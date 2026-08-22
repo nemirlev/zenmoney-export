@@ -15,7 +15,9 @@ import (
 func (s *DB) GetReminder(ctx context.Context, id string) (*models.Reminder, error) {
 	query := `
         SELECT id, "user", income, outcome, changed, income_instrument,
-               outcome_instrument, step, points, tag, start_date::text, end_date::text,
+               outcome_instrument, step, points, tag,
+               to_char(start_date, 'YYYY-MM-DD') AS start_date,
+               to_char(end_date, 'YYYY-MM-DD') AS end_date,
                notify, interval, income_account, outcome_account, comment,
                payee, merchant
         FROM reminder
@@ -70,7 +72,9 @@ func (s *DB) ListReminders(
 
 	query := `
         SELECT id, "user", income, outcome, changed, income_instrument,
-               outcome_instrument, step, points, tag, start_date::text, end_date::text,
+               outcome_instrument, step, points, tag,
+               to_char(start_date, 'YYYY-MM-DD') AS start_date,
+               to_char(end_date, 'YYYY-MM-DD') AS end_date,
                notify, interval, income_account, outcome_account, comment,
                payee, merchant
         FROM reminder`

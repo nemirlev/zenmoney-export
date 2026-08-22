@@ -14,7 +14,8 @@ import (
 // GetReminderMarker retrieves a specific reminder marker by its ID
 func (s *DB) GetReminderMarker(ctx context.Context, id string) (*models.ReminderMarker, error) {
 	query := `
-        SELECT id, "user", date::text, income, outcome, changed,
+        SELECT id, "user", to_char(date, 'YYYY-MM-DD') AS date,
+               income, outcome, changed,
                income_instrument, outcome_instrument, state, is_forecast,
                reminder, income_account, outcome_account, comment,
                payee, merchant, notify, tag
@@ -80,7 +81,8 @@ func (s *DB) ListReminderMarkers(
 	}
 
 	query := `
-        SELECT id, "user", date::text, income, outcome, changed,
+        SELECT id, "user", to_char(date, 'YYYY-MM-DD') AS date,
+               income, outcome, changed,
                income_instrument, outcome_instrument, state, is_forecast,
                reminder, income_account, outcome_account, comment,
                payee, merchant, notify, tag

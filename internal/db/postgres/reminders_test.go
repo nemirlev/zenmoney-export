@@ -70,7 +70,7 @@ func TestGetReminder_Success(t *testing.T) {
 		expectedReminder.Merchant,
 	)
 
-	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, start_date::text, end_date::text, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, to_char[(]start_date, 'YYYY-MM-DD'[)] AS start_date, to_char[(]end_date, 'YYYY-MM-DD'[)] AS end_date, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE id = \$1`).
 		WithArgs(id).
 		WillReturnRows(rows)
 
@@ -91,7 +91,7 @@ func TestGetReminder_NotFound(t *testing.T) {
 
 	id := "non-existent-id"
 
-	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, start_date::text, end_date::text, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, to_char[(]start_date, 'YYYY-MM-DD'[)] AS start_date, to_char[(]end_date, 'YYYY-MM-DD'[)] AS end_date, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE id = \$1`).
 		WithArgs(id).
 		WillReturnError(pgx.ErrNoRows)
 
@@ -112,7 +112,7 @@ func TestGetReminder_QueryError(t *testing.T) {
 
 	id := "test-id"
 
-	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, start_date::text, end_date::text, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, to_char[(]start_date, 'YYYY-MM-DD'[)] AS start_date, to_char[(]end_date, 'YYYY-MM-DD'[)] AS end_date, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE id = \$1`).
 		WithArgs(id).
 		WillReturnError(errors.New("database error"))
 
@@ -186,7 +186,7 @@ func TestListReminders_Success(t *testing.T) {
 		expectedReminder.Merchant,
 	)
 
-	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, start_date::text, end_date::text, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
+	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, to_char[(]start_date, 'YYYY-MM-DD'[)] AS start_date, to_char[(]end_date, 'YYYY-MM-DD'[)] AS end_date, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
 		WithArgs(1, 10, 0).
 		WillReturnRows(rows)
 
@@ -211,7 +211,7 @@ func TestListReminders_QueryError(t *testing.T) {
 		Page:   1,
 	}
 
-	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, start_date::text, end_date::text, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
+	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, to_char[(]start_date, 'YYYY-MM-DD'[)] AS start_date, to_char[(]end_date, 'YYYY-MM-DD'[)] AS end_date, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
 		WithArgs(1, 10, 0).
 		WillReturnError(errors.New("database error"))
 

@@ -54,7 +54,7 @@ func TestGetBudget_Success(t *testing.T) {
 		expectedBudget.IsOutcomeForecast,
 	)
 
-	mock.ExpectQuery(`SELECT "user", changed, date::text, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget`).
+	mock.ExpectQuery(`SELECT "user", changed, to_char[(]date, 'YYYY-MM-DD'[)] AS date, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget`).
 		WithArgs(userID, tagID, date).
 		WillReturnRows(rows)
 
@@ -79,7 +79,7 @@ func TestGetBudget_NotFound(t *testing.T) {
 	tagID := "test-tag"
 	date := time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)
 
-	mock.ExpectQuery(`SELECT "user", changed, date::text, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget`).
+	mock.ExpectQuery(`SELECT "user", changed, to_char[(]date, 'YYYY-MM-DD'[)] AS date, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget`).
 		WithArgs(userID, tagID, date).
 		WillReturnError(pgx.ErrNoRows)
 
@@ -104,7 +104,7 @@ func TestGetBudget_QueryError(t *testing.T) {
 	tagID := "test-tag"
 	date := time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)
 
-	mock.ExpectQuery(`SELECT "user", changed, date::text, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget`).
+	mock.ExpectQuery(`SELECT "user", changed, to_char[(]date, 'YYYY-MM-DD'[)] AS date, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget`).
 		WithArgs(userID, tagID, date).
 		WillReturnError(errors.New("database error"))
 
@@ -140,7 +140,7 @@ func TestListBudgets_Success(t *testing.T) {
 		1, 1234567890, "2025-01-15", new("test-tag"), 1000.0, 500.0, true, false, true, false,
 	)
 
-	mock.ExpectQuery(`SELECT "user", changed, date::text, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget WHERE "user" = \$1 AND date >= \$2 AND date <= \$3 LIMIT \$4 OFFSET \$5`).
+	mock.ExpectQuery(`SELECT "user", changed, to_char[(]date, 'YYYY-MM-DD'[)] AS date, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget WHERE "user" = \$1 AND date >= \$2 AND date <= \$3 LIMIT \$4 OFFSET \$5`).
 		WithArgs(1, *filter.StartDate, *filter.EndDate, 10, 0).
 		WillReturnRows(rows)
 
@@ -169,7 +169,7 @@ func TestListBudgets_QueryError(t *testing.T) {
 		Page:      1,
 	}
 
-	mock.ExpectQuery(`SELECT "user", changed, date::text, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget WHERE "user" = \$1 AND date >= \$2 AND date <= \$3 LIMIT \$4 OFFSET \$5`).
+	mock.ExpectQuery(`SELECT "user", changed, to_char[(]date, 'YYYY-MM-DD'[)] AS date, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget WHERE "user" = \$1 AND date >= \$2 AND date <= \$3 LIMIT \$4 OFFSET \$5`).
 		WithArgs(1, *filter.StartDate, *filter.EndDate, 10, 0).
 		WillReturnError(errors.New("database error"))
 
