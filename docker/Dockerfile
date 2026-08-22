@@ -1,4 +1,4 @@
-FROM golang:1.27-alpine AS builder
+FROM golang:1.27.0-alpine3.23 AS builder
 
 WORKDIR /build
 
@@ -12,8 +12,8 @@ COPY . .
 # Собираем статически скомпилированный бинарник
 RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o zenexport main.go
 
-# Конечный образ намного меньше, используем scratch
-FROM alpine:latest
+# Используем минимальный образ с зафиксированной версией
+FROM alpine:3.23.3
 
 # Добавляем ca-certificates для HTTPS и создаем непривилегированного пользователя
 RUN apk --no-cache add ca-certificates && \
@@ -26,9 +26,6 @@ COPY --from=builder /build/zenexport /app/zenexport
 USER appuser
 
 WORKDIR /app
-
-# Документируем порты
-EXPOSE 8080
 
 # Определяем точку входа
 ENTRYPOINT ["/app/zenexport", "sync", "-d"]

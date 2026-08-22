@@ -1,36 +1,43 @@
 services:
     app:
-        image: nemirlev/zenexport:latest
+        image: nemirlev/zenexport:v2.0.3
         container_name: zenexport_app
         environment:
-            DB_CONFIG: "postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable"
+            DB_URL: "${DB_URL:?Set DB_URL to the internal PostgreSQL connection URL}"
             DB_TYPE: postgres
-            TOKEN: YOUR_TOKEN
-        depends_on:
-            -  postgres
-            -  migrations
-    postgres:
-        image: postgres:17
-        container_name: zenexport_postgres
-        ports:
-        - "5432:5432"
-        environment:
-            POSTGRES_USER: postgres
-            POSTGRES_PASSWORD: postgres
-            POSTGRES_DB: postgres
-        volumes:
-            - postgres_data:/var/lib/postgresql/data
-        healthcheck:
-            test: ["CMD", "pg_isready", "-q", "-d", "postgres", "-U", "postgres"]
-    migrations:
-        image: migrate/migrate
-        container_name: zenexport_migrations
-        volumes:
-        - ../migrations/postgres:/migrations
+            ZEN_API_TOKEN: "${ZEN_API_TOKEN:?Set ZEN_API_TOKEN to your ZenMoney API token}"
         depends_on:
             postgres:
                 condition: service_healthy
-        command: -path=/migrations/ -database=postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable up
+            migrations:
+                condition: service_completed_successfully
+    postgres:
+        image: postgres:17.7-alpine3.23
+        container_name: zenexport_postgres
+        environment:
+            POSTGRES_USER: "${POSTGRES_USER:?Set POSTGRES_USER}"
+            POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}"
+            POSTGRES_DB: "${POSTGRES_DB:?Set POSTGRES_DB}"
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -q -d \"$${POSTGRES_DB}\" -U \"$${POSTGRES_USER}\""]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+            start_period: 10s
+    migrations:
+        image: migrate/migrate:v4.19.1
+        container_name: zenexport_migrations
+        volumes:
+            - ../migrations/postgres:/migrations:ro
+        depends_on:
+            postgres:
+                condition: service_healthy
+        command:
+            - -path=/migrations/
+            - -database=${DB_URL:?Set DB_URL to the internal PostgreSQL connection URL}
+            - up
 
 volumes:
     postgres_data:

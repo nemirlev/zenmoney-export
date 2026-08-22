@@ -17,13 +17,16 @@ service [ZenMoney](https://zenmoney.ru/) to your own database.
 Obtain an API token from ZenMoney by visiting [Budgera](https://budgera.com) or [Zerro.app](https://zerro.app/token) and following the instructions to
 generate your token.
 
-1. Choose a supported database type from `./docker` directory.
-2. Change environment in the docker compose file.
-3. Start the database and the exporter. Example for PostgreSQL:
+1. Copy `./docker/.env.example` to `./docker/.env` and replace every placeholder.
+2. Start PostgreSQL, run migrations, and then start the exporter:
 
 ```bash
-docker compose -f ./docker/docker-compose.postgres.yml up -d
+docker compose --env-file ./docker/.env -f ./docker/docker-compose.postgres.yml up -d
 ```
+
+The example keeps PostgreSQL on the private Docker network and does not publish its port to the
+host. Its `sslmode=disable` setting is intended only for this local development stack; use a
+TLS-verified connection URL for an external or production database.
 
 ## Configuration
 
