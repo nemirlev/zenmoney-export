@@ -1,6 +1,8 @@
 module github.com/nemirlev/zenmoney-export/v2
 
-go 1.27
+go 1.26
+
+toolchain go1.27.0
 
 require (
 	github.com/jackc/pgx/v5 v5.10.0
