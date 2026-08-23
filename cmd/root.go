@@ -45,6 +45,12 @@ func (r *RootCommand) addFlags() {
 	flags.StringVar(&r.opts.DBType, "db-type", "postgres", "database type (postgres)")
 	flags.StringVar(&r.opts.DBConfig, "db-url", "", "database connection URL")
 	flags.StringVar(&r.opts.LogLevel, "log-level", "info", "log level (debug, info, warn, error)")
+	flags.Int64Var(
+		&r.opts.MaxResponseSizeMB,
+		"max-response-size-mb",
+		config.DefaultMaxResponseSizeMB,
+		"maximum successful ZenMoney API response size in MiB",
+	)
 
 	err := viper.BindPFlag("token", flags.Lookup("token"))
 	if err != nil {
@@ -65,6 +71,10 @@ func (r *RootCommand) addFlags() {
 	if err != nil {
 		slog.Error("failed to bind db-url flag", "error", err)
 		return
+	}
+	err = viper.BindPFlag("max_response_size_mb", flags.Lookup("max-response-size-mb"))
+	if err != nil {
+		slog.Error("failed to bind max-response-size-mb flag", "error", err)
 	}
 }
 

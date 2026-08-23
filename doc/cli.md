@@ -18,6 +18,7 @@ token: your-zenmoney-token
 db_type: postgres
 db_url: postgres://user:password@localhost:5432/zenmoney
 log_level: info
+max_response_size_mb: 256
 ```
 
 For backward compatibility, the YAML key `db_config` is accepted in place of `db_url`.
@@ -28,6 +29,7 @@ Environment variables:
 - `DB_URL` — required PostgreSQL connection URL; legacy alias: `DB_CONFIG`.
 - `DB_TYPE` — database type; defaults to `postgres` and currently supports only PostgreSQL.
 - `LOG_LEVEL` — `debug`, `info`, `warn`, or `error`; defaults to `info`.
+- `ZEN_MAX_RESPONSE_SIZE_MB` — maximum successful ZenMoney API response size in MiB; defaults to `256`.
 
 The canonical environment name takes precedence when both it and its legacy alias are present.
 
@@ -45,6 +47,7 @@ Global flags:
 --db-type string     database type (postgres) (default "postgres")
 --db-url string      database connection URL
 --log-level string   log level: debug, info, warn, error (default "info")
+--max-response-size-mb int maximum successful ZenMoney API response size in MiB (default 256)
 ```
 
 ## `sync`

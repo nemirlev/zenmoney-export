@@ -43,6 +43,7 @@ Global variables:
 - `DB_URL`: Connection string for your database. Example: `postgres://user:password@localhost:5432/dbname`.
 - `DB_TYPE`: Database type. Default: `postgres`.
 - `LOG_LEVEL`: Log level for the exporter. Default: `info`.
+- `ZEN_MAX_RESPONSE_SIZE_MB`: Maximum successful ZenMoney API response size in MiB. Default: `256`; increase it if a very large full sync exceeds the limit.
 
 `TOKEN` and `DB_CONFIG` remain supported as legacy aliases for `ZEN_API_TOKEN` and `DB_URL`.
 When both names are set, the canonical name takes precedence.
@@ -64,6 +65,7 @@ db_type: postgres
 db_url: "postgres://postgres:postgres@localhost:5432/postgres"
 log_level: debug
 token: not-a-real-token
+max_response_size_mb: 256
 ```
 
 The original `db_config` YAML key is also accepted for backward compatibility.
@@ -77,7 +79,7 @@ Command-line flags take precedence over environment variables, which take preced
 go run main.go sync --token=your-token-here --db-url=postgres://user:password@localhost:5432/dbname
 ```
 
-Use `--config`, `--db-type`, `--db-url`, `--token`, and `--log-level` as global options.
+Use `--config`, `--db-type`, `--db-url`, `--token`, `--log-level`, and `--max-response-size-mb` as global options.
 Only PostgreSQL is currently supported.
 
 ## Commands

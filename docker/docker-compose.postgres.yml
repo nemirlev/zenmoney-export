@@ -10,6 +10,7 @@ services:
             DB_URL: "${DB_URL:?Set DB_URL to the internal PostgreSQL connection URL}"
             DB_TYPE: postgres
             ZEN_API_TOKEN: "${ZEN_API_TOKEN:?Set ZEN_API_TOKEN to your ZenMoney API token}"
+            ZEN_MAX_RESPONSE_SIZE_MB: "${ZEN_MAX_RESPONSE_SIZE_MB:-256}"
         depends_on:
             postgres:
                 condition: service_healthy

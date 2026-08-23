@@ -4,25 +4,33 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"strings"
 
 	"github.com/spf13/viper"
 )
 
+const (
+	DefaultMaxResponseSizeMB int64 = 256
+	bytesPerMiB                    = int64(1 << 20)
+)
+
 type Config struct {
-	DBType        string `mapstructure:"db_type"`
-	DBConfig      string `mapstructure:"db_config"`
-	ZenMoneyToken string `mapstructure:"token"`
-	LogLevel      string `mapstructure:"log_level"`
+	DBType            string `mapstructure:"db_type"`
+	DBConfig          string `mapstructure:"db_config"`
+	ZenMoneyToken     string `mapstructure:"token"`
+	LogLevel          string `mapstructure:"log_level"`
+	MaxResponseSizeMB int64  `mapstructure:"max_response_size_mb"`
 }
 
 type CommandOptions struct {
-	ConfigFile string
-	Token      string
-	LogLevel   string
-	DBType     string
-	DBConfig   string
+	ConfigFile        string
+	Token             string
+	LogLevel          string
+	DBType            string
+	DBConfig          string
+	MaxResponseSizeMB int64
 }
 
 type SyncOptions struct {
@@ -54,10 +62,11 @@ func NewConfigFromViper(configFiles ...string) (*Config, error) {
 	}
 
 	cfg := Config{
-		DBType:        viper.GetString("db_type"),
-		DBConfig:      dbConfig,
-		ZenMoneyToken: viper.GetString("token"),
-		LogLevel:      viper.GetString("log_level"),
+		DBType:            viper.GetString("db_type"),
+		DBConfig:          dbConfig,
+		ZenMoneyToken:     viper.GetString("token"),
+		LogLevel:          viper.GetString("log_level"),
+		MaxResponseSizeMB: viper.GetInt64("max_response_size_mb"),
 	}
 
 	if err := ValidateConfig(&cfg); err != nil {
@@ -70,6 +79,7 @@ func NewConfigFromViper(configFiles ...string) (*Config, error) {
 func initViper(configFile string) error {
 	viper.SetDefault("db_type", "postgres")
 	viper.SetDefault("log_level", "info")
+	viper.SetDefault("max_response_size_mb", DefaultMaxResponseSizeMB)
 
 	if configFile != "" {
 		viper.SetConfigFile(configFile)
@@ -91,6 +101,7 @@ func initViper(configFile string) error {
 		{key: "db_url", names: []string{"DB_URL", "DB_CONFIG"}},
 		{key: "token", names: []string{"ZEN_API_TOKEN", "TOKEN"}},
 		{key: "log_level", names: []string{"LOG_LEVEL"}},
+		{key: "max_response_size_mb", names: []string{"ZEN_MAX_RESPONSE_SIZE_MB"}},
 	}
 	for _, binding := range envBindings {
 		args := append([]string{binding.key}, binding.names...)
@@ -121,6 +132,9 @@ func ValidateConfig(cfg *Config) error {
 	if cfg.DBType != "postgres" {
 		return fmt.Errorf("unsupported database type %q (supported: postgres)", cfg.DBType)
 	}
+	if _, err := cfg.MaxResponseSizeBytes(); err != nil {
+		return err
+	}
 
 	switch cfg.LogLevel {
 	case "debug", "info", "warn", "error", "":
@@ -128,6 +142,18 @@ func ValidateConfig(cfg *Config) error {
 		return fmt.Errorf("invalid log level: %s", cfg.LogLevel)
 	}
 	return nil
+}
+
+// MaxResponseSizeBytes converts the configured MiB limit to the byte value
+// expected by the ZenMoney SDK without allowing an int64 overflow.
+func (cfg *Config) MaxResponseSizeBytes() (int64, error) {
+	if cfg.MaxResponseSizeMB <= 0 {
+		return 0, errors.New("maximum response size must be greater than zero")
+	}
+	if cfg.MaxResponseSizeMB > math.MaxInt64/bytesPerMiB {
+		return 0, errors.New("maximum response size is too large")
+	}
+	return cfg.MaxResponseSizeMB * bytesPerMiB, nil
 }
 
 func NewLogger(cfg *Config) *slog.Logger {

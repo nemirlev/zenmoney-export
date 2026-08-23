@@ -46,7 +46,22 @@ func newApplication(
 		return nil, err
 	}
 
-	zc, err := newZenClient(cfg.ZenMoneyToken, api.WithLogger(logger))
+	maxResponseSize, err := cfg.MaxResponseSizeBytes()
+	if err != nil {
+		if closeErr := storage.Close(context.WithoutCancel(ctx)); closeErr != nil {
+			return nil, errors.Join(
+				err,
+				fmt.Errorf("close storage after API client configuration failure: %w", closeErr),
+			)
+		}
+		return nil, err
+	}
+
+	zc, err := newZenClient(
+		cfg.ZenMoneyToken,
+		api.WithLogger(logger),
+		api.WithMaxResponseSize(maxResponseSize),
+	)
 	if err != nil {
 		if closeErr := storage.Close(context.WithoutCancel(ctx)); closeErr != nil {
 			return nil, errors.Join(err, fmt.Errorf("close storage after API client initialization failure: %w", closeErr))
