@@ -12,6 +12,10 @@ service [ZenMoney](https://zenmoney.ru/) to your own database.
 - 🛠️ Easy-to-configure options for various use cases.
 - 🐳 Docker-ready for seamless deployment.
 
+## Requirements
+
+- PostgreSQL 16 or newer. PostgreSQL 15 and earlier are not supported and may fail during schema migrations.
+
 ## Quick Start
 
 Obtain an API token from ZenMoney by visiting [Budgera](https://budgera.com) or [Zerro.app](https://zerro.app/token) and following the instructions to
@@ -31,7 +35,9 @@ created by the migrations in this checkout.
 
 The example keeps PostgreSQL on the private Docker network and does not publish its port to the
 host. Its `sslmode=disable` setting is intended only for this local development stack; use a
-TLS-verified connection URL for an external or production database.
+TLS-verified connection URL for an external or production database. The Compose stack runs schema
+migrations in a separate service. For an external database, verify that it runs PostgreSQL 16 or
+newer and apply the bundled migrations separately before starting the exporter.
 
 ## Configuration
 
