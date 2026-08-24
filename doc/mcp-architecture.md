@@ -48,10 +48,20 @@ The boundaries are intentional:
 - PostgreSQL code knows the schema and performs set-based aggregation, but does not know MCP.
 - `internal/analytics` owns public report semantics and rejects unsafe or oversized requests. It
   depends on the small `AnalyticsStore` interface rather than the existing write-side storage API.
-- `internal/mcpserver` maps the typed service methods to MCP tools. It never accepts a trusted
-  `user_id` from tool arguments.
+- `internal/mcpserver` maps the typed service methods to MCP tools. Request `users.userIds` values
+  are stable selection keys that can only narrow the authenticated catalog; they never establish
+  identity or expand authorization.
 - the embedded UI renders only the server-produced `structuredContent`. It has no database or
   network access and cannot change report values.
+
+### Local container topology
+
+`docker/docker-compose.mcp.yml` contains only the read-only `mcp` service and uses the separate
+Compose project name `zenmcp`. It joins the exporter project's existing default network as an
+external network (`docker_default` by default, configurable with `ZENEXPORT_DOCKER_NETWORK`). The
+exporter Compose project remains the sole owner of PostgreSQL, migrations, synchronization, its
+network lifecycle, and `docker_postgres_data`. Consequently, stopping or removing the MCP project
+cannot delete the database volume or stop the writer stack.
 
 ## Public tool contracts
 
@@ -63,6 +73,11 @@ numbers.
 All report periods use ISO `YYYY-MM-DD` dates. Both public `from` and `to` are inclusive. The
 domain service converts this to an equivalent internal `[from, day-after-to)` range. An optional
 IANA timezone is validated; the configured default is used when it is absent.
+
+The four financial data requests accept an optional `users.userIds` selection using stable
+`user:<numeric-id>` keys. An empty selection means the complete authenticated catalog. Every report
+returns its effective catalog in `metadata.users`; `get_data_freshness` returns the available
+catalog so a client can discover keys before requesting a narrower report.
 
 ### `get_spending_summary`
 
@@ -92,11 +107,11 @@ not database credentials or ZenMoney tokens.
 
 ### `get_data_freshness`
 
-Input: an empty object. Output: latest completed sync, latest attempted sync, age, and stale flag.
-The explicit scope is `database`: the current schema has no reliable per-user synchronization
-provenance, so the server does not imply that a run belongs to the authenticated principal and
-does not expose its database-wide processed-record count. Freshness describes the local PostgreSQL
-snapshot, not the age of ZenMoney exchange rates.
+Input: an empty object. Output: latest completed sync, latest attempted sync, age, stale flag, and
+the authenticated analytics user catalog. The explicit freshness scope is `database`: the current
+schema has no reliable per-user synchronization provenance, so the server does not imply that a
+run belongs to any catalog user and does not expose its database-wide processed-record count.
+Freshness describes the local PostgreSQL snapshot, not the age of ZenMoney exchange rates.
 
 ### `render_finance_chart`
 
@@ -135,10 +150,13 @@ The rules below are returned in report metadata as well as enforced in SQL/domai
 
 ### Tenant and account scope
 
-Every store call receives an authenticated `Principal`. Every query scopes transaction, account,
-tag, merchant, budget, and user joins to its allowed ZenMoney user IDs. Aggregate reports include
-only accounts with `in_balance = true`; the official ZenMoney API defines such accounts as
-participating in the total balance and income/expense reports.
+Every store call receives an authenticated `Principal`. With no `ZENMCP_USER_IDS`, the bootstrap
+identity can discover every ZenMoney user in the database. The optional environment allowlist is an
+authorization ceiling; a request-level `users.userIds` list can narrow it further but cannot add an
+unknown or disallowed user. Every report query then scopes transaction, account, tag, merchant,
+budget, and user joins to that explicit effective set. Aggregate reports include only accounts with
+`in_balance = true`; the official ZenMoney API defines such accounts as participating in the total
+balance and income/expense reports.
 
 ### Dates and timezones
 
@@ -162,18 +180,20 @@ distinguishable in search and are not treated as ordinary aggregate income or ex
 
 ### Currency conversion
 
-The model never chooses a report currency. It is derived from `user.currency` for the authenticated
-ZenMoney user. The official ZenMoney API defines `User.currency` as the primary currency used for
-balances and reports, and `Instrument.rate` as the value of one instrument unit in RUB. Therefore a
-source amount is converted as:
+The model never chooses a report currency. It is derived from `user.currency` for the selected
+ZenMoney users, which must agree on one currency within a report. The official ZenMoney API defines
+`User.currency` as the primary currency used for balances and reports, and `Instrument.rate` as the
+value of one instrument unit in RUB. Therefore a source amount is converted as:
 
 ```text
 amount_in_user_currency = amount * source_rate_in_RUB / user_currency_rate_in_RUB
 ```
 
-This also prevents an LLM from silently changing the currency. A multi-user principal is accepted
-only when every selected user has the same primary currency. A missing, zero, or negative required
-rate fails the report rather than dropping a leg. The implementation uses the currently
+This also prevents an LLM from silently changing the currency. A report selecting multiple users
+is accepted only when every selected user has the same primary currency. When the catalog contains
+different currencies, Codex must issue separate calls for each user or same-currency group rather
+than asking the server to invent a cross-user reporting currency. A missing, zero, or negative
+required rate fails the report rather than dropping a leg. The implementation uses the currently
 synchronized rate snapshot; it does not claim historical exchange-rate accuracy. The ZenMoney
 `opIncome`/`opOutcome` fields describe the immediate payment currency and are deliberately not used
 for report valuation.
@@ -216,11 +236,12 @@ decimal-place rounding belong to the client/UI formatting layer.
 ## Authentication and isolation
 
 `IdentityResolver` is the HTTP authentication boundary. It resolves credentials into a subject and
-allowed ZenMoney user IDs for each request; neither values from a previous MCP request nor tool
-arguments can establish identity.
+either the full database catalog or a configured numeric allowlist for each request; neither values
+from a previous MCP request nor tool arguments can establish identity.
 
 - Local mode uses an explicitly configured `StaticIdentityResolver`. It is suitable only for a
-  loopback/private development endpoint.
+  loopback/private development endpoint. With no allowlist it grants the local principal access to
+  every user in the connected database.
 - Remote mode requires an exact `Authorization: Bearer <token>` header and rejects configured
   secrets shorter than 32 bytes. The resolver retains only a SHA-256 digest of the configured
   header value and uses constant-time comparison. TLS is still required, normally at a reverse
@@ -229,7 +250,9 @@ arguments can establish identity.
   changing analytics or SQL.
 
 Bearer mode is a single-principal bootstrap, not per-user OAuth. Do not share one bearer token
-between mutually untrusted users.
+between mutually untrusted users. Because an omitted `ZENMCP_USER_IDS` intentionally exposes the
+full database catalog, production deployments should use a database containing only the intended
+tenant or configure the restrictive allowlist.
 
 ## Stateless transport and rendering
 
@@ -279,7 +302,9 @@ Known limitations:
 - budget reporting distinguishes the aggregate zero-UUID budget from uncategorized, but otherwise
   follows stored monthly expense rows and does not recreate every ZenMoney forecast behavior;
 - multi-tag allocation is equal by canonical root because ZenMoney stores no per-tag weights;
-- multi-user principals require one shared report currency and are not a substitute for per-user
-  OAuth authorization;
+- a single multi-user report requires one shared primary currency; clients must split different
+  currencies into separate stable-key selections;
+- the default principal can read every database user unless `ZENMCP_USER_IDS` restricts it, and
+  neither bootstrap mode is a substitute for per-user OAuth authorization;
 - bearer authentication is a bootstrap single-principal mode; production multi-tenant deployments
   should implement a stronger `IdentityResolver`.

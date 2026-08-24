@@ -11,7 +11,6 @@ For design decisions and exact report semantics, see [MCP architecture](mcp-arch
 - PostgreSQL 15 through 18 with this checkout's migrations applied.
 - At least one completed `zenexport sync` so the database contains the user, instruments, accounts,
   and transactions to analyze.
-- The numeric ZenMoney user ID or IDs that the configured identity may read.
 - A PostgreSQL connection URL. For production, use a dedicated role with `SELECT` only and TLS
   verification.
 
@@ -28,12 +27,12 @@ The binary serves stateless Streamable HTTP; it is not a stdio MCP server.
 
 ## Local loopback mode
 
-Local mode maps every request to the explicitly configured user IDs and is restricted to a loopback
-listen address. It is intended for one trusted developer on one machine.
+Local mode maps every request to the ZenMoney users discovered in the configured database and is
+restricted to a loopback listen address. It is intended for one trusted developer on one machine.
+`ZENMCP_USER_IDS` may narrow that catalog as a defense-in-depth allowlist, but is not required.
 
 ```bash
 ZENMCP_DB_URL='postgres://mcp_reader:password@127.0.0.1:5432/zenmoney?sslmode=disable' \
-ZENMCP_USER_IDS='12345' \
 ZENMCP_AUTH_MODE=local \
 go run ./cmd/zenmcp
 ```
@@ -86,7 +85,7 @@ npx @modelcontextprotocol/inspector --cli \
 ```
 
 Call a report. Public `from` and `to` dates are both inclusive, and currency is deliberately not an
-input—it comes from the authenticated user's ZenMoney profile:
+input—it comes from the selected ZenMoney users' profiles:
 
 ```bash
 npx @modelcontextprotocol/inspector --cli \
@@ -118,7 +117,6 @@ ZENMCP_DB_URL='postgres://mcp_reader:password@db.internal:5432/zenmoney?sslmode=
 ZENMCP_LISTEN_ADDRESS='0.0.0.0:8080' \
 ZENMCP_AUTH_MODE=bearer \
 ZENMCP_BEARER_TOKEN='replace-with-a-long-random-secret' \
-ZENMCP_USER_IDS='12345' \
 ./zenmcp
 ```
 
@@ -131,7 +129,10 @@ Authorization: Bearer replace-with-a-long-random-secret
 The configured token is never included in errors or logs. The resolver stores a digest and compares
 authorization values in constant time. Keep the token in a secret manager or protected environment
 file, rotate it like any other access credential, and never put it in a client configuration that
-will be committed. One token maps to one configured principal; this mode is not multi-user OAuth.
+will be committed. One token maps to one configured principal; by default that principal can
+discover every ZenMoney user in the connected database. Set the optional `ZENMCP_USER_IDS`
+allowlist when the database contains users that this deployment must never expose. This mode is
+not multi-user OAuth.
 
 For a browser-based MCP host, allow its exact origin (scheme, hostname, and optional port):
 
@@ -170,7 +171,7 @@ All `zenmcp` configuration is environment-based and independent from the `zenexp
 | `ZENMCP_ENDPOINT` | `/mcp` | Clean absolute MCP path, distinct from health paths. |
 | `ZENMCP_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error`. |
 | `ZENMCP_AUTH_MODE` | `local` | `local` or `bearer`. |
-| `ZENMCP_USER_IDS` | none | Required comma-separated positive ZenMoney user IDs. |
+| `ZENMCP_USER_IDS` | none | Optional comma-separated numeric allowlist that restricts which database users can be selected. Omit it to expose the full database user catalog. |
 | `ZENMCP_BEARER_TOKEN` | none | Required only in bearer mode. |
 | `ZENMCP_ALLOWED_ORIGINS` | none | Comma-separated exact trusted HTTP(S) browser origins. |
 | `ZENMCP_REPORT_TIMEZONE` | `UTC` | Default IANA timezone for periods without one. |
@@ -185,22 +186,45 @@ All `zenmcp` configuration is environment-based and independent from the `zenexp
 
 Positive limits are validated at startup; the default page size cannot exceed the maximum. Unknown
 auth modes, bearer secrets shorter than 32 bytes, invalid timezones, unsafe endpoints, malformed
-origins, and missing user scope fail closed before the server listens. Page and chart limits cannot
+origins, and invalid allowlist IDs fail closed before the server listens. Page and chart limits cannot
 exceed the PostgreSQL adapter's hard safety ceiling of 500 rows/points.
+
+## User catalog and report scope
+
+With no `ZENMCP_USER_IDS`, the authenticated principal can use every ZenMoney user stored in the
+database. `get_data_freshness` returns that catalog in `users` and `metadata.users`, and every
+report repeats its effective users in `metadata.users`. Public stable keys have the form
+`user:<numeric-id>`; use those keys in an optional request selector such as:
+
+```json
+{"users":{"userIds":["user:12345"]}}
+```
+
+The `users.userIds` field can only narrow the authenticated catalog; an unknown or disallowed key
+is rejected. An empty selector means the complete available catalog. `get_data_freshness` itself
+has no selector because it is the discovery entry point.
+
+One aggregate report can combine several selected users only when all of them have the same
+`user.currency`. When currencies differ, Codex should group the catalog by currency and make a
+separate tool call for each user or same-currency group. The server never converts multiple primary
+report currencies into an arbitrarily chosen common currency.
 
 ## Tool overview
 
-- `get_spending_summary` — authoritative spending totals plus a bounded category list; inspect
+- `get_spending_summary` — authoritative spending totals plus a bounded category list; optionally
+  narrow the user catalog with `users.userIds`; inspect
   `hasMore`/`truncated` before describing the list as complete.
-- `get_cashflow` — income, outcome, and net by day/week/month.
+- `get_cashflow` — income, outcome, and net by day/week/month, optionally for selected users.
 - `get_budget_progress` — budget versus allocated spending for complete calendar months; totals
-  remain authoritative when the bounded rows report `hasMore`/`truncated`.
-- `search_transactions` — bounded cursor-paginated detail search.
-- `get_data_freshness` — database-scoped local synchronization status and staleness; it does not
-  claim per-user provenance or expose database-wide processed-record counts.
+  remain authoritative when the bounded rows report `hasMore`/`truncated`; user selection is
+  optional.
+- `search_transactions` — bounded cursor-paginated detail search, optionally for selected users.
+- `get_data_freshness` — database-scoped local synchronization status, staleness, and the available
+  user catalog; it does not claim per-user sync provenance or expose database-wide processed-record
+  counts.
 - `render_finance_chart` — re-executes a report and applies a safe declarative ChartSpec; its
-  optional daily cashflow comparison derives and executes the immediately preceding equal-length
-  period instead of calculating a cosmetic series.
+  nested report can select users, and its optional daily cashflow comparison derives and executes
+  the immediately preceding equal-length period instead of calculating a cosmetic series.
 
 Each data result contains typed `structuredContent`, calculation metadata, and a compact text/table
 fallback. `render_finance_chart` additionally references the embedded
@@ -211,10 +235,11 @@ contracts and calculation policies.
 
 ### Docker Compose and local Codex
 
-The dedicated Compose stack starts PostgreSQL, applies the repository migrations, and starts
-`zenmcp` in bearer mode. It does not synchronize ZenMoney data: run `zenexport` separately before
-expecting reports from a fresh database. From the repository root, create an ignored local
-environment file, replace every credential placeholder, and generate a random bearer secret:
+The MCP Compose file contains only `mcp`. It joins the existing exporter Compose network and uses
+the PostgreSQL service, migrations, synchronized data, and persistent volume managed by
+`docker/docker-compose.postgres.yml`; it never duplicates or owns them. From the repository root,
+create an ignored local environment file, replace every credential placeholder, and generate a
+random bearer secret:
 
 ```bash
 cp -n docker/.env.example docker/.env
@@ -222,19 +247,27 @@ openssl rand -hex 32
 # Edit docker/.env and paste the generated value into ZENMCP_BEARER_TOKEN.
 ```
 
-Start the stack and verify both process health and database readiness:
+Start the exporter stack first so it creates PostgreSQL and its default `docker_default` network.
+After migrations and synchronization are available, start the independent `zenmcp` project:
 
 ```bash
+docker compose --env-file docker/.env -f docker/docker-compose.postgres.yml up -d
 docker compose --env-file docker/.env -f docker/docker-compose.mcp.yml up -d --build
 docker compose --env-file docker/.env -f docker/docker-compose.mcp.yml ps
 curl --fail --silent --show-error http://127.0.0.1:8080/healthz
 curl --fail --silent --show-error http://127.0.0.1:8080/readyz
 ```
 
-If `ZENMCP_PORT` was changed, use that host port in the URLs. The Compose file publishes PostgreSQL
-and MCP only on `127.0.0.1`. On macOS, Codex runs on the host, so use
-`http://127.0.0.1:8080/mcp`; the Docker service name and container port
-(`http://mcp:8080/mcp`) work only between containers.
+The exporter Compose project defaults to the name `docker`, so its default network is
+`docker_default`. If it was started with a different project name, set
+`ZENEXPORT_DOCKER_NETWORK=<project>_default` before starting MCP. The external network must already
+exist; a missing network is an intentional startup error. `DB_URL` must remain an internal Docker
+URL whose host is the exporter service name `postgres`.
+
+If `ZENMCP_PORT` was changed, use that host port in the URLs. The MCP Compose file publishes only
+the MCP port and binds it to `127.0.0.1`; PostgreSQL port and volume policy remain in the exporter
+Compose file. On macOS, Codex runs on the host, so use `http://127.0.0.1:8080/mcp`. Container DNS
+names such as `postgres` work only on the shared Docker network.
 
 The server secret and the Codex client variable are related but live in different processes:
 
@@ -277,13 +310,15 @@ and compact text/table fallback are still usable. The five data tools intentiona
 embedded UI. See the official [Codex MCP setup guide](https://learn.chatgpt.com/docs/extend/mcp)
 for the shared configuration model and current Streamable HTTP support.
 
-Stop the stack without deleting its PostgreSQL volume:
+Stop only MCP:
 
 ```bash
 docker compose --env-file docker/.env -f docker/docker-compose.mcp.yml down
 ```
 
-Do not add `--volumes` unless deleting the local database is intentional.
+Because `zenmcp` is a separate Compose project and `docker_default` is external, this command does
+not stop PostgreSQL, remove the exporter network, or touch `docker_postgres_data`. Manage those only
+through `docker/docker-compose.postgres.yml`. Do not use `--remove-orphans` across the two projects.
 
 ### Standalone image
 
@@ -302,7 +337,6 @@ docker run --rm -p 8080:8080 \
   -e ZENMCP_LISTEN_ADDRESS='0.0.0.0:8080' \
   -e ZENMCP_AUTH_MODE=bearer \
   -e ZENMCP_BEARER_TOKEN='replace-with-a-long-random-secret' \
-  -e ZENMCP_USER_IDS='12345' \
   zenmcp:local
 ```
 
@@ -332,13 +366,17 @@ period above ten seconds.
 ## Troubleshooting and limitations
 
 - `401 unauthenticated`: bearer header is missing or not an exact match.
-- `403 invalid_identity`: the resolver produced no subject or allowed user IDs.
+- `403 invalid_identity`: the resolver produced no subject or produced an inconsistent all-users /
+  allowlist scope.
 - `403` before authentication in a browser: add the exact host origin to
   `ZENMCP_ALLOWED_ORIGINS`; do not disable origin protection globally.
 - `/readyz` returns `503`: verify database routing, TLS, credentials, migrations, and PostgreSQL
   version.
-- currency/rate error: all authorized users must share one primary currency and every required
-  current instrument rate must be positive.
+- Compose reports that `docker_default` is missing: start the exporter Compose project first, or
+  set `ZENEXPORT_DOCKER_NETWORK` to the actual `<project>_default` network name.
+- currency/rate error: all users selected for one report must share one primary currency and every
+  required current instrument rate must be positive. Use `get_data_freshness` to discover the
+  catalog and have Codex issue separate `users.userIds` calls for different currencies.
 - stale data: run or repair `zenexport sync`; `zenmcp` never calls ZenMoney itself.
 - a report changed between analysis and rendering: rendering intentionally re-runs the report, so a
   synchronization completed between the two calls can change authoritative values.
