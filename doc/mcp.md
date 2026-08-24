@@ -209,6 +209,84 @@ contracts and calculation policies.
 
 ## Container deployment
 
+### Docker Compose and local Codex
+
+The dedicated Compose stack starts PostgreSQL, applies the repository migrations, and starts
+`zenmcp` in bearer mode. It does not synchronize ZenMoney data: run `zenexport` separately before
+expecting reports from a fresh database. From the repository root, create an ignored local
+environment file, replace every credential placeholder, and generate a random bearer secret:
+
+```bash
+cp docker/.env.example docker/.env
+openssl rand -hex 32
+# Edit docker/.env and paste the generated value into ZENMCP_BEARER_TOKEN.
+```
+
+Start the stack and verify both process health and database readiness:
+
+```bash
+docker compose --env-file docker/.env -f docker/docker-compose.mcp.yml up -d --build
+docker compose --env-file docker/.env -f docker/docker-compose.mcp.yml ps
+curl --fail --silent --show-error http://127.0.0.1:8080/healthz
+curl --fail --silent --show-error http://127.0.0.1:8080/readyz
+```
+
+If `ZENMCP_PORT` was changed, use that host port in the URLs. The Compose file publishes PostgreSQL
+and MCP only on `127.0.0.1`. On macOS, Codex runs on the host, so use
+`http://127.0.0.1:8080/mcp`; the Docker service name and container port
+(`http://mcp:8080/mcp`) work only between containers.
+
+The server secret and the Codex client variable are related but live in different processes:
+
+- `ZENMCP_BEARER_TOKEN` in `docker/.env` is injected into the server container. It is the secret
+  against which requests are authenticated.
+- `ZENMCP_CLIENT_BEARER_TOKEN` below is an example client-side variable. Its value must exactly
+  match the server secret. The name is arbitrary and does not need to match the server variable.
+- `--bearer-token-env-var` stores the client variable's **name**, not its secret value, in the
+  shared Codex MCP configuration. It does not read the Compose environment automatically.
+
+Export the matching value in the shell that launches Codex CLI, then register the Streamable HTTP
+server:
+
+```bash
+export ZENMCP_CLIENT_BEARER_TOKEN='paste-the-same-secret-used-by-the-server'
+codex mcp add zenmoney-local \
+  --url http://127.0.0.1:8080/mcp \
+  --bearer-token-env-var ZENMCP_CLIENT_BEARER_TOKEN
+codex mcp list
+codex mcp get zenmoney-local --json
+```
+
+Do not commit either token, put a literal token in `~/.codex/config.toml`, or reuse it for another
+service. A shell `export` is visible only to processes descended from that shell. In particular, a
+Codex desktop app opened from Finder on macOS may not inherit it. Make the variable available to
+the desktop launch environment using your normal secret-management mechanism, then fully quit and
+reopen Codex. For a development-only launch environment, macOS also provides
+`launchctl setenv ZENMCP_CLIENT_BEARER_TOKEN '<matching-secret>'`; remove it later with
+`launchctl unsetenv ZENMCP_CLIENT_BEARER_TOKEN`.
+
+Codex CLI and desktop share MCP configuration, but an already running session may retain its
+original tool list. Start a new task after registration. In desktop, Settings > MCP servers can
+also restart the server connection; fully relaunch the app after changing its environment. In CLI
+or the TUI, use `/mcp` to inspect the live connection, then ask Codex to call
+`get_data_freshness` and a report such as `get_spending_summary`.
+
+Only `render_finance_chart` advertises the MCP App resource. Embedded UI rendering depends on the
+Codex host and build; if the interactive chart does not appear, the validated structured result
+and compact text/table fallback are still usable. The five data tools intentionally have no
+embedded UI. See the official [Codex MCP setup guide](https://learn.chatgpt.com/docs/extend/mcp)
+for the shared configuration model and current Streamable HTTP support.
+
+Stop the stack without deleting its PostgreSQL volume:
+
+```bash
+docker compose --env-file docker/.env -f docker/docker-compose.mcp.yml down
+```
+
+Do not add `--volumes` unless deleting the local database is intentional.
+
+### Standalone image
+
 Build the MCP image independently from the synchronizer:
 
 ```bash
