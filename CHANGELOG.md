@@ -8,6 +8,14 @@
 ### 🐛 Bug Fixes
 
 - Upgrades Go version in Docker build image (#22)
+## [2.1.3](https://github.com/nemirlev/zenmoney-export/compare/v2.1.2...v2.1.3) (2026-08-24)
+
+
+### ⚙️ Miscellaneous Tasks
+
+* **deps:** bump github.com/moby/go-archive from 0.2.0 to 0.3.0 ([#29](https://github.com/nemirlev/zenmoney-export/issues/29)) ([8c83321](https://github.com/nemirlev/zenmoney-export/commit/8c83321bd6e25520e947cf03c9afe734f33cc8b3))
+* **deps:** bump golang.org/x/crypto from 0.48.0 to 0.52.0 ([#28](https://github.com/nemirlev/zenmoney-export/issues/28)) ([fb7d708](https://github.com/nemirlev/zenmoney-export/commit/fb7d708ab7471bcc8e49cc247e8d808704c53be6))
+
 ## [2.1.2](https://github.com/nemirlev/zenmoney-export/compare/v2.1.1...v2.1.2) (2026-08-24)
 
 
