@@ -101,7 +101,6 @@ func freshnessTable(data FreshnessData) TableFallback {
 			{Key: "run", Label: "Run", Format: FormatText},
 			{Key: "finished", Label: "Finished", Format: FormatText},
 			{Key: "status", Label: "Status", Format: FormatText},
-			{Key: "records", Label: "Records", Format: FormatNumber},
 		},
 		Rows: []TableRow{},
 	}
@@ -116,7 +115,6 @@ func freshnessTable(data FreshnessData) TableFallback {
 		table.Rows = append(table.Rows, TableRow{ID: id, Cells: []TableCell{
 			{Key: "run", Value: label}, {Key: "finished", Value: finished},
 			{Key: "status", Value: snapshot.Status},
-			{Key: "records", Value: strconv.FormatInt(snapshot.RecordsProcessed, 10)},
 		}})
 	}
 	appendSnapshot("sync:last_completed", "Last completed", data.LastCompleted)

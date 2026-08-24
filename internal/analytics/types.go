@@ -299,7 +299,7 @@ type SyncSnapshot struct {
 	Status           string     `json:"status"`
 	SyncType         string     `json:"syncType"`
 	ServerTimestamp  int64      `json:"serverTimestamp"`
-	RecordsProcessed int64      `json:"recordsProcessed"`
+	RecordsProcessed int64      `json:"-"`
 }
 
 type FreshnessData struct {
@@ -307,8 +307,13 @@ type FreshnessData struct {
 	LastAttempt   *SyncSnapshot `json:"lastAttempt,omitempty"`
 }
 
+type FreshnessScope string
+
+const FreshnessScopeDatabase FreshnessScope = "database"
+
 type DataFreshnessResult struct {
 	Metadata      ReportMetadata `json:"metadata"`
+	Scope         FreshnessScope `json:"scope"`
 	LastCompleted *SyncSnapshot  `json:"lastCompleted,omitempty"`
 	LastAttempt   *SyncSnapshot  `json:"lastAttempt,omitempty"`
 	AgeSeconds    *int64         `json:"ageSeconds,omitempty"`

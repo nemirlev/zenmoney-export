@@ -209,10 +209,15 @@ func (s *Service) GetDataFreshness(
 	normalized := NormalizedReportRequest{
 		Kind: ReportDataFreshness, DataFreshness: &DataFreshnessRequest{},
 	}
+	metadata := reportMetadata(
+		ReportDataFreshness, nil, "", AppliedFilters{}, lastSync, normalized,
+	)
+	metadata.Rules.Limitations = append(
+		metadata.Rules.Limitations,
+		"sync_status has database-wide scope because the schema lacks per-user synchronization provenance",
+	)
 	return DataFreshnessResult{
-		Metadata: reportMetadata(
-			ReportDataFreshness, nil, "", AppliedFilters{}, lastSync, normalized,
-		),
+		Metadata: metadata, Scope: FreshnessScopeDatabase,
 		LastCompleted: data.LastCompleted, LastAttempt: data.LastAttempt,
 		AgeSeconds: age, Stale: stale, Table: freshnessTable(data),
 	}, nil

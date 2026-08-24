@@ -322,6 +322,43 @@ func TestAllDataReportsExposeStableStructuredMetadataAndTables(t *testing.T) {
 	require.Empty(t, freshness.Metadata.Currency)
 }
 
+func TestDataFreshnessIsDatabaseScopedWithoutPublicRecordCounts(t *testing.T) {
+	finished := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+	store := &fakeStore{freshnessData: FreshnessData{LastCompleted: &SyncSnapshot{
+		StartedAt: finished.Add(-time.Minute), FinishedAt: &finished, Status: "completed",
+		SyncType: "partial", ServerTimestamp: 123, RecordsProcessed: 999,
+	}}}
+	service := newTestService(t, store)
+	service.now = func() time.Time { return finished }
+
+	result, err := service.GetDataFreshness(
+		context.Background(), Principal{Subject: "user", UserIDs: []int64{1}}, DataFreshnessRequest{},
+	)
+	require.NoError(t, err)
+	require.Equal(t, FreshnessScopeDatabase, result.Scope)
+	require.Contains(
+		t, result.Metadata.Rules.Limitations,
+		"sync_status has database-wide scope because the schema lacks per-user synchronization provenance",
+	)
+	for _, column := range result.Table.Columns {
+		require.NotEqual(t, "records", column.Key)
+	}
+	for _, row := range result.Table.Rows {
+		for _, cell := range row.Cells {
+			require.NotEqual(t, "records", cell.Key)
+		}
+	}
+
+	payload, err := json.Marshal(result)
+	require.NoError(t, err)
+	require.NotContains(t, string(payload), "recordsProcessed")
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(payload, &decoded))
+	require.Equal(t, "database", decoded["scope"])
+	completed := decoded["lastCompleted"].(map[string]any)
+	require.NotContains(t, completed, "recordsProcessed")
+}
+
 func TestBudgetProgressRequiresCompleteCalendarMonths(t *testing.T) {
 	store := &fakeStore{budgetData: BudgetProgressData{
 		Currency: "RUB", Totals: BudgetTotals{Budget: "0", Spent: "0", Remaining: "0"},
