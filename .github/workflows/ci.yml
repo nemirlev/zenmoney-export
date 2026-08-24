@@ -75,22 +75,8 @@ jobs:
       fail-fast: false
       matrix:
         postgres: [ '15', '16', '17', '18' ]
-    services:
-      postgres:
-        image: postgres:${{ matrix.postgres }}-alpine
-        env:
-          POSTGRES_USER: zenexport
-          POSTGRES_PASSWORD: zenexport
-          POSTGRES_DB: zenexport
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     env:
-      POSTGRES_TEST_DSN: postgres://zenexport:zenexport@localhost:5432/zenexport?sslmode=disable
+      POSTGRES_VERSION: ${{ matrix.postgres }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -100,15 +86,6 @@ jobs:
         with:
           go-version: '1.27'
           cache: true
-
-      - name: Apply PostgreSQL migrations
-        run: >-
-          docker run --rm --network host
-          --volume "$PWD/migrations/postgres:/migrations:ro"
-          migrate/migrate:v4.19.1
-          -path=/migrations
-          -database="$POSTGRES_TEST_DSN"
-          up
 
       - name: Run PostgreSQL compatibility test
         run: go test -v ./internal/db/postgres -run '^TestPostgresCompatibility$'

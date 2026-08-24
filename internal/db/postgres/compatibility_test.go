@@ -3,22 +3,47 @@ package postgres
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
 func TestPostgresCompatibility(t *testing.T) {
-	dsn := os.Getenv("POSTGRES_TEST_DSN")
-	if dsn == "" {
-		t.Skip("POSTGRES_TEST_DSN is not set")
+	postgresVersion := os.Getenv("POSTGRES_VERSION")
+	if postgresVersion == "" {
+		postgresVersion = "18"
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	migrationFiles, err := filepath.Glob(
+		filepath.Join("..", "..", "..", "migrations", "postgres", "*.up.sql"),
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, migrationFiles)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
+
+	container, err := tcpostgres.Run(
+		ctx,
+		"postgres:"+postgresVersion+"-alpine",
+		tcpostgres.WithDatabase("zenexport"),
+		tcpostgres.WithUsername("zenexport"),
+		tcpostgres.WithPassword("zenexport"),
+		tcpostgres.BasicWaitStrategies(),
+	)
+	testcontainers.CleanupContainer(t, container)
+	require.NoError(t, err)
+
+	dsn, err := container.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+	applyMigrations(t, ctx, dsn, migrationFiles)
 
 	storage, err := NewPostgresStorage(dsn)
 	require.NoError(t, err)
@@ -26,6 +51,7 @@ func TestPostgresCompatibility(t *testing.T) {
 		require.NoError(t, storage.Close(context.Background()))
 	})
 	require.NoError(t, storage.Ping(ctx))
+	t.Logf("testing PostgreSQL %s", postgresVersion)
 
 	transactions := []struct {
 		id   string
@@ -59,5 +85,25 @@ func TestPostgresCompatibility(t *testing.T) {
 		require.Equal(t, transaction.Date, stored.Date)
 		require.Equal(t, transaction.Income, stored.Income)
 		require.Equal(t, transaction.Outcome, stored.Outcome)
+	}
+}
+
+func applyMigrations(t *testing.T, ctx context.Context, dsn string, files []string) {
+	t.Helper()
+
+	config, err := pgx.ParseConfig(dsn)
+	require.NoError(t, err)
+	config.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+
+	connection, err := pgx.ConnectConfig(ctx, config)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, connection.Close(context.Background())) }()
+
+	for _, migrationFile := range files {
+		migration, readErr := os.ReadFile(migrationFile)
+		require.NoError(t, readErr)
+
+		_, execErr := connection.Exec(ctx, string(migration))
+		require.NoErrorf(t, execErr, "apply migration %s", filepath.Base(migrationFile))
 	}
 }
