@@ -29,7 +29,11 @@ func (f *fakeAnalyticsService) record(principal analytics.Principal) {
 	f.principals = append(f.principals, principal)
 }
 
-func (f *fakeAnalyticsService) GetSpendingSummary(ctx context.Context, principal analytics.Principal, _ analytics.SpendingSummaryRequest) (analytics.SpendingSummaryResult, error) {
+func (f *fakeAnalyticsService) GetSpendingSummary(
+	ctx context.Context,
+	principal analytics.Principal,
+	_ analytics.SpendingSummaryRequest,
+) (analytics.SpendingSummaryResult, error) {
 	f.record(principal)
 	if f.spendingContextErr != nil {
 		<-ctx.Done()
@@ -40,47 +44,106 @@ func (f *fakeAnalyticsService) GetSpendingSummary(ctx context.Context, principal
 		Metadata:         metadata(analytics.ReportSpendingSummary, "RUB"),
 		Total:            "123.45",
 		TransactionCount: 2,
-		Categories: []analytics.SpendingCategory{{
-			ID: "category:food", CategoryID: "food", Title: "Food", Amount: "123.45", SharePercent: "100.00", TransactionCount: 2,
-		}},
+		Categories: []analytics.SpendingCategory{
+			{
+				ID:               "category:food",
+				CategoryID:       "food",
+				Title:            "Food",
+				Amount:           "123.45",
+				SharePercent:     "100.00",
+				TransactionCount: 2,
+			},
+		},
 		Table: tableFallback(),
 	}, nil
 }
 
-func (f *fakeAnalyticsService) GetCashflow(_ context.Context, principal analytics.Principal, _ analytics.CashflowRequest) (analytics.CashflowResult, error) {
+func (f *fakeAnalyticsService) GetCashflow(
+	_ context.Context,
+	principal analytics.Principal,
+	_ analytics.CashflowRequest,
+) (analytics.CashflowResult, error) {
 	f.record(principal)
-	return analytics.CashflowResult{Metadata: metadata(analytics.ReportCashflow, "RUB"), Points: []analytics.CashflowPoint{}, Table: tableFallback()}, nil
+	return analytics.CashflowResult{
+		Metadata: metadata(analytics.ReportCashflow, "RUB"),
+		Points:   []analytics.CashflowPoint{},
+		Table:    tableFallback(),
+	}, nil
 }
 
-func (f *fakeAnalyticsService) GetBudgetProgress(_ context.Context, principal analytics.Principal, _ analytics.BudgetProgressRequest) (analytics.BudgetProgressResult, error) {
+func (f *fakeAnalyticsService) GetBudgetProgress(
+	_ context.Context,
+	principal analytics.Principal,
+	_ analytics.BudgetProgressRequest,
+) (analytics.BudgetProgressResult, error) {
 	f.record(principal)
-	return analytics.BudgetProgressResult{Metadata: metadata(analytics.ReportBudgetProgress, "RUB"), Rows: []analytics.BudgetProgressRow{}, Table: tableFallback()}, nil
+	return analytics.BudgetProgressResult{
+		Metadata: metadata(analytics.ReportBudgetProgress, "RUB"),
+		Rows:     []analytics.BudgetProgressRow{},
+		Table:    tableFallback(),
+	}, nil
 }
 
-func (f *fakeAnalyticsService) SearchTransactions(_ context.Context, principal analytics.Principal, _ analytics.TransactionSearchRequest) (analytics.TransactionSearchResult, error) {
+func (f *fakeAnalyticsService) SearchTransactions(
+	_ context.Context,
+	principal analytics.Principal,
+	_ analytics.TransactionSearchRequest,
+) (analytics.TransactionSearchResult, error) {
 	f.record(principal)
-	return analytics.TransactionSearchResult{Metadata: metadata(analytics.ReportTransactions, "RUB"), Items: []analytics.TransactionItem{}, Table: tableFallback()}, nil
+	return analytics.TransactionSearchResult{
+		Metadata: metadata(analytics.ReportTransactions, "RUB"),
+		Items:    []analytics.TransactionItem{},
+		Table:    tableFallback(),
+	}, nil
 }
 
-func (f *fakeAnalyticsService) GetDataFreshness(_ context.Context, principal analytics.Principal, _ analytics.DataFreshnessRequest) (analytics.DataFreshnessResult, error) {
+func (f *fakeAnalyticsService) GetDataFreshness(
+	_ context.Context,
+	principal analytics.Principal,
+	_ analytics.DataFreshnessRequest,
+) (analytics.DataFreshnessResult, error) {
 	f.record(principal)
-	return analytics.DataFreshnessResult{Metadata: metadata(analytics.ReportDataFreshness, ""), Table: tableFallback()}, nil
+	return analytics.DataFreshnessResult{
+		Metadata: metadata(analytics.ReportDataFreshness, ""),
+		Table:    tableFallback(),
+	}, nil
 }
 
-func (f *fakeAnalyticsService) RenderFinanceChart(_ context.Context, principal analytics.Principal, _ analytics.RenderFinanceChartRequest) (analytics.RenderFinanceChartResult, error) {
+func (f *fakeAnalyticsService) RenderFinanceChart(
+	_ context.Context,
+	principal analytics.Principal,
+	_ analytics.RenderFinanceChartRequest,
+) (analytics.RenderFinanceChartResult, error) {
 	f.record(principal)
 	return analytics.RenderFinanceChartResult{
 		SchemaVersion: analytics.SchemaVersion,
 		ReportKind:    analytics.ReportSpendingSummary,
 		Chart: analytics.ChartSpec{
-			Type: analytics.ChartBar, Title: "Spending", Dimension: analytics.DimensionCategory,
-			Series:   []analytics.ChartSeries{{Key: analytics.SeriesAmount, Label: "Amount", Format: analytics.FormatCurrency}},
+			Type:      analytics.ChartBar,
+			Title:     "Spending",
+			Dimension: analytics.DimensionCategory,
+			Series: []analytics.ChartSeries{
+				{Key: analytics.SeriesAmount, Label: "Amount", Format: analytics.FormatCurrency},
+			},
 			Stacking: analytics.StackingNone,
-			Sort:     analytics.ChartSort{By: analytics.SortValue, Direction: analytics.SortDescending, Series: analytics.SeriesAmount},
-			Other:    analytics.OtherBucket{}, Legend: true, Tooltip: true, ShowNegative: true,
-			Table: analytics.ChartTableSpec{Enabled: true, Caption: "Spending"},
+			Sort: analytics.ChartSort{
+				By:        analytics.SortValue,
+				Direction: analytics.SortDescending,
+				Series:    analytics.SeriesAmount,
+			},
+			Other:        analytics.OtherBucket{},
+			Legend:       true,
+			Tooltip:      true,
+			ShowNegative: true,
+			Table:        analytics.ChartTableSpec{Enabled: true, Caption: "Spending"},
 		},
-		Data:   []analytics.ChartDataPoint{{ID: "category:food", Label: "Food", Values: []analytics.ChartValue{{Series: analytics.SeriesAmount, Value: "123.45"}}}},
+		Data: []analytics.ChartDataPoint{
+			{
+				ID:     "category:food",
+				Label:  "Food",
+				Values: []analytics.ChartValue{{Series: analytics.SeriesAmount, Value: "123.45"}},
+			},
+		},
 		Table:  tableFallback(),
 		Report: analytics.ReportEnvelope{Kind: analytics.ReportSpendingSummary},
 	}, nil
@@ -107,17 +170,19 @@ func newTestHandlers(t *testing.T, service *fakeAnalyticsService) HTTPHandlers {
 	server, err := New(service, ServerOptions{Name: "test", Version: "1.0.0"})
 	require.NoError(t, err)
 	handlers, err := NewHTTPHandlers(server, HTTPOptions{
-		IdentityResolver: IdentityResolverFunc(func(_ context.Context, request *http.Request) (analytics.Principal, error) {
-			subject := request.Header.Get("X-Test-Subject")
-			if subject == "" {
-				return analytics.Principal{}, ErrUnauthenticated
-			}
-			userID := int64(1)
-			if subject == "bob" {
-				userID = 2
-			}
-			return analytics.Principal{Subject: subject, UserIDs: []int64{userID}}, nil
-		}),
+		IdentityResolver: IdentityResolverFunc(
+			func(_ context.Context, request *http.Request) (analytics.Principal, error) {
+				subject := request.Header.Get("X-Test-Subject")
+				if subject == "" {
+					return analytics.Principal{}, ErrUnauthenticated
+				}
+				userID := int64(1)
+				if subject == "bob" {
+					userID = 2
+				}
+				return analytics.Principal{Subject: subject, UserIDs: []int64{userID}}, nil
+			},
+		),
 		ProtectOrigin:  func(next http.Handler) http.Handler { return next },
 		JSONResponse:   true,
 		RequestTimeout: 30 * time.Second,
@@ -142,7 +207,13 @@ func TestToolMetadataAndOutputSchemas(t *testing.T) {
 		assert.NotNil(t, tool["outputSchema"], tool["name"])
 		inputSchema := tool["inputSchema"].(map[string]any)
 		properties, _ := inputSchema["properties"].(map[string]any)
-		assert.NotContains(t, properties, "currency", "%s must derive currency from the authenticated user", tool["name"])
+		assert.NotContains(
+			t,
+			properties,
+			"currency",
+			"%s must derive currency from the authenticated user",
+			tool["name"],
+		)
 		meta, hasMeta := tool["_meta"].(map[string]any)
 		if tool["name"] != ToolRenderFinanceChart {
 			assert.False(t, hasMeta, "%s must not open an app", tool["name"])
@@ -157,12 +228,23 @@ func TestToolMetadataAndOutputSchemas(t *testing.T) {
 
 func TestToolReturnsStructuredContentAndTextFallback(t *testing.T) {
 	handlers := newTestHandlers(t, &fakeAnalyticsService{})
-	response := postMCP(t, handlers.MCP, "alice", "tools/call", ToolGetSpendingSummary, map[string]any{
-		"name": ToolGetSpendingSummary,
-		"arguments": map[string]any{
-			"period": map[string]any{"from": "2026-01-01", "to": "2026-02-01", "timezone": "Europe/Moscow"},
+	response := postMCP(
+		t,
+		handlers.MCP,
+		"alice",
+		"tools/call",
+		ToolGetSpendingSummary,
+		map[string]any{
+			"name": ToolGetSpendingSummary,
+			"arguments": map[string]any{
+				"period": map[string]any{
+					"from":     "2026-01-01",
+					"to":       "2026-02-01",
+					"timezone": "Europe/Moscow",
+				},
+			},
 		},
-	})
+	)
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	result := decodeResult(t, response)
 	structured := result["structuredContent"].(map[string]any)
@@ -216,7 +298,14 @@ func TestCategoryTextFallbackDisclosesCompleteRows(t *testing.T) {
 
 func TestUIResourceUsesPortableAppsContract(t *testing.T) {
 	handlers := newTestHandlers(t, &fakeAnalyticsService{})
-	response := postMCP(t, handlers.MCP, "alice", "resources/read", FinanceChartResourceURI, map[string]any{"uri": FinanceChartResourceURI})
+	response := postMCP(
+		t,
+		handlers.MCP,
+		"alice",
+		"resources/read",
+		FinanceChartResourceURI,
+		map[string]any{"uri": FinanceChartResourceURI},
+	)
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	result := decodeResult(t, response)
 	contents := result["contents"].([]any)
@@ -237,10 +326,19 @@ func TestStatelessRequestsResolveIdentityIndependently(t *testing.T) {
 	service := &fakeAnalyticsService{}
 	handlers := newTestHandlers(t, service)
 	for _, subject := range []string{"alice", "bob"} {
-		response := postMCP(t, handlers.MCP, subject, "tools/call", ToolGetSpendingSummary, map[string]any{
-			"name":      ToolGetSpendingSummary,
-			"arguments": map[string]any{"period": map[string]any{"from": "2026-01-01", "to": "2026-02-01"}},
-		})
+		response := postMCP(
+			t,
+			handlers.MCP,
+			subject,
+			"tools/call",
+			ToolGetSpendingSummary,
+			map[string]any{
+				"name": ToolGetSpendingSummary,
+				"arguments": map[string]any{
+					"period": map[string]any{"from": "2026-01-01", "to": "2026-02-01"},
+				},
+			},
+		)
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 		assert.Empty(t, response.Header().Get("Mcp-Session-Id"))
 	}
@@ -248,7 +346,11 @@ func TestStatelessRequestsResolveIdentityIndependently(t *testing.T) {
 	service.mu.Lock()
 	defer service.mu.Unlock()
 	require.Len(t, service.principals, 2)
-	assert.Equal(t, analytics.Principal{Subject: "alice", UserIDs: []int64{1}}, service.principals[0])
+	assert.Equal(
+		t,
+		analytics.Principal{Subject: "alice", UserIDs: []int64{1}},
+		service.principals[0],
+	)
 	assert.Equal(t, analytics.Principal{Subject: "bob", UserIDs: []int64{2}}, service.principals[1])
 }
 
@@ -267,10 +369,12 @@ func TestOriginProtectionRunsBeforeIdentityResolution(t *testing.T) {
 	require.NoError(t, err)
 	resolved := false
 	handlers, err := NewHTTPHandlers(server, HTTPOptions{
-		IdentityResolver: IdentityResolverFunc(func(context.Context, *http.Request) (analytics.Principal, error) {
-			resolved = true
-			return analytics.Principal{Subject: "alice", UserIDs: []int64{1}}, nil
-		}),
+		IdentityResolver: IdentityResolverFunc(
+			func(context.Context, *http.Request) (analytics.Principal, error) {
+				resolved = true
+				return analytics.Principal{Subject: "alice", UserIDs: []int64{1}}, nil
+			},
+		),
 		ProtectOrigin: func(http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				http.Error(w, "origin rejected", http.StatusForbidden)
@@ -289,10 +393,12 @@ func TestHealthAndReadiness(t *testing.T) {
 	server, err := New(&fakeAnalyticsService{}, ServerOptions{})
 	require.NoError(t, err)
 	handlers, err := NewHTTPHandlers(server, HTTPOptions{
-		IdentityResolver: StaticIdentityResolver{Principal: analytics.Principal{Subject: "local", UserIDs: []int64{1}}},
-		ProtectOrigin:    func(next http.Handler) http.Handler { return next },
-		ReadinessCheck:   func(*http.Request) error { return errors.New("database unavailable") },
-		RequestTimeout:   30 * time.Second,
+		IdentityResolver: StaticIdentityResolver{
+			Principal: analytics.Principal{Subject: "local", UserIDs: []int64{1}},
+		},
+		ProtectOrigin:  func(next http.Handler) http.Handler { return next },
+		ReadinessCheck: func(*http.Request) error { return errors.New("database unavailable") },
+		RequestTimeout: 30 * time.Second,
 	})
 	require.NoError(t, err)
 
@@ -319,12 +425,19 @@ func TestMCPRequestTimeoutCancelsServiceContext(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	response := postMCP(t, handlers.MCP, "local", "tools/call", ToolGetSpendingSummary, map[string]any{
-		"name": ToolGetSpendingSummary,
-		"arguments": map[string]any{
-			"period": map[string]any{"from": "2026-01-01", "to": "2026-01-31"},
+	response := postMCP(
+		t,
+		handlers.MCP,
+		"local",
+		"tools/call",
+		ToolGetSpendingSummary,
+		map[string]any{
+			"name": ToolGetSpendingSummary,
+			"arguments": map[string]any{
+				"period": map[string]any{"from": "2026-01-01", "to": "2026-01-31"},
+			},
 		},
-	})
+	)
 
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	require.ErrorIs(t, <-canceled, context.DeadlineExceeded)
@@ -342,14 +455,24 @@ func TestNewHTTPHandlersRequiresPositiveRequestTimeout(t *testing.T) {
 	require.ErrorContains(t, err, "timeout must be greater than zero")
 }
 
-func postMCP(t *testing.T, handler http.Handler, subject, method, name string, params map[string]any) *httptest.ResponseRecorder {
+func postMCP(
+	t *testing.T,
+	handler http.Handler,
+	subject, method, name string,
+	params map[string]any,
+) *httptest.ResponseRecorder {
 	t.Helper()
 	params["_meta"] = map[string]any{
 		"io.modelcontextprotocol/protocolVersion":    "2026-07-28",
 		"io.modelcontextprotocol/clientCapabilities": map[string]any{},
-		"io.modelcontextprotocol/clientInfo":         map[string]any{"name": "test-client", "version": "1.0.0"},
+		"io.modelcontextprotocol/clientInfo": map[string]any{
+			"name":    "test-client",
+			"version": "1.0.0",
+		},
 	}
-	body, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
+	body, err := json.Marshal(
+		map[string]any{"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
+	)
 	require.NoError(t, err)
 	request := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")

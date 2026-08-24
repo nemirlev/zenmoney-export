@@ -24,14 +24,46 @@ func TestValidateChartSpecRejectsUnsupportedAndExecutableInputs(t *testing.T) {
 		mutate func(*ChartSpec)
 		want   string
 	}{
-		{name: "unsupported type", mutate: func(spec *ChartSpec) { spec.Type = "radar" }, want: "unsupported chart type"},
-		{name: "HTML", mutate: func(spec *ChartSpec) { spec.Title = "<script>alert(1)</script>" }, want: "unsafe"},
-		{name: "JavaScript URL", mutate: func(spec *ChartSpec) { spec.Subtitle = "javascript:alert(1)" }, want: "unsafe"},
-		{name: "remote URL", mutate: func(spec *ChartSpec) { spec.Other.Label = "https://evil.example" }, want: "unsafe"},
-		{name: "eval", mutate: func(spec *ChartSpec) { spec.Series[0].Label = "eval(payload)" }, want: "unsafe"},
-		{name: "SQL", mutate: func(spec *ChartSpec) { spec.Table.Caption = "DROP TABLE transaction" }, want: "unsafe"},
-		{name: "native config path", mutate: func(spec *ChartSpec) { spec.Series[0].Key = "options.plugins" }, want: "unsupported chart series"},
-		{name: "Other without topN", mutate: func(spec *ChartSpec) { spec.Other.Enabled = true }, want: "requires topN"},
+		{
+			name:   "unsupported type",
+			mutate: func(spec *ChartSpec) { spec.Type = "radar" },
+			want:   "unsupported chart type",
+		},
+		{
+			name:   "HTML",
+			mutate: func(spec *ChartSpec) { spec.Title = "<script>alert(1)</script>" },
+			want:   "unsafe",
+		},
+		{
+			name:   "JavaScript URL",
+			mutate: func(spec *ChartSpec) { spec.Subtitle = "javascript:alert(1)" },
+			want:   "unsafe",
+		},
+		{
+			name:   "remote URL",
+			mutate: func(spec *ChartSpec) { spec.Other.Label = "https://evil.example" },
+			want:   "unsafe",
+		},
+		{
+			name:   "eval",
+			mutate: func(spec *ChartSpec) { spec.Series[0].Label = "eval(payload)" },
+			want:   "unsafe",
+		},
+		{
+			name:   "SQL",
+			mutate: func(spec *ChartSpec) { spec.Table.Caption = "DROP TABLE transaction" },
+			want:   "unsafe",
+		},
+		{
+			name:   "native config path",
+			mutate: func(spec *ChartSpec) { spec.Series[0].Key = "options.plugins" },
+			want:   "unsupported chart series",
+		},
+		{
+			name:   "Other without topN",
+			mutate: func(spec *ChartSpec) { spec.Other.Enabled = true },
+			want:   "requires topN",
+		},
 	}
 
 	for _, test := range tests {
@@ -81,7 +113,11 @@ func TestNormalizeRenderRequestAppliesSafeCanonicalDefaults(t *testing.T) {
 	require.Equal(t, StackingNone, normalized.Chart.Stacking)
 	require.Equal(t, ChartSort{By: SortDimension, Direction: SortAscending}, normalized.Chart.Sort)
 	require.Equal(t, OtherBucket{Label: "Other"}, normalized.Chart.Other)
-	require.Equal(t, ChartTableSpec{Enabled: true, Caption: "Spending data"}, normalized.Chart.Table)
+	require.Equal(
+		t,
+		ChartTableSpec{Enabled: true, Caption: "Spending data"},
+		normalized.Chart.Table,
+	)
 }
 
 func TestNormalizeRenderRequestReconcilesCashflowGranularity(t *testing.T) {
@@ -118,18 +154,66 @@ func TestComparisonPeriodsPreservesAuthoritativeBucketValues(t *testing.T) {
 		{
 			Currency: "RUB",
 			Points: []CashflowPoint{
-				{ID: "period:2026-08-01", From: "2026-08-01", To: "2026-08-02", Label: "2026-08-01", Income: "10.50", Outcome: "2.25", Net: "8.25"},
-				{ID: "period:2026-08-02", From: "2026-08-02", To: "2026-08-03", Label: "2026-08-02", Income: "4", Outcome: "5", Net: "-1"},
-				{ID: "period:2026-08-03", From: "2026-08-03", To: "2026-08-04", Label: "2026-08-03", Income: "0", Outcome: "1", Net: "-1"},
+				{
+					ID:      "period:2026-08-01",
+					From:    "2026-08-01",
+					To:      "2026-08-02",
+					Label:   "2026-08-01",
+					Income:  "10.50",
+					Outcome: "2.25",
+					Net:     "8.25",
+				},
+				{
+					ID:      "period:2026-08-02",
+					From:    "2026-08-02",
+					To:      "2026-08-03",
+					Label:   "2026-08-02",
+					Income:  "4",
+					Outcome: "5",
+					Net:     "-1",
+				},
+				{
+					ID:      "period:2026-08-03",
+					From:    "2026-08-03",
+					To:      "2026-08-04",
+					Label:   "2026-08-03",
+					Income:  "0",
+					Outcome: "1",
+					Net:     "-1",
+				},
 			},
 			Totals: CashflowTotals{Income: "14.50", Outcome: "8.25", Net: "6.25"},
 		},
 		{
 			Currency: "RUB",
 			Points: []CashflowPoint{
-				{ID: "period:2026-07-29", From: "2026-07-29", To: "2026-07-30", Label: "2026-07-29", Income: "7", Outcome: "2", Net: "5"},
-				{ID: "period:2026-07-30", From: "2026-07-30", To: "2026-07-31", Label: "2026-07-30", Income: "1", Outcome: "4.75", Net: "-3.75"},
-				{ID: "period:2026-07-31", From: "2026-07-31", To: "2026-08-01", Label: "2026-07-31", Income: "2", Outcome: "2", Net: "0"},
+				{
+					ID:      "period:2026-07-29",
+					From:    "2026-07-29",
+					To:      "2026-07-30",
+					Label:   "2026-07-29",
+					Income:  "7",
+					Outcome: "2",
+					Net:     "5",
+				},
+				{
+					ID:      "period:2026-07-30",
+					From:    "2026-07-30",
+					To:      "2026-07-31",
+					Label:   "2026-07-30",
+					Income:  "1",
+					Outcome: "4.75",
+					Net:     "-3.75",
+				},
+				{
+					ID:      "period:2026-07-31",
+					From:    "2026-07-31",
+					To:      "2026-08-01",
+					Label:   "2026-07-31",
+					Income:  "2",
+					Outcome: "2",
+					Net:     "0",
+				},
 			},
 			Totals: CashflowTotals{Income: "10", Outcome: "8.75", Net: "1.25"},
 		},
@@ -162,8 +246,11 @@ func TestComparisonPeriodsPreservesAuthoritativeBucketValues(t *testing.T) {
 		result.Data[1].Values[1].Value,
 		result.Data[2].Values[1].Value,
 	})
-	require.Equal(t, []string{"comparison:bucket:0000", "comparison:bucket:0001", "comparison:bucket:0002"},
-		[]string{result.Data[0].ID, result.Data[1].ID, result.Data[2].ID})
+	require.Equal(
+		t,
+		[]string{"comparison:bucket:0000", "comparison:bucket:0001", "comparison:bucket:0002"},
+		[]string{result.Data[0].ID, result.Data[1].ID, result.Data[2].ID},
+	)
 	require.NotNil(t, result.PreviousReport)
 	require.NotNil(t, result.Comparison)
 	require.Equal(t, "2026-08-01", result.Comparison.CurrentPeriod.From)
@@ -204,7 +291,9 @@ func TestComparisonPeriodsRejectsNoOpConfigurations(t *testing.T) {
 
 	request = cashflowRenderRequest("2026-08-01", "2026-08-03", GranularityDay)
 	request.Chart.ComparisonPeriods = true
-	request.Chart.Series = []ChartSeries{{Key: SeriesIncome, Label: "Income", Format: FormatCurrency}}
+	request.Chart.Series = []ChartSeries{
+		{Key: SeriesIncome, Label: "Income", Format: FormatCurrency},
+	}
 	_, err = service.NormalizeRenderRequest(request)
 	require.ErrorContains(t, err, "exactly the net series")
 }
@@ -264,7 +353,9 @@ func TestRenderRejectsReportSeriesMismatchBeforeStore(t *testing.T) {
 		}},
 		Chart: validChartSpec(ChartBar),
 	}
-	request.Chart.Series = []ChartSeries{{Key: SeriesIncome, Label: "Income", Format: FormatCurrency}}
+	request.Chart.Series = []ChartSeries{
+		{Key: SeriesIncome, Label: "Income", Format: FormatCurrency},
+	}
 
 	_, err := service.RenderFinanceChart(
 		context.Background(), Principal{Subject: "user", UserIDs: []int64{1}}, request,

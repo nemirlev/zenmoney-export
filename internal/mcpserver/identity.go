@@ -25,7 +25,10 @@ type IdentityResolver interface {
 
 type IdentityResolverFunc func(context.Context, *http.Request) (analytics.Principal, error)
 
-func (f IdentityResolverFunc) Resolve(ctx context.Context, request *http.Request) (analytics.Principal, error) {
+func (f IdentityResolverFunc) Resolve(
+	ctx context.Context,
+	request *http.Request,
+) (analytics.Principal, error) {
 	return f(ctx, request)
 }
 
@@ -35,7 +38,10 @@ type StaticIdentityResolver struct {
 	Principal analytics.Principal
 }
 
-func (r StaticIdentityResolver) Resolve(context.Context, *http.Request) (analytics.Principal, error) {
+func (r StaticIdentityResolver) Resolve(
+	context.Context,
+	*http.Request,
+) (analytics.Principal, error) {
 	return r.Principal, nil
 }
 
@@ -48,7 +54,10 @@ type BearerIdentityResolver struct {
 	principal           analytics.Principal
 }
 
-func NewBearerIdentityResolver(token string, principal analytics.Principal) (*BearerIdentityResolver, error) {
+func NewBearerIdentityResolver(
+	token string,
+	principal analytics.Principal,
+) (*BearerIdentityResolver, error) {
 	if token == "" || strings.TrimSpace(token) != token || strings.ContainsAny(token, " \t\r\n") {
 		return nil, errors.New("bearer token must be non-empty and contain no whitespace")
 	}
@@ -61,7 +70,10 @@ func NewBearerIdentityResolver(token string, principal analytics.Principal) (*Be
 	}, nil
 }
 
-func (r *BearerIdentityResolver) Resolve(_ context.Context, request *http.Request) (analytics.Principal, error) {
+func (r *BearerIdentityResolver) Resolve(
+	_ context.Context,
+	request *http.Request,
+) (analytics.Principal, error) {
 	if r == nil || request == nil {
 		return analytics.Principal{}, ErrUnauthenticated
 	}

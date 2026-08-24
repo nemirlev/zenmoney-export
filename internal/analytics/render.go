@@ -80,10 +80,14 @@ func (s *Service) normalizeChartSpec(
 
 	if report.Kind != ReportCashflow {
 		if chart.Granularity != "" {
-			return ChartSpec{}, errors.New("chart granularity is only valid for cashflow period reports")
+			return ChartSpec{}, errors.New(
+				"chart granularity is only valid for cashflow period reports",
+			)
 		}
 		if chart.ComparisonPeriods {
-			return ChartSpec{}, errors.New("comparison periods are only valid for cashflow period reports")
+			return ChartSpec{}, errors.New(
+				"comparison periods are only valid for cashflow period reports",
+			)
 		}
 		return chart, nil
 	}
@@ -118,10 +122,14 @@ func (s *Service) normalizeChartSpec(
 		return ChartSpec{}, errors.New("comparison periods currently support only line charts")
 	}
 	if reportGranularity != GranularityDay {
-		return ChartSpec{}, errors.New("comparison periods currently support only daily granularity")
+		return ChartSpec{}, errors.New(
+			"comparison periods currently support only daily granularity",
+		)
 	}
 	if len(chart.Series) != 1 || chart.Series[0].Key != SeriesNet {
-		return ChartSpec{}, errors.New("comparison periods currently require exactly the net series")
+		return ChartSpec{}, errors.New(
+			"comparison periods currently require exactly the net series",
+		)
 	}
 	format := chart.Series[0].Format
 	chart.Series = []ChartSeries{
@@ -158,7 +166,10 @@ func (s *Service) previousCashflowReport(
 	}
 	canonical, _, _, err := s.normalizeCashflowRequest(request)
 	if err != nil {
-		return NormalizedReportRequest{}, fmt.Errorf("normalize previous comparison period: %w", err)
+		return NormalizedReportRequest{}, fmt.Errorf(
+			"normalize previous comparison period: %w",
+			err,
+		)
 	}
 	return NormalizedReportRequest{Kind: ReportCashflow, Cashflow: &canonical}, nil
 }
@@ -290,8 +301,11 @@ func (s *Service) comparisonChartData(
 		{Key: "previous_net", Label: "Previous net", Format: FormatCurrency},
 	}, Rows: rows}
 	metadata := ChartComparisonMetadata{
-		CurrentPeriod: *current.Cashflow.Metadata.Period, PreviousPeriod: *previous.Cashflow.Metadata.Period,
-		Granularity: GranularityDay, Alignment: "calendar_day_index", BucketCount: bucketCount,
+		CurrentPeriod:  *current.Cashflow.Metadata.Period,
+		PreviousPeriod: *previous.Cashflow.Metadata.Period,
+		Granularity:    GranularityDay,
+		Alignment:      "calendar_day_index",
+		BucketCount:    bucketCount,
 	}
 	return points, table, metadata, nil
 }
@@ -312,9 +326,12 @@ func chartData(report ReportEnvelope) ([]ChartDataPoint, TableFallback, error) {
 		}
 		points := make([]ChartDataPoint, 0, len(report.SpendingSummary.Categories))
 		for _, row := range report.SpendingSummary.Categories {
-			points = append(points, ChartDataPoint{ID: row.ID, Label: row.Title, Values: []ChartValue{
-				{Series: SeriesAmount, Value: row.Amount},
-			}})
+			points = append(
+				points,
+				ChartDataPoint{ID: row.ID, Label: row.Title, Values: []ChartValue{
+					{Series: SeriesAmount, Value: row.Amount},
+				}},
+			)
 		}
 		return points, report.SpendingSummary.Table, nil
 	case ReportCashflow:
@@ -323,11 +340,14 @@ func chartData(report ReportEnvelope) ([]ChartDataPoint, TableFallback, error) {
 		}
 		points := make([]ChartDataPoint, 0, len(report.Cashflow.Points))
 		for _, row := range report.Cashflow.Points {
-			points = append(points, ChartDataPoint{ID: row.ID, Label: row.Label, Values: []ChartValue{
-				{Series: SeriesIncome, Value: row.Income},
-				{Series: SeriesOutcome, Value: row.Outcome},
-				{Series: SeriesNet, Value: row.Net},
-			}})
+			points = append(
+				points,
+				ChartDataPoint{ID: row.ID, Label: row.Label, Values: []ChartValue{
+					{Series: SeriesIncome, Value: row.Income},
+					{Series: SeriesOutcome, Value: row.Outcome},
+					{Series: SeriesNet, Value: row.Net},
+				}},
+			)
 		}
 		return points, report.Cashflow.Table, nil
 	case ReportBudgetProgress:
@@ -340,10 +360,15 @@ func chartData(report ReportEnvelope) ([]ChartDataPoint, TableFallback, error) {
 			if row.Percent != nil {
 				percent = *row.Percent
 			}
-			points = append(points, ChartDataPoint{ID: row.ID, Label: row.Title, Values: []ChartValue{
-				{Series: SeriesBudget, Value: row.Budget}, {Series: SeriesSpent, Value: row.Spent},
-				{Series: SeriesRemaining, Value: row.Remaining}, {Series: SeriesPercent, Value: percent},
-			}})
+			points = append(
+				points,
+				ChartDataPoint{ID: row.ID, Label: row.Title, Values: []ChartValue{
+					{Series: SeriesBudget, Value: row.Budget},
+					{Series: SeriesSpent, Value: row.Spent},
+					{Series: SeriesRemaining, Value: row.Remaining},
+					{Series: SeriesPercent, Value: percent},
+				}},
+			)
 		}
 		return points, report.BudgetProgress.Table, nil
 	case ReportTransactions:
@@ -402,7 +427,11 @@ func applyPresentation(points []ChartDataPoint, spec ChartSpec) ([]ChartDataPoin
 	if label == "" {
 		label = "Other"
 	}
-	other := ChartDataPoint{ID: "presentation:other", Label: label, Values: make([]ChartValue, 0, len(spec.Series))}
+	other := ChartDataPoint{
+		ID:     "presentation:other",
+		Label:  label,
+		Values: make([]ChartValue, 0, len(spec.Series)),
+	}
 	for _, series := range spec.Series {
 		values := make([]Decimal, 0, len(remainder))
 		for _, point := range remainder {

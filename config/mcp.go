@@ -64,35 +64,62 @@ func NewMCPConfigFromEnv() (*MCPConfig, error) {
 		databaseURL = strings.TrimSpace(os.Getenv("DB_URL"))
 	}
 	config := &MCPConfig{
-		ListenAddress:  strings.TrimSpace(envOrDefault("ZENMCP_LISTEN_ADDRESS", defaultMCPListenAddress)),
-		Endpoint:       strings.TrimSpace(envOrDefault("ZENMCP_ENDPOINT", defaultMCPEndpoint)),
-		DatabaseURL:    databaseURL,
-		LogLevel:       strings.ToLower(strings.TrimSpace(envOrDefault("ZENMCP_LOG_LEVEL", defaultMCPLogLevel))),
-		AuthMode:       MCPAuthMode(strings.ToLower(strings.TrimSpace(envOrDefault("ZENMCP_AUTH_MODE", string(MCPAuthLocal))))),
-		BearerToken:    os.Getenv("ZENMCP_BEARER_TOKEN"),
-		ReportTimezone: strings.TrimSpace(envOrDefault("ZENMCP_REPORT_TIMEZONE", defaultMCPReportTimezone)),
+		ListenAddress: strings.TrimSpace(
+			envOrDefault("ZENMCP_LISTEN_ADDRESS", defaultMCPListenAddress),
+		),
+		Endpoint:    strings.TrimSpace(envOrDefault("ZENMCP_ENDPOINT", defaultMCPEndpoint)),
+		DatabaseURL: databaseURL,
+		LogLevel: strings.ToLower(
+			strings.TrimSpace(envOrDefault("ZENMCP_LOG_LEVEL", defaultMCPLogLevel)),
+		),
+		AuthMode: MCPAuthMode(
+			strings.ToLower(
+				strings.TrimSpace(envOrDefault("ZENMCP_AUTH_MODE", string(MCPAuthLocal))),
+			),
+		),
+		BearerToken: os.Getenv("ZENMCP_BEARER_TOKEN"),
+		ReportTimezone: strings.TrimSpace(
+			envOrDefault("ZENMCP_REPORT_TIMEZONE", defaultMCPReportTimezone),
+		),
 	}
 
 	var err error
 	if config.UserIDs, err = parseMCPUserIDs(os.Getenv("ZENMCP_USER_IDS")); err != nil {
 		return nil, err
 	}
-	if config.AllowedOrigins, err = parseMCPOrigins(os.Getenv("ZENMCP_ALLOWED_ORIGINS")); err != nil {
+	if config.AllowedOrigins, err = parseMCPOrigins(
+		os.Getenv("ZENMCP_ALLOWED_ORIGINS"),
+	); err != nil {
 		return nil, err
 	}
-	if config.MaxPeriodDays, err = envPositiveInt("ZENMCP_MAX_PERIOD_DAYS", defaultMCPMaxPeriodDays); err != nil {
+	if config.MaxPeriodDays, err = envPositiveInt(
+		"ZENMCP_MAX_PERIOD_DAYS",
+		defaultMCPMaxPeriodDays,
+	); err != nil {
 		return nil, err
 	}
-	if config.DefaultPageSize, err = envPositiveInt("ZENMCP_DEFAULT_PAGE_SIZE", defaultMCPPageSize); err != nil {
+	if config.DefaultPageSize, err = envPositiveInt(
+		"ZENMCP_DEFAULT_PAGE_SIZE",
+		defaultMCPPageSize,
+	); err != nil {
 		return nil, err
 	}
-	if config.MaxPageSize, err = envPositiveInt("ZENMCP_MAX_PAGE_SIZE", defaultMCPMaxPageSize); err != nil {
+	if config.MaxPageSize, err = envPositiveInt(
+		"ZENMCP_MAX_PAGE_SIZE",
+		defaultMCPMaxPageSize,
+	); err != nil {
 		return nil, err
 	}
-	if config.MaxChartPoints, err = envPositiveInt("ZENMCP_MAX_CHART_POINTS", defaultMCPMaxChartPoints); err != nil {
+	if config.MaxChartPoints, err = envPositiveInt(
+		"ZENMCP_MAX_CHART_POINTS",
+		defaultMCPMaxChartPoints,
+	); err != nil {
 		return nil, err
 	}
-	if config.MaxFilterValues, err = envPositiveInt("ZENMCP_MAX_FILTER_VALUES", defaultMCPMaxFilterValues); err != nil {
+	if config.MaxFilterValues, err = envPositiveInt(
+		"ZENMCP_MAX_FILTER_VALUES",
+		defaultMCPMaxFilterValues,
+	); err != nil {
 		return nil, err
 	}
 	if config.MaxRequestBodyBytes, err = envPositiveInt64(
@@ -100,10 +127,16 @@ func NewMCPConfigFromEnv() (*MCPConfig, error) {
 	); err != nil {
 		return nil, err
 	}
-	if config.StaleAfter, err = envPositiveDuration("ZENMCP_STALE_AFTER", defaultMCPStaleAfter); err != nil {
+	if config.StaleAfter, err = envPositiveDuration(
+		"ZENMCP_STALE_AFTER",
+		defaultMCPStaleAfter,
+	); err != nil {
 		return nil, err
 	}
-	if config.RequestTimeout, err = envPositiveDuration("ZENMCP_REQUEST_TIMEOUT", defaultMCPRequestTimeout); err != nil {
+	if config.RequestTimeout, err = envPositiveDuration(
+		"ZENMCP_REQUEST_TIMEOUT",
+		defaultMCPRequestTimeout,
+	); err != nil {
 		return nil, err
 	}
 
@@ -166,10 +199,16 @@ func ValidateMCPConfig(config *MCPConfig) error {
 		return errors.New("default MCP page size must not exceed maximum page size")
 	}
 	if config.MaxPageSize > maxMCPPostgresRows {
-		return fmt.Errorf("maximum MCP page size must not exceed PostgreSQL hard limit %d", maxMCPPostgresRows)
+		return fmt.Errorf(
+			"maximum MCP page size must not exceed PostgreSQL hard limit %d",
+			maxMCPPostgresRows,
+		)
 	}
 	if config.MaxChartPoints > maxMCPPostgresRows {
-		return fmt.Errorf("maximum MCP chart points must not exceed PostgreSQL hard limit %d", maxMCPPostgresRows)
+		return fmt.Errorf(
+			"maximum MCP chart points must not exceed PostgreSQL hard limit %d",
+			maxMCPPostgresRows,
+		)
 	}
 	for _, origin := range config.AllowedOrigins {
 		if _, err := normalizeMCPOrigin(origin); err != nil {
@@ -292,7 +331,9 @@ func validateMCPEndpoint(endpoint string) error {
 	if err != nil || parsed.Path != endpoint || parsed.RawQuery != "" || parsed.Fragment != "" ||
 		!strings.HasPrefix(endpoint, "/") || endpoint == "/" || path.Clean(endpoint) != endpoint ||
 		endpoint == "/healthz" || endpoint == "/readyz" {
-		return errors.New("MCP endpoint must be a clean absolute path distinct from health endpoints")
+		return errors.New(
+			"MCP endpoint must be a clean absolute path distinct from health endpoints",
+		)
 	}
 	return nil
 }

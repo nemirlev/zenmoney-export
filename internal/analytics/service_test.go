@@ -128,7 +128,11 @@ func TestServiceUsesConfiguredTimezoneWhenRequestOmitsIt(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "Europe/Moscow", store.spendingQuery.Range.Timezone)
 	require.Equal(t, "Europe/Moscow", result.Metadata.Period.Timezone)
-	require.Equal(t, "Europe/Moscow", result.Metadata.NormalizedRequest.SpendingSummary.Period.Timezone)
+	require.Equal(
+		t,
+		"Europe/Moscow",
+		result.Metadata.NormalizedRequest.SpendingSummary.Period.Timezone,
+	)
 }
 
 func TestPublicRequestsDoNotContainModelSelectedCurrency(t *testing.T) {
@@ -332,12 +336,15 @@ func TestDataFreshnessIsDatabaseScopedWithoutPublicRecordCounts(t *testing.T) {
 	service.now = func() time.Time { return finished }
 
 	result, err := service.GetDataFreshness(
-		context.Background(), Principal{Subject: "user", UserIDs: []int64{1}}, DataFreshnessRequest{},
+		context.Background(),
+		Principal{Subject: "user", UserIDs: []int64{1}},
+		DataFreshnessRequest{},
 	)
 	require.NoError(t, err)
 	require.Equal(t, FreshnessScopeDatabase, result.Scope)
 	require.Contains(
-		t, result.Metadata.Rules.Limitations,
+		t,
+		result.Metadata.Rules.Limitations,
 		"sync_status has database-wide scope because the schema lacks per-user synchronization provenance",
 	)
 	for _, column := range result.Table.Columns {
@@ -462,7 +469,10 @@ func TestServiceWrapsStoreErrors(t *testing.T) {
 
 func newTestService(t *testing.T, store AnalyticsStore) *Service {
 	t.Helper()
-	service, err := NewService(store, Limits{MaxPeriodDays: 365, MaxPageSize: 100, MaxChartPoints: 100})
+	service, err := NewService(
+		store,
+		Limits{MaxPeriodDays: 365, MaxPageSize: 100, MaxChartPoints: 100},
+	)
 	require.NoError(t, err)
 	return service
 }

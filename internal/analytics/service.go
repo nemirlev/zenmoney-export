@@ -75,7 +75,12 @@ func (s *Service) GetSpendingSummary(
 	normalized := NormalizedReportRequest{Kind: ReportSpendingSummary, SpendingSummary: &canonical}
 	return SpendingSummaryResult{
 		Metadata: reportMetadata(
-			ReportSpendingSummary, &period, data.Currency, query.Filters, data.LastSyncAt, normalized,
+			ReportSpendingSummary,
+			&period,
+			data.Currency,
+			query.Filters,
+			data.LastSyncAt,
+			normalized,
 		),
 		Total: data.Total, TransactionCount: data.TransactionCount,
 		Categories: nonNilSpendingRows(data.Categories),
@@ -137,7 +142,12 @@ func (s *Service) GetBudgetProgress(
 	normalized := NormalizedReportRequest{Kind: ReportBudgetProgress, BudgetProgress: &canonical}
 	return BudgetProgressResult{
 		Metadata: reportMetadata(
-			ReportBudgetProgress, &period, data.Currency, query.Filters, data.LastSyncAt, normalized,
+			ReportBudgetProgress,
+			&period,
+			data.Currency,
+			query.Filters,
+			data.LastSyncAt,
+			normalized,
 		),
 		Rows: nonNilBudgetRows(data.Rows), Totals: data.Totals,
 		HasMore: data.HasMore, Truncated: data.HasMore,
@@ -225,7 +235,9 @@ func (s *Service) GetDataFreshness(
 
 func (s *Service) NormalizeReportRequest(request ReportRequest) (NormalizedReportRequest, error) {
 	if reportPayloadCount(request) != 1 {
-		return NormalizedReportRequest{}, errors.New("report request must contain exactly one payload")
+		return NormalizedReportRequest{}, errors.New(
+			"report request must contain exactly one payload",
+		)
 	}
 	switch request.Kind {
 	case ReportSpendingSummary:
@@ -261,7 +273,10 @@ func (s *Service) NormalizeReportRequest(request ReportRequest) (NormalizedRepor
 	default:
 		return NormalizedReportRequest{}, fmt.Errorf("unsupported report kind %q", request.Kind)
 	}
-	return NormalizedReportRequest{}, fmt.Errorf("report kind %q does not match its payload", request.Kind)
+	return NormalizedReportRequest{}, fmt.Errorf(
+		"report kind %q does not match its payload",
+		request.Kind,
+	)
 }
 
 func (s *Service) ExecuteNormalizedReport(
@@ -449,7 +464,9 @@ func (s *Service) normalizePeriod(
 		return DateRange{}, Period{}, PeriodRequest{}, errors.New("period.to must be YYYY-MM-DD")
 	}
 	if toInclusive.Before(from) {
-		return DateRange{}, Period{}, PeriodRequest{}, errors.New("period.to must not precede period.from")
+		return DateRange{}, Period{}, PeriodRequest{}, errors.New(
+			"period.to must not precede period.from",
+		)
 	}
 	days := int(toInclusive.Sub(from).Hours()/24) + 1
 	if days > s.limits.MaxPeriodDays {
@@ -641,7 +658,11 @@ func decodeCursor(value string) (*TransactionCursor, error) {
 	if err != nil || !uuidPattern.MatchString(strings.ToLower(decoded.ID)) || decoded.Created < 0 {
 		return nil, errors.New("invalid transaction cursor")
 	}
-	return &TransactionCursor{Date: date, Created: decoded.Created, ID: strings.ToLower(decoded.ID)}, nil
+	return &TransactionCursor{
+		Date:    date,
+		Created: decoded.Created,
+		ID:      strings.ToLower(decoded.ID),
+	}, nil
 }
 
 func reportPayloadCount(request ReportRequest) int {

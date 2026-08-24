@@ -185,14 +185,19 @@ func verifyAnalyticsSnapshotIsolation(
 			return nil, err
 		}
 		var before string
-		if err := executor.QueryRow(ctx, `SELECT rate::text FROM instrument WHERE id = 1`).Scan(&before); err != nil {
+		if err := executor.QueryRow(ctx, `SELECT rate::text FROM instrument WHERE id = 1`).
+			Scan(&before); err != nil {
 			return nil, err
 		}
-		if _, err := outside.Exec(ctx, `UPDATE instrument SET rate = 101 WHERE id = 1`); err != nil {
+		if _, err := outside.Exec(
+			ctx,
+			`UPDATE instrument SET rate = 101 WHERE id = 1`,
+		); err != nil {
 			return nil, err
 		}
 		var after string
-		if err := executor.QueryRow(ctx, `SELECT rate::text FROM instrument WHERE id = 1`).Scan(&after); err != nil {
+		if err := executor.QueryRow(ctx, `SELECT rate::text FROM instrument WHERE id = 1`).
+			Scan(&after); err != nil {
 			return nil, err
 		}
 		return []string{readOnly, isolation, before, after}, nil
@@ -201,7 +206,10 @@ func verifyAnalyticsSnapshotIsolation(
 	require.Equal(t, []string{"on", "repeatable read", "100", "100"}, observed)
 
 	var committed string
-	require.NoError(t, outside.QueryRow(ctx, `SELECT rate::text FROM instrument WHERE id = 1`).Scan(&committed))
+	require.NoError(
+		t,
+		outside.QueryRow(ctx, `SELECT rate::text FROM instrument WHERE id = 1`).Scan(&committed),
+	)
 	require.Equal(t, "101", committed)
 }
 

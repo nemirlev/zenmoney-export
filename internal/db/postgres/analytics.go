@@ -50,8 +50,14 @@ func withAnalyticsSnapshot[T any](
 
 	result, err := read(tx)
 	if err != nil {
-		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {
-			return zero, errors.Join(err, fmt.Errorf("rollback analytics snapshot: %w", rollbackErr))
+		if rollbackErr := tx.Rollback(
+			ctx,
+		); rollbackErr != nil &&
+			!errors.Is(rollbackErr, pgx.ErrTxClosed) {
+			return zero, errors.Join(
+				err,
+				fmt.Errorf("rollback analytics snapshot: %w", rollbackErr),
+			)
 		}
 		return zero, err
 	}
@@ -100,7 +106,11 @@ func validateAnalyticsPrincipal(principal analytics.Principal) error {
 		return ErrAnalyticsAccessScope
 	}
 	if len(principal.UserIDs) > maxAnalyticsUsers {
-		return fmt.Errorf("%w: at most %d authorized users", ErrAnalyticsAccessScope, maxAnalyticsUsers)
+		return fmt.Errorf(
+			"%w: at most %d authorized users",
+			ErrAnalyticsAccessScope,
+			maxAnalyticsUsers,
+		)
 	}
 	return nil
 }
@@ -135,7 +145,8 @@ func (s *DB) analyticsReportCurrency(
 	if err != nil {
 		return "", fmt.Errorf("resolve analytics currency: %w", err)
 	}
-	if currency == "" || currencyCount != 1 || userCount != int64(uniqueUserCount(principal.UserIDs)) {
+	if currency == "" || currencyCount != 1 ||
+		userCount != int64(uniqueUserCount(principal.UserIDs)) {
 		return "", ErrAnalyticsCurrency
 	}
 	return currency, nil

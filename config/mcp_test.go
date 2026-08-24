@@ -46,7 +46,10 @@ func TestNewMCPConfigFromEnvReadsLimitsOriginsAndBearerMode(t *testing.T) {
 	t.Setenv("ZENMCP_AUTH_MODE", "bearer")
 	t.Setenv("ZENMCP_BEARER_TOKEN", "0123456789abcdef0123456789abcdef")
 	t.Setenv("ZENMCP_USER_IDS", "42")
-	t.Setenv("ZENMCP_ALLOWED_ORIGINS", "https://app.example/, http://localhost:3000,https://app.example")
+	t.Setenv(
+		"ZENMCP_ALLOWED_ORIGINS",
+		"https://app.example/, http://localhost:3000,https://app.example",
+	)
 	t.Setenv("ZENMCP_REPORT_TIMEZONE", "Europe/Moscow")
 	t.Setenv("ZENMCP_LOG_LEVEL", "debug")
 	t.Setenv("ZENMCP_MAX_PERIOD_DAYS", "90")
@@ -62,7 +65,11 @@ func TestNewMCPConfigFromEnvReadsLimitsOriginsAndBearerMode(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, MCPAuthBearer, config.AuthMode)
-	require.Equal(t, []string{"http://localhost:3000", "https://app.example"}, config.AllowedOrigins)
+	require.Equal(
+		t,
+		[]string{"http://localhost:3000", "https://app.example"},
+		config.AllowedOrigins,
+	)
 	require.Equal(t, "Europe/Moscow", config.ReportTimezone)
 	require.Equal(t, 90, config.MaxPeriodDays)
 	require.Equal(t, 20, config.DefaultPageSize)
@@ -125,19 +132,71 @@ func TestValidateMCPConfigRejectsInvalidPathsOriginsAndLimits(t *testing.T) {
 		mutate func(*MCPConfig)
 		want   string
 	}{
-		{name: "missing database", mutate: func(config *MCPConfig) { config.DatabaseURL = "" }, want: "database URL"},
-		{name: "relative endpoint", mutate: func(config *MCPConfig) { config.Endpoint = "mcp" }, want: "absolute path"},
-		{name: "health collision", mutate: func(config *MCPConfig) { config.Endpoint = "/healthz" }, want: "health endpoints"},
-		{name: "query endpoint", mutate: func(config *MCPConfig) { config.Endpoint = "/mcp?x=1" }, want: "absolute path"},
-		{name: "origin with path", mutate: func(config *MCPConfig) { config.AllowedOrigins = []string{"https://example.com/path"} }, want: "invalid trusted"},
-		{name: "javascript origin", mutate: func(config *MCPConfig) { config.AllowedOrigins = []string{"javascript:alert(1)"} }, want: "invalid trusted"},
-		{name: "invalid timezone", mutate: func(config *MCPConfig) { config.ReportTimezone = "Mars/Base" }, want: "timezone"},
-		{name: "invalid log level", mutate: func(config *MCPConfig) { config.LogLevel = "trace" }, want: "log level"},
-		{name: "page sizes reversed", mutate: func(config *MCPConfig) { config.DefaultPageSize = 101 }, want: "must not exceed"},
-		{name: "page limit above store hard limit", mutate: func(config *MCPConfig) { config.MaxPageSize = 501 }, want: "PostgreSQL hard limit 500"},
-		{name: "chart limit above store hard limit", mutate: func(config *MCPConfig) { config.MaxChartPoints = 501 }, want: "PostgreSQL hard limit 500"},
-		{name: "zero body limit", mutate: func(config *MCPConfig) { config.MaxRequestBodyBytes = 0 }, want: "greater than zero"},
-		{name: "zero request timeout", mutate: func(config *MCPConfig) { config.RequestTimeout = 0 }, want: "greater than zero"},
+		{
+			name:   "missing database",
+			mutate: func(config *MCPConfig) { config.DatabaseURL = "" },
+			want:   "database URL",
+		},
+		{
+			name:   "relative endpoint",
+			mutate: func(config *MCPConfig) { config.Endpoint = "mcp" },
+			want:   "absolute path",
+		},
+		{
+			name:   "health collision",
+			mutate: func(config *MCPConfig) { config.Endpoint = "/healthz" },
+			want:   "health endpoints",
+		},
+		{
+			name:   "query endpoint",
+			mutate: func(config *MCPConfig) { config.Endpoint = "/mcp?x=1" },
+			want:   "absolute path",
+		},
+		{
+			name:   "origin with path",
+			mutate: func(config *MCPConfig) { config.AllowedOrigins = []string{"https://example.com/path"} },
+			want:   "invalid trusted",
+		},
+		{
+			name:   "javascript origin",
+			mutate: func(config *MCPConfig) { config.AllowedOrigins = []string{"javascript:alert(1)"} },
+			want:   "invalid trusted",
+		},
+		{
+			name:   "invalid timezone",
+			mutate: func(config *MCPConfig) { config.ReportTimezone = "Mars/Base" },
+			want:   "timezone",
+		},
+		{
+			name:   "invalid log level",
+			mutate: func(config *MCPConfig) { config.LogLevel = "trace" },
+			want:   "log level",
+		},
+		{
+			name:   "page sizes reversed",
+			mutate: func(config *MCPConfig) { config.DefaultPageSize = 101 },
+			want:   "must not exceed",
+		},
+		{
+			name:   "page limit above store hard limit",
+			mutate: func(config *MCPConfig) { config.MaxPageSize = 501 },
+			want:   "PostgreSQL hard limit 500",
+		},
+		{
+			name:   "chart limit above store hard limit",
+			mutate: func(config *MCPConfig) { config.MaxChartPoints = 501 },
+			want:   "PostgreSQL hard limit 500",
+		},
+		{
+			name:   "zero body limit",
+			mutate: func(config *MCPConfig) { config.MaxRequestBodyBytes = 0 },
+			want:   "greater than zero",
+		},
+		{
+			name:   "zero request timeout",
+			mutate: func(config *MCPConfig) { config.RequestTimeout = 0 },
+			want:   "greater than zero",
+		},
 	}
 
 	for _, test := range tests {

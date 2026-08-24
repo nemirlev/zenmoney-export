@@ -152,7 +152,9 @@ var dangerousPresentationPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)\bhttps?\s*://|\bwww\.`),
 	regexp.MustCompile(`(?i)\b(eval|function|settimeout|setinterval)\s*\(`),
 	regexp.MustCompile(`(?i)\bon[a-z]+\s*=`),
-	regexp.MustCompile(`(?i)\b(select|insert|update|delete|drop|alter|create|truncate|grant|revoke|union)\b`),
+	regexp.MustCompile(
+		`(?i)\b(select|insert|update|delete|drop|alter|create|truncate|grant|revoke|union)\b`,
+	),
 	regexp.MustCompile(`(?i)(--|/\*|\*/|=>)`),
 }
 
@@ -280,8 +282,12 @@ func validateChartForReport(kind ReportKind, spec ChartSpec) error {
 		ReportTransactions: {SeriesAmount: true},
 	}[kind]
 	for _, series := range spec.Series {
-		if !spec.ComparisonPeriods && (series.Key == SeriesCurrentNet || series.Key == SeriesPreviousNet) {
-			return fmt.Errorf("series %q is only available in server-derived comparisons", series.Key)
+		if !spec.ComparisonPeriods &&
+			(series.Key == SeriesCurrentNet || series.Key == SeriesPreviousNet) {
+			return fmt.Errorf(
+				"series %q is only available in server-derived comparisons",
+				series.Key,
+			)
 		}
 		if !allowed[series.Key] {
 			return fmt.Errorf("series %q is not available for report %q", series.Key, kind)
@@ -319,7 +325,13 @@ func validatePresentationText(name, value string, required bool) error {
 
 func validChartType(value ChartType) bool {
 	switch value {
-	case ChartBar, ChartHorizontalBar, ChartLine, ChartArea, ChartDonut, ChartStackedBar, ChartGroupedBar:
+	case ChartBar,
+		ChartHorizontalBar,
+		ChartLine,
+		ChartArea,
+		ChartDonut,
+		ChartStackedBar,
+		ChartGroupedBar:
 		return true
 	default:
 		return false

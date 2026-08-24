@@ -31,12 +31,36 @@ var financeChartHTML string
 // AnalyticsService keeps MCP transport independent from persistence. The
 // concrete analytics.Service satisfies this interface; tests can use fakes.
 type AnalyticsService interface {
-	GetSpendingSummary(context.Context, analytics.Principal, analytics.SpendingSummaryRequest) (analytics.SpendingSummaryResult, error)
-	GetCashflow(context.Context, analytics.Principal, analytics.CashflowRequest) (analytics.CashflowResult, error)
-	GetBudgetProgress(context.Context, analytics.Principal, analytics.BudgetProgressRequest) (analytics.BudgetProgressResult, error)
-	SearchTransactions(context.Context, analytics.Principal, analytics.TransactionSearchRequest) (analytics.TransactionSearchResult, error)
-	GetDataFreshness(context.Context, analytics.Principal, analytics.DataFreshnessRequest) (analytics.DataFreshnessResult, error)
-	RenderFinanceChart(context.Context, analytics.Principal, analytics.RenderFinanceChartRequest) (analytics.RenderFinanceChartResult, error)
+	GetSpendingSummary(
+		context.Context,
+		analytics.Principal,
+		analytics.SpendingSummaryRequest,
+	) (analytics.SpendingSummaryResult, error)
+	GetCashflow(
+		context.Context,
+		analytics.Principal,
+		analytics.CashflowRequest,
+	) (analytics.CashflowResult, error)
+	GetBudgetProgress(
+		context.Context,
+		analytics.Principal,
+		analytics.BudgetProgressRequest,
+	) (analytics.BudgetProgressResult, error)
+	SearchTransactions(
+		context.Context,
+		analytics.Principal,
+		analytics.TransactionSearchRequest,
+	) (analytics.TransactionSearchResult, error)
+	GetDataFreshness(
+		context.Context,
+		analytics.Principal,
+		analytics.DataFreshnessRequest,
+	) (analytics.DataFreshnessResult, error)
+	RenderFinanceChart(
+		context.Context,
+		analytics.Principal,
+		analytics.RenderFinanceChartRequest,
+	) (analytics.RenderFinanceChartResult, error)
 }
 
 var _ AnalyticsService = (*analytics.Service)(nil)
@@ -196,7 +220,14 @@ func spendingSummaryText(output analytics.SpendingSummaryResult) string {
 }
 
 func cashflowText(output analytics.CashflowResult) string {
-	return fmt.Sprintf("Cashflow: income %s, outcome %s, net %s %s across %d periods.", output.Totals.Income, output.Totals.Outcome, output.Totals.Net, output.Metadata.Currency, len(output.Points))
+	return fmt.Sprintf(
+		"Cashflow: income %s, outcome %s, net %s %s across %d periods.",
+		output.Totals.Income,
+		output.Totals.Outcome,
+		output.Totals.Net,
+		output.Metadata.Currency,
+		len(output.Points),
+	)
 }
 
 func budgetProgressText(output analytics.BudgetProgressResult) string {
@@ -221,7 +252,11 @@ func transactionSearchText(output analytics.TransactionSearchResult) string {
 	if output.NextCursor != "" {
 		continuation = " More results are available with nextCursor."
 	}
-	return fmt.Sprintf("Found %d transactions in this bounded page.%s", len(output.Items), continuation)
+	return fmt.Sprintf(
+		"Found %d transactions in this bounded page.%s",
+		len(output.Items),
+		continuation,
+	)
 }
 
 func dataFreshnessText(output analytics.DataFreshnessResult) string {
@@ -236,5 +271,10 @@ func dataFreshnessText(output analytics.DataFreshnessResult) string {
 }
 
 func renderChartText(output analytics.RenderFinanceChartResult) string {
-	return fmt.Sprintf("Prepared validated %s chart %q from %d authoritative report rows. An accessible table fallback is included.", output.Chart.Type, output.Chart.Title, len(output.Data))
+	return fmt.Sprintf(
+		"Prepared validated %s chart %q from %d authoritative report rows. An accessible table fallback is included.",
+		output.Chart.Type,
+		output.Chart.Title,
+		len(output.Data),
+	)
 }

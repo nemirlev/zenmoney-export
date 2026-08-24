@@ -18,7 +18,8 @@ func spendingTable(rows []SpendingCategory, currency string) TableFallback {
 	}
 	for _, row := range rows {
 		table.Rows = append(table.Rows, TableRow{ID: row.ID, Cells: []TableCell{
-			{Key: "category", Value: row.Title}, {Key: "amount", Value: string(row.Amount)},
+			{Key: "category", Value: row.Title},
+			{Key: "amount", Value: string(row.Amount)},
 			{Key: "share", Value: string(row.SharePercent)},
 			{Key: "transactions", Value: strconv.FormatInt(row.TransactionCount, 10)},
 		}})
@@ -39,8 +40,10 @@ func cashflowTable(points []CashflowPoint, currency string) TableFallback {
 	}
 	for _, point := range points {
 		table.Rows = append(table.Rows, TableRow{ID: point.ID, Cells: []TableCell{
-			{Key: "period", Value: point.Label}, {Key: "income", Value: string(point.Income)},
-			{Key: "outcome", Value: string(point.Outcome)}, {Key: "net", Value: string(point.Net)},
+			{Key: "period", Value: point.Label},
+			{Key: "income", Value: string(point.Income)},
+			{Key: "outcome", Value: string(point.Outcome)},
+			{Key: "net", Value: string(point.Net)},
 		}})
 	}
 	return table
@@ -64,9 +67,11 @@ func budgetTable(rows []BudgetProgressRow, currency string) TableFallback {
 			percent = string(*row.Percent)
 		}
 		table.Rows = append(table.Rows, TableRow{ID: row.ID, Cells: []TableCell{
-			{Key: "category", Value: row.Title}, {Key: "budget", Value: string(row.Budget)},
+			{Key: "category", Value: row.Title},
+			{Key: "budget", Value: string(row.Budget)},
 			{Key: "spent", Value: string(row.Spent)},
-			{Key: "remaining", Value: string(row.Remaining)}, {Key: "percent", Value: percent},
+			{Key: "remaining", Value: string(row.Remaining)},
+			{Key: "percent", Value: percent},
 		}})
 	}
 	return table
@@ -86,8 +91,10 @@ func transactionsTable(items []TransactionItem, currency string) TableFallback {
 	}
 	for _, item := range items {
 		table.Rows = append(table.Rows, TableRow{ID: item.ID, Cells: []TableCell{
-			{Key: "date", Value: item.Date}, {Key: "direction", Value: string(item.Direction)},
-			{Key: "amount", Value: string(item.Amount)}, {Key: "account", Value: item.AccountTitle},
+			{Key: "date", Value: item.Date},
+			{Key: "direction", Value: string(item.Direction)},
+			{Key: "amount", Value: string(item.Amount)},
+			{Key: "account", Value: item.AccountTitle},
 			{Key: "merchant", Value: item.MerchantTitle},
 		}})
 	}
@@ -113,7 +120,8 @@ func freshnessTable(data FreshnessData) TableFallback {
 			finished = snapshot.FinishedAt.Format(time.RFC3339)
 		}
 		table.Rows = append(table.Rows, TableRow{ID: id, Cells: []TableCell{
-			{Key: "run", Value: label}, {Key: "finished", Value: finished},
+			{Key: "run", Value: label},
+			{Key: "finished", Value: finished},
 			{Key: "status", Value: snapshot.Status},
 		}})
 	}

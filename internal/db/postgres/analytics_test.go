@@ -29,11 +29,19 @@ func TestAnalyticsSQLScopesAndClassifiesConservatively(t *testing.T) {
 	require.Contains(t, analyticsTransactionScopeSQL, `t."user"::bigint = ANY($1::bigint[])`)
 	require.Contains(t, analyticsTransactionScopeSQL, `income_account."user" = t."user"`)
 	require.Contains(t, analyticsTransactionScopeSQL, `t.deleted IS FALSE`)
-	require.Contains(t, analyticsTransactionScopeSQL, `t.hold IS FALSE OR ($4::boolean AND t.hold IS TRUE)`)
+	require.Contains(
+		t,
+		analyticsTransactionScopeSQL,
+		`t.hold IS FALSE OR ($4::boolean AND t.hold IS TRUE)`,
+	)
 	require.Contains(t, analyticsTransactionScopeSQL, `income_account.in_balance IS TRUE`)
 	require.Contains(t, analyticsTransactionScopeSQL, `t.date >= $2::date`)
 	require.Contains(t, analyticsTransactionScopeSQL, `t.date < $3::date`)
-	require.Contains(t, analyticsTransactionScopeSQL, `income_account IS NOT DISTINCT FROM outcome_account`)
+	require.Contains(
+		t,
+		analyticsTransactionScopeSQL,
+		`income_account IS NOT DISTINCT FROM outcome_account`,
+	)
 	require.Contains(t, analyticsTransactionScopeSQL, `account_type IS DISTINCT FROM 'debt'`)
 	require.Contains(t, analyticsTransactionScopeSQL, `leg.amount * source.rate / target.rate`)
 	require.Contains(t, analyticsTransactionScopeSQL, `report_user.currency`)
@@ -75,7 +83,9 @@ func TestSpendingSummaryUsesAuthenticatedScopeAndStableUncategorizedID(t *testin
 			AddRow("RUB", int64(1), int64(1)))
 	baseArgs := []any{
 		principal.UserIDs, query.Range.From, query.Range.To, false,
-		[]string{}, []string{}, []string{},
+		[]string{},
+		[]string{},
+		[]string{},
 	}
 	mock.ExpectQuery(regexp.QuoteMeta(spendingTotalsSQL)).
 		WithArgs(baseArgs...).
@@ -90,7 +100,12 @@ func TestSpendingSummaryUsesAuthenticatedScopeAndStableUncategorizedID(t *testin
 	finished := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	mock.ExpectQuery(regexp.QuoteMeta(latestCompletedSyncSQL)).
 		WillReturnRows(mock.NewRows([]string{
-			"started_at", "finished_at", "status", "sync_type", "server_timestamp", "records_processed",
+			"started_at",
+			"finished_at",
+			"status",
+			"sync_type",
+			"server_timestamp",
+			"records_processed",
 		}).AddRow(finished.Add(-time.Minute), finished, "completed", "partial", int64(99), int64(3)))
 	mock.ExpectCommit()
 
@@ -163,7 +178,9 @@ func TestCashflowReturnsBoundedServerCurrencyPoints(t *testing.T) {
 			AddRow("RUB", int64(1), int64(1)))
 	baseArgs := []any{
 		principal.UserIDs, query.Range.From, query.Range.To, false,
-		[]string{}, []string{}, []string{},
+		[]string{},
+		[]string{},
+		[]string{},
 	}
 	mock.ExpectQuery(regexp.QuoteMeta(cashflowTotalsSQL)).
 		WithArgs(baseArgs...).
@@ -201,7 +218,10 @@ func TestSearchTransactionsUsesKeysetAndStableFallbacks(t *testing.T) {
 			AddRow("RUB", int64(1), int64(1)))
 	baseArgs := []any{
 		principal.UserIDs, query.Range.From, query.Range.To, false,
-		[]string{}, []string{}, []string{}, "market", nil, int64(0), nil, 3,
+		[]string{},
+		[]string{},
+		[]string{},
+		"market", nil, int64(0), nil, 3,
 	}
 	mock.ExpectQuery(regexp.QuoteMeta(searchTransactionsSQL)).
 		WithArgs(baseArgs...).
@@ -227,7 +247,11 @@ func TestSearchTransactionsUsesKeysetAndStableFallbacks(t *testing.T) {
 	require.Equal(t, "No merchant", page.Items[0].MerchantTitle)
 	require.Nil(t, page.NextCursor)
 	require.Contains(t, searchTransactionsSQL, `(t.date, t.created, t.id) <`)
-	require.Contains(t, searchTransactionsSQL, `ORDER BY searched.date DESC, searched.created DESC, searched.id DESC`)
+	require.Contains(
+		t,
+		searchTransactionsSQL,
+		`ORDER BY searched.date DESC, searched.created DESC, searched.id DESC`,
+	)
 }
 
 func TestBudgetProgressReturnsExactDecimalRows(t *testing.T) {
@@ -243,7 +267,9 @@ func TestBudgetProgressReturnsExactDecimalRows(t *testing.T) {
 			AddRow("RUB", int64(1), int64(1)))
 	baseArgs := []any{
 		principal.UserIDs, query.Range.From, query.Range.To, false,
-		[]string{}, []string{}, []string{},
+		[]string{},
+		[]string{},
+		[]string{},
 	}
 	mock.ExpectQuery(regexp.QuoteMeta(budgetProgressTotalsSQL)).
 		WithArgs(baseArgs...).
@@ -254,7 +280,8 @@ func TestBudgetProgressReturnsExactDecimalRows(t *testing.T) {
 		WillReturnRows(mock.NewRows([]string{
 			"category_id", "title", "budget", "spent", "remaining", "percent", "transaction_count",
 		}).AddRow(categoryID, "Food", "1000.00", "250.00", "750.00", "25", int64(2)).
-			AddRow("00000000-0000-0000-0000-000000000021", "Transport", "500", "50", "450", "10", int64(1)))
+			AddRow("00000000-0000-0000-0000-000000000021", "Transport", "500", "50", "450", "10", int64(1)),
+		)
 	mock.ExpectQuery(regexp.QuoteMeta(latestCompletedSyncSQL)).WillReturnError(pgx.ErrNoRows)
 	mock.ExpectCommit()
 
@@ -278,11 +305,21 @@ func TestDataFreshnessReturnsDatabaseWideCompletedAndLatestSnapshots(t *testing.
 	expectAnalyticsSnapshotBegin(mock)
 	mock.ExpectQuery(regexp.QuoteMeta(latestCompletedSyncSQL)).
 		WillReturnRows(mock.NewRows([]string{
-			"started_at", "finished_at", "status", "sync_type", "server_timestamp", "records_processed",
+			"started_at",
+			"finished_at",
+			"status",
+			"sync_type",
+			"server_timestamp",
+			"records_processed",
 		}).AddRow(started, finished, "completed", "partial", int64(10), int64(20)))
 	mock.ExpectQuery(regexp.QuoteMeta(latestSyncAttemptSQL)).
 		WillReturnRows(mock.NewRows([]string{
-			"started_at", "finished_at", "status", "sync_type", "server_timestamp", "records_processed",
+			"started_at",
+			"finished_at",
+			"status",
+			"sync_type",
+			"server_timestamp",
+			"records_processed",
 		}).AddRow(started.Add(time.Hour), nil, "failed", "partial", int64(11), int64(0)))
 	mock.ExpectCommit()
 
@@ -297,15 +334,23 @@ func TestDataFreshnessReturnsDatabaseWideCompletedAndLatestSnapshots(t *testing.
 func TestAnalyticsRejectsUnscopedAndOversizedQueriesWithoutDatabaseAccess(t *testing.T) {
 	db, _ := newTestDB(t)
 
-	_, err := db.SpendingSummary(context.Background(), analytics.Principal{}, analytics.SpendingSummaryQuery{
-		Range: analyticsTestRange(),
-		Limit: 10,
-	})
+	_, err := db.SpendingSummary(
+		context.Background(),
+		analytics.Principal{},
+		analytics.SpendingSummaryQuery{
+			Range: analyticsTestRange(),
+			Limit: 10,
+		},
+	)
 	require.ErrorIs(t, err, ErrAnalyticsAccessScope)
 
-	_, err = db.SearchTransactions(context.Background(), analytics.Principal{UserIDs: []int64{1}}, analytics.TransactionSearchQuery{
-		Range: analyticsTestRange(),
-		Limit: maxAnalyticsRows + 1,
-	})
+	_, err = db.SearchTransactions(
+		context.Background(),
+		analytics.Principal{UserIDs: []int64{1}},
+		analytics.TransactionSearchQuery{
+			Range: analyticsTestRange(),
+			Limit: maxAnalyticsRows + 1,
+		},
+	)
 	require.ErrorIs(t, err, ErrAnalyticsLimit)
 }
