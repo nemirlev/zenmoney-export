@@ -100,6 +100,20 @@ Now app supports the following commands:
 
 - `sync`: Synchronize data from ZenMoney to your database.
 
+## Financial analytics MCP server
+
+The repository also provides `zenmcp`, a separate read-only MCP `2026-07-28` server over stateless
+Streamable HTTP. It reads the PostgreSQL database populated by `zenexport`; it runs independently
+and does not require a ZenMoney API token.
+
+See [MCP setup and operations](doc/mcp.md) for local and remote examples, and
+[MCP architecture](doc/mcp-architecture.md) for tool contracts, financial semantics, security,
+MCP Apps rendering, and known limitations. Build its independent container with:
+
+```bash
+docker build -f docker/Dockerfile.zenmcp -t zenmcp:local .
+```
+
 ### Sync Command
 
 The `sync` command is used to synchronize data from ZenMoney to your database. If the command runs for the first time, it will
