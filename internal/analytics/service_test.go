@@ -162,7 +162,11 @@ func TestAllUsersPrincipalResolvesCatalogAndCanonicalizesEmptySelection(t *testi
 	require.NoError(t, err)
 	require.Equal(t, Principal{Subject: "database-owner", AllUsers: true}, store.catalogPrincipal)
 	require.Equal(t, Principal{Subject: "database-owner", UserIDs: []int64{4, 9}}, store.principal)
-	require.Equal(t, []string{"user:4", "user:9"}, result.Metadata.NormalizedRequest.SpendingSummary.Users.UserIDs)
+	require.Equal(
+		t,
+		[]string{"user:4", "user:9"},
+		result.Metadata.NormalizedRequest.SpendingSummary.Users.UserIDs,
+	)
 	require.Equal(t, []AnalyticsUser{
 		{UserID: 4, ID: "user:4", Label: "First", Currency: "RUB"},
 		{UserID: 9, ID: "user:9", Label: "Second", Currency: "RUB"},
@@ -190,8 +194,16 @@ func TestUserSelectionNarrowsAllowlistAndRejectsUnknownUsers(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, Principal{Subject: "owner", UserIDs: []int64{9}}, store.principal)
-	require.Equal(t, []string{"user:9"}, result.Metadata.NormalizedRequest.SpendingSummary.Users.UserIDs)
-	require.Equal(t, []AnalyticsUser{{UserID: 9, ID: "user:9", Currency: "RUB"}}, result.Metadata.Users)
+	require.Equal(
+		t,
+		[]string{"user:9"},
+		result.Metadata.NormalizedRequest.SpendingSummary.Users.UserIDs,
+	)
+	require.Equal(
+		t,
+		[]AnalyticsUser{{UserID: 9, ID: "user:9", Currency: "RUB"}},
+		result.Metadata.Users,
+	)
 
 	before := store.spendingCalls
 	_, err = service.GetSpendingSummary(
@@ -247,7 +259,9 @@ func TestPrincipalScopeMustBeExplicitAndUnambiguous(t *testing.T) {
 	}
 
 	_, err := service.GetSpendingSummary(
-		context.Background(), Principal{Subject: "owner", AllUsers: true, UserIDs: []int64{1}}, request,
+		context.Background(),
+		Principal{Subject: "owner", AllUsers: true, UserIDs: []int64{1}},
+		request,
 	)
 	require.ErrorContains(t, err, "cannot combine")
 

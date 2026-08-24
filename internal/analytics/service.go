@@ -122,7 +122,13 @@ func (s *Service) GetCashflow(
 	normalized := NormalizedReportRequest{Kind: ReportCashflow, Cashflow: &canonical}
 	return CashflowResult{
 		Metadata: reportMetadata(
-			ReportCashflow, &period, data.Currency, users, query.Filters, data.LastSyncAt, normalized,
+			ReportCashflow,
+			&period,
+			data.Currency,
+			users,
+			query.Filters,
+			data.LastSyncAt,
+			normalized,
 		),
 		Points: nonNilCashflowPoints(data.Points), Totals: data.Totals,
 		Table: cashflowTable(data.Points, data.Currency),
