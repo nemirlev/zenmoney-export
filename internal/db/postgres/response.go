@@ -25,6 +25,15 @@ func (s *DB) Save(
 	if writeMode != interfaces.WriteModeBatch && writeMode != interfaces.WriteModeCopy {
 		return fmt.Errorf("unsupported write mode %q", writeMode)
 	}
+	syncType := options.SyncType
+	if syncType == "" {
+		syncType = interfaces.SyncTypeFull
+	}
+	if syncType != interfaces.SyncTypeFull &&
+		syncType != interfaces.SyncTypePartial &&
+		syncType != interfaces.SyncTypeForce {
+		return fmt.Errorf("unsupported sync type %q", syncType)
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -42,7 +51,7 @@ func (s *DB) Save(
 	status := interfaces.SyncStatus{
 		StartedAt:        time.Now(),
 		FinishedAt:       nil,
-		SyncType:         "full", // TODO: implement incremental sync type
+		SyncType:         string(syncType),
 		ServerTimestamp:  response.ServerTimestamp,
 		RecordsProcessed: s.countRecords(response),
 		Status:           "in_progress",

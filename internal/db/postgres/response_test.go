@@ -83,6 +83,35 @@ func TestSaveDoesNotRollbackAfterSuccessfulCommit(t *testing.T) {
 	require.Zero(t, pool.statusWrites)
 }
 
+func TestSavePersistsRequestedSyncType(t *testing.T) {
+	tx := &recordingTx{}
+	db := &DB{pool: &recordingPool{tx: tx}}
+
+	err := db.Save(
+		context.Background(),
+		&models.Response{ServerTimestamp: 42},
+		interfaces.SaveOptions{SyncType: interfaces.SyncTypePartial},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, interfaces.SyncTypePartial, tx.lastSyncType)
+}
+
+func TestSaveRejectsUnknownSyncTypeBeforeBeginningTransaction(t *testing.T) {
+	tx := &recordingTx{}
+	pool := &recordingPool{tx: tx}
+	db := &DB{pool: pool}
+
+	err := db.Save(
+		context.Background(),
+		&models.Response{},
+		interfaces.SaveOptions{SyncType: "unknown"},
+	)
+
+	require.ErrorContains(t, err, `unsupported sync type "unknown"`)
+	require.Zero(t, pool.beginCalls)
+}
+
 func TestSaveChunksEntityBatchesWithinOneTransaction(t *testing.T) {
 	tx := &recordingTx{}
 	pool := &recordingPool{tx: tx}
@@ -153,6 +182,7 @@ type recordingPool struct {
 	sendBatchCalls           int
 	statusWrites             int
 	lastStatus               string
+	lastSyncType             interfaces.SyncType
 	rollbackObservedAtStatus bool
 }
 
@@ -168,6 +198,7 @@ func (p *recordingPool) SendBatch(context.Context, *pgx.Batch) pgx.BatchResults 
 
 func (p *recordingPool) QueryRow(_ context.Context, _ string, args ...any) pgx.Row {
 	p.statusWrites++
+	p.lastSyncType = interfaces.SyncType(args[2].(string))
 	p.lastStatus = args[5].(string)
 	p.rollbackObservedAtStatus = p.tx.rollbackCalls > 0
 	return recordingRow{}
@@ -185,6 +216,7 @@ type recordingTx struct {
 	commitCalls        int
 	execCalls          int
 	lastStatus         string
+	lastSyncType       interfaces.SyncType
 	copyFromCalls      int
 	copiedRows         int
 	copiedValues       [][]any
@@ -209,6 +241,7 @@ func (tx *recordingTx) SendBatch(_ context.Context, batch *pgx.Batch) pgx.BatchR
 }
 
 func (tx *recordingTx) QueryRow(_ context.Context, _ string, args ...any) pgx.Row {
+	tx.lastSyncType = interfaces.SyncType(args[2].(string))
 	tx.lastStatus = args[5].(string)
 	return recordingRow{}
 }

@@ -78,27 +78,31 @@ func TestSyncSelectsSDKMethod(t *testing.T) {
 		lastSync     interfaces.SyncStatus
 		params       SyncParams
 		wantMethod   string
+		wantSyncType interfaces.SyncType
 		wantEntities []models.EntityType
 		wantSince    int64
 	}{
 		{
-			name:       "first sync is full even with selected entities",
-			params:     SyncParams{Entities: "accounts, transactions"},
-			wantMethod: "full",
+			name:         "first sync is full even with selected entities",
+			params:       SyncParams{Entities: "accounts, transactions"},
+			wantMethod:   "full",
+			wantSyncType: interfaces.SyncTypeFull,
 		},
 		{
-			name:       "regular incremental sync uses global cursor",
-			lastSync:   interfaces.SyncStatus{ID: 1, ServerTimestamp: 123},
-			params:     SyncParams{Entities: "all"},
-			wantMethod: "since",
-			wantSince:  123,
+			name:         "regular incremental sync uses global cursor",
+			lastSync:     interfaces.SyncStatus{ID: 1, ServerTimestamp: 123},
+			params:       SyncParams{Entities: "all"},
+			wantMethod:   "since",
+			wantSyncType: interfaces.SyncTypePartial,
+			wantSince:    123,
 		},
 		{
-			name:       "selected entities are force fetched with regular diff",
-			lastSync:   interfaces.SyncStatus{ID: 1, ServerTimestamp: 234},
-			params:     SyncParams{Entities: " accounts,transaction,ACCOUNTS,reminder-markers "},
-			wantMethod: "force-entities",
-			wantSince:  234,
+			name:         "selected entities are force fetched with regular diff",
+			lastSync:     interfaces.SyncStatus{ID: 1, ServerTimestamp: 234},
+			params:       SyncParams{Entities: " accounts,transaction,ACCOUNTS,reminder-markers "},
+			wantMethod:   "force-entities",
+			wantSyncType: interfaces.SyncTypeForce,
+			wantSince:    234,
 			wantEntities: []models.EntityType{
 				models.EntityTypeAccount,
 				models.EntityTypeTransaction,
@@ -110,14 +114,16 @@ func TestSyncSelectsSDKMethod(t *testing.T) {
 			lastSync:     interfaces.SyncStatus{ID: 1, ServerTimestamp: 345},
 			params:       SyncParams{Entities: "budgets", Force: true},
 			wantMethod:   "force-entities",
+			wantSyncType: interfaces.SyncTypeForce,
 			wantSince:    345,
 			wantEntities: []models.EntityType{models.EntityTypeBudget},
 		},
 		{
-			name:       "force all performs full sync",
-			lastSync:   interfaces.SyncStatus{ID: 1, ServerTimestamp: 456},
-			params:     SyncParams{Entities: "all", Force: true},
-			wantMethod: "full",
+			name:         "force all performs full sync",
+			lastSync:     interfaces.SyncStatus{ID: 1, ServerTimestamp: 456},
+			params:       SyncParams{Entities: "all", Force: true},
+			wantMethod:   "full",
+			wantSyncType: interfaces.SyncTypeForce,
 		},
 	}
 
@@ -128,7 +134,10 @@ func TestSyncSelectsSDKMethod(t *testing.T) {
 			storage.On("GetLastSyncStatus", mock.Anything).Return(tt.lastSync, nil).Once()
 
 			response := models.Response{ServerTimestamp: 999}
-			storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{BatchSize: interfaces.DefaultBatchSize}).
+			storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{
+				BatchSize: interfaces.DefaultBatchSize,
+				SyncType:  tt.wantSyncType,
+			}).
 				Return(nil).
 				Once()
 			client := &recordingSyncClient{response: response}
@@ -335,7 +344,10 @@ func TestSyncHoldsLockAcrossCursorFetchAndSave(t *testing.T) {
 		Return(interfaces.SyncStatus{}, nil).
 		Once()
 	response := models.Response{ServerTimestamp: 42}
-	storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{BatchSize: interfaces.DefaultBatchSize}).
+	storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{
+		BatchSize: interfaces.DefaultBatchSize,
+		SyncType:  interfaces.SyncTypeFull,
+	}).
 		Run(func(mock.Arguments) { events = append(events, "save") }).
 		Return(nil).
 		Once()
@@ -358,7 +370,10 @@ func TestSyncPassesConfiguredBatchSizeToStorage(t *testing.T) {
 	storage.On("AcquireSyncLock", mock.Anything).Return(&testSyncLock{}, nil).Once()
 	storage.On("GetLastSyncStatus", mock.Anything).Return(interfaces.SyncStatus{}, nil).Once()
 	response := models.Response{ServerTimestamp: 42}
-	storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{BatchSize: 37}).
+	storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{
+		BatchSize: 37,
+		SyncType:  interfaces.SyncTypeFull,
+	}).
 		Return(nil).
 		Once()
 	service := &SyncService{
@@ -379,6 +394,7 @@ func TestSyncPassesCopyWriteModeToStorage(t *testing.T) {
 	storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{
 		BatchSize: interfaces.DefaultBatchSize,
 		WriteMode: interfaces.WriteModeCopy,
+		SyncType:  interfaces.SyncTypeFull,
 	}).Return(nil).Once()
 	service := &SyncService{
 		app:    &Application{cfg: &config.Config{DBType: "postgres"}, db: storage},
@@ -421,7 +437,10 @@ func TestSyncReturnsUnlockFailureAfterSaving(t *testing.T) {
 		Once()
 	storage.On("GetLastSyncStatus", mock.Anything).Return(interfaces.SyncStatus{}, nil).Once()
 	response := models.Response{ServerTimestamp: 42}
-	storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{BatchSize: interfaces.DefaultBatchSize}).
+	storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{
+		BatchSize: interfaces.DefaultBatchSize,
+		SyncType:  interfaces.SyncTypeFull,
+	}).
 		Return(nil).
 		Once()
 	service := &SyncService{

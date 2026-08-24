@@ -31,11 +31,21 @@ const (
 	WriteModeCopy  WriteMode = "copy"
 )
 
+// SyncType describes how the API response was fetched.
+type SyncType string
+
+const (
+	SyncTypeFull    SyncType = "full"
+	SyncTypePartial SyncType = "partial"
+	SyncTypeForce   SyncType = "force"
+)
+
 // SaveOptions controls how an API response is persisted without changing its
 // transaction boundaries.
 type SaveOptions struct {
 	BatchSize int
 	WriteMode WriteMode
+	SyncType  SyncType
 }
 
 const (

@@ -209,11 +209,18 @@ func (s *SyncService) Sync(ctx context.Context, p *SyncParams) (syncErr error) {
 	}
 
 	var data models.Response
-	if lastSync.ID == 0 || (allEntities && p.Force) {
+	var syncType interfaces.SyncType
+	if lastSync.ID == 0 {
+		syncType = interfaces.SyncTypeFull
+		data, err = s.client.FullSync(ctx)
+	} else if allEntities && p.Force {
+		syncType = interfaces.SyncTypeForce
 		data, err = s.client.FullSync(ctx)
 	} else if allEntities {
+		syncType = interfaces.SyncTypePartial
 		data, err = s.client.SyncSince(ctx, time.Unix(lastSync.ServerTimestamp, 0))
 	} else {
+		syncType = interfaces.SyncTypeForce
 		data, err = s.client.ForceSyncEntitiesSince(
 			ctx,
 			time.Unix(lastSync.ServerTimestamp, 0),
@@ -233,7 +240,11 @@ func (s *SyncService) Sync(ctx context.Context, p *SyncParams) (syncErr error) {
 		err = s.app.db.Save(
 			ctx,
 			&data,
-			interfaces.SaveOptions{BatchSize: batchSize, WriteMode: p.WriteMode},
+			interfaces.SaveOptions{
+				BatchSize: batchSize,
+				WriteMode: p.WriteMode,
+				SyncType:  syncType,
+			},
 		)
 		if err != nil {
 			return err
