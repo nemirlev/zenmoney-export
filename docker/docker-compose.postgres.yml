@@ -23,6 +23,8 @@ services:
             POSTGRES_USER: "${POSTGRES_USER:?Set POSTGRES_USER}"
             POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}"
             POSTGRES_DB: "${POSTGRES_DB:?Set POSTGRES_DB}"
+        ports:
+            -   "${POSTGRES_PORT:-5455}:5432"
         volumes:
             # PostgreSQL 18+ stores versioned clusters below this directory.
             - postgres_data:/var/lib/postgresql
