@@ -8,6 +8,13 @@
 ### 🐛 Bug Fixes
 
 - Upgrades Go version in Docker build image (#22)
+## [2.1.4](https://github.com/nemirlev/zenmoney-export/compare/v2.1.3...v2.1.4) (2026-08-24)
+
+
+### ⚙️ Miscellaneous Tasks
+
+* **deps:** update testcontainers and transitive dependencies ([e83be20](https://github.com/nemirlev/zenmoney-export/commit/e83be204b05b8c01508889ed76fcbfbfbbb7b713))
+
 ## [2.1.3](https://github.com/nemirlev/zenmoney-export/compare/v2.1.2...v2.1.3) (2026-08-24)
 
 
