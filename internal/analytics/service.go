@@ -79,7 +79,8 @@ func (s *Service) GetSpendingSummary(
 		),
 		Total: data.Total, TransactionCount: data.TransactionCount,
 		Categories: nonNilSpendingRows(data.Categories),
-		Table:      spendingTable(data.Categories, data.Currency),
+		HasMore:    data.HasMore, Truncated: data.HasMore,
+		Table: spendingTable(data.Categories, data.Currency),
 	}, nil
 }
 
@@ -139,6 +140,7 @@ func (s *Service) GetBudgetProgress(
 			ReportBudgetProgress, &period, data.Currency, query.Filters, data.LastSyncAt, normalized,
 		),
 		Rows: nonNilBudgetRows(data.Rows), Totals: data.Totals,
+		HasMore: data.HasMore, Truncated: data.HasMore,
 		Table: budgetTable(data.Rows, data.Currency),
 	}, nil
 }

@@ -120,6 +120,7 @@ type SpendingSummaryData struct {
 	Total            Decimal            `json:"total"`
 	TransactionCount int64              `json:"transactionCount"`
 	Categories       []SpendingCategory `json:"categories"`
+	HasMore          bool               `json:"hasMore"`
 	LastSyncAt       *time.Time         `json:"lastSyncAt,omitempty"`
 }
 
@@ -128,6 +129,8 @@ type SpendingSummaryResult struct {
 	Total            Decimal            `json:"total"`
 	TransactionCount int64              `json:"transactionCount"`
 	Categories       []SpendingCategory `json:"categories"`
+	HasMore          bool               `json:"hasMore"`
+	Truncated        bool               `json:"truncated"`
 	Table            TableFallback      `json:"table"`
 }
 
@@ -208,14 +211,17 @@ type BudgetProgressData struct {
 	Currency   string              `json:"currency"`
 	Rows       []BudgetProgressRow `json:"rows"`
 	Totals     BudgetTotals        `json:"totals"`
+	HasMore    bool                `json:"hasMore"`
 	LastSyncAt *time.Time          `json:"lastSyncAt,omitempty"`
 }
 
 type BudgetProgressResult struct {
-	Metadata ReportMetadata      `json:"metadata"`
-	Rows     []BudgetProgressRow `json:"rows"`
-	Totals   BudgetTotals        `json:"totals"`
-	Table    TableFallback       `json:"table"`
+	Metadata  ReportMetadata      `json:"metadata"`
+	Rows      []BudgetProgressRow `json:"rows"`
+	Totals    BudgetTotals        `json:"totals"`
+	HasMore   bool                `json:"hasMore"`
+	Truncated bool                `json:"truncated"`
+	Table     TableFallback       `json:"table"`
 }
 
 type TransactionDirection string

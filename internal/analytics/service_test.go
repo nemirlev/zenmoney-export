@@ -23,6 +23,9 @@ type fakeStore struct {
 	spendingCalls   int
 	spendingData    SpendingSummaryData
 	cashflowData    CashflowData
+	cashflowCalls   int
+	cashflowQueries []CashflowQuery
+	cashflowDataSet []CashflowData
 	budgetData      BudgetProgressData
 	transactionPage TransactionPage
 	freshnessData   FreshnessData
@@ -41,10 +44,15 @@ func (s *fakeStore) SpendingSummary(
 }
 
 func (s *fakeStore) Cashflow(
-	context.Context,
-	Principal,
-	CashflowQuery,
+	_ context.Context,
+	_ Principal,
+	query CashflowQuery,
 ) (CashflowData, error) {
+	s.cashflowQueries = append(s.cashflowQueries, query)
+	s.cashflowCalls++
+	if s.cashflowCalls <= len(s.cashflowDataSet) {
+		return s.cashflowDataSet[s.cashflowCalls-1], s.err
+	}
 	return s.cashflowData, s.err
 }
 
@@ -371,6 +379,34 @@ func TestBudgetProgressRejectsUnsupportedFilters(t *testing.T) {
 		}},
 	)
 	require.NoError(t, err)
+}
+
+func TestAggregateResultsExposeStoreTruncation(t *testing.T) {
+	store := &fakeStore{
+		spendingData: SpendingSummaryData{Currency: "RUB", Total: "0", HasMore: true},
+		budgetData: BudgetProgressData{
+			Currency: "RUB", HasMore: true,
+			Totals: BudgetTotals{Budget: "0", Spent: "0", Remaining: "0"},
+		},
+	}
+	service := newTestService(t, store)
+	principal := Principal{Subject: "user", UserIDs: []int64{1}}
+
+	spending, err := service.GetSpendingSummary(
+		context.Background(), principal,
+		SpendingSummaryRequest{Period: PeriodRequest{From: "2026-08-01", To: "2026-08-31"}},
+	)
+	require.NoError(t, err)
+	require.True(t, spending.HasMore)
+	require.True(t, spending.Truncated)
+
+	budget, err := service.GetBudgetProgress(
+		context.Background(), principal,
+		BudgetProgressRequest{Period: PeriodRequest{From: "2026-08-01", To: "2026-08-31"}},
+	)
+	require.NoError(t, err)
+	require.True(t, budget.HasMore)
+	require.True(t, budget.Truncated)
 }
 
 func TestServiceWrapsStoreErrors(t *testing.T) {

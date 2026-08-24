@@ -114,14 +114,25 @@ func TestNormalizeRenderRequestReconcilesCashflowGranularity(t *testing.T) {
 }
 
 func TestComparisonPeriodsPreservesAuthoritativeBucketValues(t *testing.T) {
-	store := &fakeStore{cashflowData: CashflowData{
-		Currency: "RUB",
-		Points: []CashflowPoint{
-			{ID: "period:2026-08-01", From: "2026-08-01", To: "2026-08-02", Label: "2026-08-01", Income: "10.50", Outcome: "2.25", Net: "8.25"},
-			{ID: "period:2026-08-02", From: "2026-08-02", To: "2026-08-03", Label: "2026-08-02", Income: "4", Outcome: "5", Net: "-1"},
-			{ID: "period:2026-08-03", From: "2026-08-03", To: "2026-08-04", Label: "2026-08-03", Income: "0", Outcome: "1", Net: "-1"},
+	store := &fakeStore{cashflowDataSet: []CashflowData{
+		{
+			Currency: "RUB",
+			Points: []CashflowPoint{
+				{ID: "period:2026-08-01", From: "2026-08-01", To: "2026-08-02", Label: "2026-08-01", Income: "10.50", Outcome: "2.25", Net: "8.25"},
+				{ID: "period:2026-08-02", From: "2026-08-02", To: "2026-08-03", Label: "2026-08-02", Income: "4", Outcome: "5", Net: "-1"},
+				{ID: "period:2026-08-03", From: "2026-08-03", To: "2026-08-04", Label: "2026-08-03", Income: "0", Outcome: "1", Net: "-1"},
+			},
+			Totals: CashflowTotals{Income: "14.50", Outcome: "8.25", Net: "6.25"},
 		},
-		Totals: CashflowTotals{Income: "14.50", Outcome: "8.25", Net: "6.25"},
+		{
+			Currency: "RUB",
+			Points: []CashflowPoint{
+				{ID: "period:2026-07-29", From: "2026-07-29", To: "2026-07-30", Label: "2026-07-29", Income: "7", Outcome: "2", Net: "5"},
+				{ID: "period:2026-07-30", From: "2026-07-30", To: "2026-07-31", Label: "2026-07-30", Income: "1", Outcome: "4.75", Net: "-3.75"},
+				{ID: "period:2026-07-31", From: "2026-07-31", To: "2026-08-01", Label: "2026-07-31", Income: "2", Outcome: "2", Net: "0"},
+			},
+			Totals: CashflowTotals{Income: "10", Outcome: "8.75", Net: "1.25"},
+		},
 	}}
 	service := newTestService(t, store)
 	request := cashflowRenderRequest("2026-08-01", "2026-08-03", GranularityDay)
@@ -132,30 +143,46 @@ func TestComparisonPeriodsPreservesAuthoritativeBucketValues(t *testing.T) {
 	)
 
 	require.NoError(t, err)
+	require.Equal(t, 2, store.cashflowCalls, "comparison must execute both authoritative reports")
+	require.Equal(t, "2026-08-01", store.cashflowQueries[0].Range.From.Format(dateLayout))
+	require.Equal(t, "2026-07-29", store.cashflowQueries[1].Range.From.Format(dateLayout))
+	require.Equal(t, "2026-08-01", store.cashflowQueries[1].Range.To.Format(dateLayout))
 	require.True(t, result.Chart.ComparisonPeriods)
 	require.Equal(t, GranularityDay, result.Chart.Granularity)
+	require.Equal(t, []ChartSeriesKey{SeriesCurrentNet, SeriesPreviousNet}, []ChartSeriesKey{
+		result.Chart.Series[0].Key, result.Chart.Series[1].Key,
+	})
 	require.Equal(t, []Decimal{"8.25", "-1", "-1"}, []Decimal{
 		result.Data[0].Values[0].Value,
 		result.Data[1].Values[0].Value,
 		result.Data[2].Values[0].Value,
 	})
-	require.Equal(t, []string{
-		"period:2026-08-01", "period:2026-08-02", "period:2026-08-03",
-	}, []string{result.Data[0].ID, result.Data[1].ID, result.Data[2].ID})
+	require.Equal(t, []Decimal{"5", "-3.75", "0"}, []Decimal{
+		result.Data[0].Values[1].Value,
+		result.Data[1].Values[1].Value,
+		result.Data[2].Values[1].Value,
+	})
+	require.Equal(t, []string{"comparison:bucket:0000", "comparison:bucket:0001", "comparison:bucket:0002"},
+		[]string{result.Data[0].ID, result.Data[1].ID, result.Data[2].ID})
+	require.NotNil(t, result.PreviousReport)
+	require.NotNil(t, result.Comparison)
+	require.Equal(t, "2026-08-01", result.Comparison.CurrentPeriod.From)
+	require.Equal(t, "2026-07-29", result.Comparison.PreviousPeriod.From)
+	require.Equal(t, "2026-07-31", result.Comparison.PreviousPeriod.To)
+	require.Equal(t, "calendar_day_index", result.Comparison.Alignment)
+	require.Equal(t, 3, result.Comparison.BucketCount)
+	require.Equal(t, "2026-08-01", result.Table.Rows[0].Cells[1].Value)
+	require.Equal(t, "8.25", result.Table.Rows[0].Cells[2].Value)
+	require.Equal(t, "2026-07-29", result.Table.Rows[0].Cells[3].Value)
+	require.Equal(t, "5", result.Table.Rows[0].Cells[4].Value)
 }
 
 func TestComparisonPeriodsRejectsNoOpConfigurations(t *testing.T) {
 	service := newTestService(t, &fakeStore{})
-	request := cashflowRenderRequest("2026-08-01", "2026-08-01", GranularityDay)
-	request.Chart.ComparisonPeriods = true
-
-	_, err := service.NormalizeRenderRequest(request)
-	require.ErrorContains(t, err, "at least two authoritative time buckets")
-
-	request = cashflowRenderRequest("2026-08-01", "2026-08-03", GranularityDay)
+	request := cashflowRenderRequest("2026-08-01", "2026-08-03", GranularityDay)
 	request.Chart.ComparisonPeriods = true
 	request.Chart.TopN = 2
-	_, err = service.NormalizeRenderRequest(request)
+	_, err := service.NormalizeRenderRequest(request)
 	require.ErrorContains(t, err, "cannot use topN")
 
 	request = cashflowRenderRequest("2026-08-01", "2026-08-03", GranularityDay)
@@ -163,6 +190,35 @@ func TestComparisonPeriodsRejectsNoOpConfigurations(t *testing.T) {
 	request.Chart.Sort = ChartSort{By: SortValue, Direction: SortDescending, Series: SeriesNet}
 	_, err = service.NormalizeRenderRequest(request)
 	require.ErrorContains(t, err, "ascending chronological sorting")
+
+	request = cashflowRenderRequest("2026-08-01", "2026-08-03", GranularityWeek)
+	request.Chart.ComparisonPeriods = true
+	_, err = service.NormalizeRenderRequest(request)
+	require.ErrorContains(t, err, "only daily granularity")
+
+	request = cashflowRenderRequest("2026-08-01", "2026-08-03", GranularityDay)
+	request.Chart.ComparisonPeriods = true
+	request.Chart.Type = ChartArea
+	_, err = service.NormalizeRenderRequest(request)
+	require.ErrorContains(t, err, "only line charts")
+
+	request = cashflowRenderRequest("2026-08-01", "2026-08-03", GranularityDay)
+	request.Chart.ComparisonPeriods = true
+	request.Chart.Series = []ChartSeries{{Key: SeriesIncome, Label: "Income", Format: FormatCurrency}}
+	_, err = service.NormalizeRenderRequest(request)
+	require.ErrorContains(t, err, "exactly the net series")
+}
+
+func TestRenderRejectsCallerSuppliedComparisonSeries(t *testing.T) {
+	service := newTestService(t, &fakeStore{})
+	request := cashflowRenderRequest("2026-08-01", "2026-08-03", GranularityDay)
+	request.Chart.Series = []ChartSeries{
+		{Key: SeriesCurrentNet, Label: "Current net", Format: FormatCurrency},
+		{Key: SeriesPreviousNet, Label: "Previous net", Format: FormatCurrency},
+	}
+
+	_, err := service.NormalizeRenderRequest(request)
+	require.ErrorContains(t, err, "server-derived")
 }
 
 func TestRenderFinanceChartRerunsAuthoritativeReportAndBuildsOther(t *testing.T) {

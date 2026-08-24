@@ -32,14 +32,16 @@ const (
 type ChartSeriesKey string
 
 const (
-	SeriesAmount    ChartSeriesKey = "amount"
-	SeriesIncome    ChartSeriesKey = "income"
-	SeriesOutcome   ChartSeriesKey = "outcome"
-	SeriesNet       ChartSeriesKey = "net"
-	SeriesBudget    ChartSeriesKey = "budget"
-	SeriesSpent     ChartSeriesKey = "spent"
-	SeriesRemaining ChartSeriesKey = "remaining"
-	SeriesPercent   ChartSeriesKey = "percent"
+	SeriesAmount      ChartSeriesKey = "amount"
+	SeriesIncome      ChartSeriesKey = "income"
+	SeriesOutcome     ChartSeriesKey = "outcome"
+	SeriesNet         ChartSeriesKey = "net"
+	SeriesBudget      ChartSeriesKey = "budget"
+	SeriesSpent       ChartSeriesKey = "spent"
+	SeriesRemaining   ChartSeriesKey = "remaining"
+	SeriesPercent     ChartSeriesKey = "percent"
+	SeriesCurrentNet  ChartSeriesKey = "current_net"
+	SeriesPreviousNet ChartSeriesKey = "previous_net"
 )
 
 type StackingMode string
@@ -109,8 +111,9 @@ type RenderFinanceChartRequest struct {
 }
 
 type NormalizedRenderRequest struct {
-	Report NormalizedReportRequest `json:"report"`
-	Chart  ChartSpec               `json:"chart"`
+	Report         NormalizedReportRequest  `json:"report"`
+	PreviousReport *NormalizedReportRequest `json:"previousReport,omitempty"`
+	Chart          ChartSpec                `json:"chart"`
 }
 
 type ChartDataPoint struct {
@@ -125,12 +128,22 @@ type ChartValue struct {
 }
 
 type RenderFinanceChartResult struct {
-	SchemaVersion string           `json:"schemaVersion"`
-	ReportKind    ReportKind       `json:"reportKind"`
-	Chart         ChartSpec        `json:"chart"`
-	Data          []ChartDataPoint `json:"data"`
-	Table         TableFallback    `json:"table"`
-	Report        ReportEnvelope   `json:"report"`
+	SchemaVersion  string                   `json:"schemaVersion"`
+	ReportKind     ReportKind               `json:"reportKind"`
+	Chart          ChartSpec                `json:"chart"`
+	Data           []ChartDataPoint         `json:"data"`
+	Table          TableFallback            `json:"table"`
+	Report         ReportEnvelope           `json:"report"`
+	PreviousReport *ReportEnvelope          `json:"previousReport,omitempty"`
+	Comparison     *ChartComparisonMetadata `json:"comparison,omitempty"`
+}
+
+type ChartComparisonMetadata struct {
+	CurrentPeriod  Period      `json:"currentPeriod"`
+	PreviousPeriod Period      `json:"previousPeriod"`
+	Granularity    Granularity `json:"granularity"`
+	Alignment      string      `json:"alignment"`
+	BucketCount    int         `json:"bucketCount"`
 }
 
 var dangerousPresentationPatterns = []*regexp.Regexp{
@@ -257,13 +270,19 @@ func validateChartForReport(kind ReportKind, spec ChartSpec) error {
 	}
 	allowed := map[ReportKind]map[ChartSeriesKey]bool{
 		ReportSpendingSummary: {SeriesAmount: true},
-		ReportCashflow:        {SeriesIncome: true, SeriesOutcome: true, SeriesNet: true},
+		ReportCashflow: {
+			SeriesIncome: true, SeriesOutcome: true, SeriesNet: true,
+			SeriesCurrentNet: true, SeriesPreviousNet: true,
+		},
 		ReportBudgetProgress: {
 			SeriesBudget: true, SeriesSpent: true, SeriesRemaining: true, SeriesPercent: true,
 		},
 		ReportTransactions: {SeriesAmount: true},
 	}[kind]
 	for _, series := range spec.Series {
+		if !spec.ComparisonPeriods && (series.Key == SeriesCurrentNet || series.Key == SeriesPreviousNet) {
+			return fmt.Errorf("series %q is only available in server-derived comparisons", series.Key)
+		}
 		if !allowed[series.Key] {
 			return fmt.Errorf("series %q is not available for report %q", series.Key, kind)
 		}
@@ -319,7 +338,7 @@ func validDimension(value ChartDimension) bool {
 func validSeries(value ChartSeriesKey) bool {
 	switch value {
 	case SeriesAmount, SeriesIncome, SeriesOutcome, SeriesNet, SeriesBudget, SeriesSpent,
-		SeriesRemaining, SeriesPercent:
+		SeriesRemaining, SeriesPercent, SeriesCurrentNet, SeriesPreviousNet:
 		return true
 	default:
 		return false

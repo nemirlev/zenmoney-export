@@ -33,7 +33,15 @@ func (s *Service) NormalizeRenderRequest(
 	if err := validateChartForReport(report.Kind, chart); err != nil {
 		return NormalizedRenderRequest{}, err
 	}
-	return NormalizedRenderRequest{Report: report, Chart: chart}, nil
+	normalized := NormalizedRenderRequest{Report: report, Chart: chart}
+	if chart.ComparisonPeriods {
+		previous, err := s.previousCashflowReport(report)
+		if err != nil {
+			return NormalizedRenderRequest{}, err
+		}
+		normalized.PreviousReport = &previous
+	}
+	return normalized, nil
 }
 
 func (s *Service) normalizeChartSpec(
@@ -82,6 +90,11 @@ func (s *Service) normalizeChartSpec(
 	if report.Cashflow == nil {
 		return ChartSpec{}, errors.New("normalized cashflow report is missing its payload")
 	}
+	for _, series := range chart.Series {
+		if series.Key == SeriesCurrentNet || series.Key == SeriesPreviousNet {
+			return ChartSpec{}, errors.New("current_net and previous_net series are server-derived")
+		}
+	}
 	reportGranularity := report.Cashflow.Granularity
 	if chart.Granularity == "" {
 		chart.Granularity = reportGranularity
@@ -101,14 +114,61 @@ func (s *Service) normalizeChartSpec(
 	if chart.Sort.By != SortDimension || chart.Sort.Direction != SortAscending {
 		return ChartSpec{}, errors.New("comparison periods require ascending chronological sorting")
 	}
-	dateRange, _, _, err := s.normalizePeriod(report.Cashflow.Period)
-	if err != nil {
-		return ChartSpec{}, fmt.Errorf("normalize comparison period: %w", err)
+	if chart.Type != ChartLine {
+		return ChartSpec{}, errors.New("comparison periods currently support only line charts")
 	}
-	if estimatePoints(dateRange, reportGranularity) < 2 {
-		return ChartSpec{}, errors.New("comparison periods require at least two authoritative time buckets")
+	if reportGranularity != GranularityDay {
+		return ChartSpec{}, errors.New("comparison periods currently support only daily granularity")
+	}
+	if len(chart.Series) != 1 || chart.Series[0].Key != SeriesNet {
+		return ChartSpec{}, errors.New("comparison periods currently require exactly the net series")
+	}
+	format := chart.Series[0].Format
+	chart.Series = []ChartSeries{
+		{Key: SeriesCurrentNet, Label: "Current net", Format: format},
+		{Key: SeriesPreviousNet, Label: "Previous net", Format: format},
 	}
 	return chart, nil
+}
+
+func (s *Service) previousCashflowReport(
+	current NormalizedReportRequest,
+) (NormalizedReportRequest, error) {
+	if current.Kind != ReportCashflow || current.Cashflow == nil {
+		return NormalizedReportRequest{}, errors.New("comparison periods require a cashflow report")
+	}
+	dateRange, _, _, err := s.normalizePeriod(current.Cashflow.Period)
+	if err != nil {
+		return NormalizedReportRequest{}, fmt.Errorf("normalize comparison period: %w", err)
+	}
+	days := calendarDayCount(dateRange)
+	previousTo := dateRange.From.AddDate(0, 0, -1)
+	previousFrom := dateRange.From
+	for range days {
+		previousFrom = previousFrom.AddDate(0, 0, -1)
+	}
+	request := CashflowRequest{
+		Period: PeriodRequest{
+			From:     previousFrom.Format(dateLayout),
+			To:       previousTo.Format(dateLayout),
+			Timezone: current.Cashflow.Period.Timezone,
+		},
+		Filters:     current.Cashflow.Filters,
+		Granularity: current.Cashflow.Granularity,
+	}
+	canonical, _, _, err := s.normalizeCashflowRequest(request)
+	if err != nil {
+		return NormalizedReportRequest{}, fmt.Errorf("normalize previous comparison period: %w", err)
+	}
+	return NormalizedReportRequest{Kind: ReportCashflow, Cashflow: &canonical}, nil
+}
+
+func calendarDayCount(dateRange DateRange) int {
+	days := 0
+	for day := dateRange.From; day.Before(dateRange.To); day = day.AddDate(0, 0, 1) {
+		days++
+	}
+	return days
 }
 
 func (s *Service) RenderFinanceChart(
@@ -124,14 +184,31 @@ func (s *Service) RenderFinanceChart(
 	if err != nil {
 		return RenderFinanceChartResult{}, err
 	}
+	if normalized.PreviousReport != nil {
+		previous, err := s.ExecuteNormalizedReport(ctx, principal, *normalized.PreviousReport)
+		if err != nil {
+			return RenderFinanceChartResult{}, err
+		}
+		points, table, comparison, err := s.comparisonChartData(normalized, report, previous)
+		if err != nil {
+			return RenderFinanceChartResult{}, err
+		}
+		points, err = applyPresentation(points, normalized.Chart)
+		if err != nil {
+			return RenderFinanceChartResult{}, err
+		}
+		if normalized.Chart.Table.Caption != "" {
+			table.Caption = normalized.Chart.Table.Caption
+		}
+		return RenderFinanceChartResult{
+			SchemaVersion: SchemaVersion, ReportKind: normalized.Report.Kind,
+			Chart: normalized.Chart, Data: points, Table: table, Report: report,
+			PreviousReport: &previous, Comparison: &comparison,
+		}, nil
+	}
 	points, table, err := chartData(report)
 	if err != nil {
 		return RenderFinanceChartResult{}, err
-	}
-	if normalized.Chart.ComparisonPeriods && len(points) < 2 {
-		return RenderFinanceChartResult{}, errors.New(
-			"comparison periods require at least two authoritative result buckets",
-		)
 	}
 	points, err = applyPresentation(points, normalized.Chart)
 	if err != nil {
@@ -144,6 +221,87 @@ func (s *Service) RenderFinanceChart(
 		SchemaVersion: SchemaVersion, ReportKind: normalized.Report.Kind,
 		Chart: normalized.Chart, Data: points, Table: table, Report: report,
 	}, nil
+}
+
+func (s *Service) comparisonChartData(
+	normalized NormalizedRenderRequest,
+	current ReportEnvelope,
+	previous ReportEnvelope,
+) ([]ChartDataPoint, TableFallback, ChartComparisonMetadata, error) {
+	if normalized.Report.Cashflow == nil || normalized.PreviousReport == nil ||
+		normalized.PreviousReport.Cashflow == nil || current.Cashflow == nil || previous.Cashflow == nil {
+		return nil, TableFallback{}, ChartComparisonMetadata{}, errors.New(
+			"comparison result does not contain both cashflow reports",
+		)
+	}
+	if current.Cashflow.Metadata.Period == nil || previous.Cashflow.Metadata.Period == nil {
+		return nil, TableFallback{}, ChartComparisonMetadata{}, errors.New(
+			"comparison result is missing period metadata",
+		)
+	}
+	currentRange, _, _, err := s.normalizePeriod(normalized.Report.Cashflow.Period)
+	if err != nil {
+		return nil, TableFallback{}, ChartComparisonMetadata{}, err
+	}
+	previousRange, _, _, err := s.normalizePeriod(normalized.PreviousReport.Cashflow.Period)
+	if err != nil {
+		return nil, TableFallback{}, ChartComparisonMetadata{}, err
+	}
+	currentValues := cashflowNetByDate(current.Cashflow.Points)
+	previousValues := cashflowNetByDate(previous.Cashflow.Points)
+	bucketCount := calendarDayCount(currentRange)
+	points := make([]ChartDataPoint, 0, bucketCount)
+	rows := make([]TableRow, 0, bucketCount)
+	currentDay, previousDay := currentRange.From, previousRange.From
+	for index := range bucketCount {
+		currentDate := currentDay.Format(dateLayout)
+		previousDate := previousDay.Format(dateLayout)
+		currentNet := currentValues[currentDate]
+		previousNet := previousValues[previousDate]
+		if currentNet == "" {
+			currentNet = "0"
+		}
+		if previousNet == "" {
+			previousNet = "0"
+		}
+		id := fmt.Sprintf("comparison:bucket:%04d", index)
+		points = append(points, ChartDataPoint{
+			ID: id, Label: currentDate + " vs " + previousDate,
+			Values: []ChartValue{
+				{Series: SeriesCurrentNet, Value: currentNet},
+				{Series: SeriesPreviousNet, Value: previousNet},
+			},
+		})
+		rows = append(rows, TableRow{ID: id, Cells: []TableCell{
+			{Key: "bucket", Value: fmt.Sprintf("%d", index)},
+			{Key: "current_period", Value: currentDate},
+			{Key: "current_net", Value: string(currentNet)},
+			{Key: "previous_period", Value: previousDate},
+			{Key: "previous_net", Value: string(previousNet)},
+		}})
+		currentDay = currentDay.AddDate(0, 0, 1)
+		previousDay = previousDay.AddDate(0, 0, 1)
+	}
+	table := TableFallback{Columns: []TableColumn{
+		{Key: "bucket", Label: "Bucket index", Format: FormatNumber},
+		{Key: "current_period", Label: "Current period", Format: FormatDate},
+		{Key: "current_net", Label: "Current net", Format: FormatCurrency},
+		{Key: "previous_period", Label: "Previous period", Format: FormatDate},
+		{Key: "previous_net", Label: "Previous net", Format: FormatCurrency},
+	}, Rows: rows}
+	metadata := ChartComparisonMetadata{
+		CurrentPeriod: *current.Cashflow.Metadata.Period, PreviousPeriod: *previous.Cashflow.Metadata.Period,
+		Granularity: GranularityDay, Alignment: "calendar_day_index", BucketCount: bucketCount,
+	}
+	return points, table, metadata, nil
+}
+
+func cashflowNetByDate(points []CashflowPoint) map[string]Decimal {
+	values := make(map[string]Decimal, len(points))
+	for _, point := range points {
+		values[point.From] = point.Net
+	}
+	return values
 }
 
 func chartData(report ReportEnvelope) ([]ChartDataPoint, TableFallback, error) {
