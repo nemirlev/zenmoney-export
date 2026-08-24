@@ -166,6 +166,46 @@ func TestToolReturnsStructuredContentAndTextFallback(t *testing.T) {
 	assert.Contains(t, text["text"], "123.45 RUB")
 }
 
+func TestCategoryTextFallbackDisclosesTruncation(t *testing.T) {
+	spending := analytics.SpendingSummaryResult{
+		Metadata:   metadata(analytics.ReportSpendingSummary, "RUB"),
+		Categories: make([]analytics.SpendingCategory, 2),
+		Truncated:  true,
+	}
+	assert.Contains(
+		t,
+		spendingSummaryText(spending),
+		"Showing first 2 categories; more categories exist.",
+	)
+
+	budget := analytics.BudgetProgressResult{
+		Metadata: metadata(analytics.ReportBudgetProgress, "RUB"),
+		Rows:     make([]analytics.BudgetProgressRow, 3),
+		HasMore:  true,
+	}
+	assert.Contains(
+		t,
+		budgetProgressText(budget),
+		"Showing first 3 categories; more categories exist.",
+	)
+}
+
+func TestCategoryTextFallbackDisclosesCompleteRows(t *testing.T) {
+	spending := analytics.SpendingSummaryResult{
+		Metadata:   metadata(analytics.ReportSpendingSummary, "RUB"),
+		Categories: make([]analytics.SpendingCategory, 2),
+	}
+	assert.Contains(t, spendingSummaryText(spending), "Showing all 2 categories.")
+	assert.NotContains(t, spendingSummaryText(spending), "more categories exist")
+
+	budget := analytics.BudgetProgressResult{
+		Metadata: metadata(analytics.ReportBudgetProgress, "RUB"),
+		Rows:     make([]analytics.BudgetProgressRow, 3),
+	}
+	assert.Contains(t, budgetProgressText(budget), "Showing all 3 categories.")
+	assert.NotContains(t, budgetProgressText(budget), "more categories exist")
+}
+
 func TestUIResourceUsesPortableAppsContract(t *testing.T) {
 	handlers := newTestHandlers(t, &fakeAnalyticsService{})
 	response := postMCP(t, handlers.MCP, "alice", "resources/read", FinanceChartResourceURI, map[string]any{"uri": FinanceChartResourceURI})

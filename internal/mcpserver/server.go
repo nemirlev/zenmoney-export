@@ -186,7 +186,13 @@ func textResult(text string) *mcp.CallToolResult {
 }
 
 func spendingSummaryText(output analytics.SpendingSummaryResult) string {
-	return fmt.Sprintf("Spending total: %s %s across %d transactions and %d categories.", output.Total, output.Metadata.Currency, output.TransactionCount, len(output.Categories))
+	return fmt.Sprintf(
+		"Spending total: %s %s across %d transactions. %s",
+		output.Total,
+		output.Metadata.Currency,
+		output.TransactionCount,
+		categoryRowsText(len(output.Categories), output.HasMore || output.Truncated),
+	)
 }
 
 func cashflowText(output analytics.CashflowResult) string {
@@ -194,7 +200,20 @@ func cashflowText(output analytics.CashflowResult) string {
 }
 
 func budgetProgressText(output analytics.BudgetProgressResult) string {
-	return fmt.Sprintf("Budget progress: spent %s of %s %s across %d categories.", output.Totals.Spent, output.Totals.Budget, output.Metadata.Currency, len(output.Rows))
+	return fmt.Sprintf(
+		"Budget progress: spent %s of %s %s. %s",
+		output.Totals.Spent,
+		output.Totals.Budget,
+		output.Metadata.Currency,
+		categoryRowsText(len(output.Rows), output.HasMore || output.Truncated),
+	)
+}
+
+func categoryRowsText(count int, truncated bool) string {
+	if truncated {
+		return fmt.Sprintf("Showing first %d categories; more categories exist.", count)
+	}
+	return fmt.Sprintf("Showing all %d categories.", count)
 }
 
 func transactionSearchText(output analytics.TransactionSearchResult) string {
