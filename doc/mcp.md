@@ -217,7 +217,7 @@ expecting reports from a fresh database. From the repository root, create an ign
 environment file, replace every credential placeholder, and generate a random bearer secret:
 
 ```bash
-cp docker/.env.example docker/.env
+cp -n docker/.env.example docker/.env
 openssl rand -hex 32
 # Edit docker/.env and paste the generated value into ZENMCP_BEARER_TOKEN.
 ```
