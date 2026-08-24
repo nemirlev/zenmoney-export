@@ -70,6 +70,13 @@ func TestAnalyticsQueriesAgainstPostgres(t *testing.T) {
 	require.Equal(t, "category:uncategorized", spending.Categories[1].CategoryID)
 	require.Equal(t, analytics.Decimal("200.0000000000000000"), spending.Categories[2].Amount)
 	require.Equal(t, "Transport", spending.Categories[2].Title)
+	limitedSpending, err := store.SpendingSummary(ctx, principal, analytics.SpendingSummaryQuery{
+		Range: dateRange,
+		Limit: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, limitedSpending.Categories, 1)
+	require.True(t, limitedSpending.HasMore)
 
 	spendingWithHold, err := store.SpendingSummary(ctx, principal, analytics.SpendingSummaryQuery{
 		Range: dateRange,
@@ -102,6 +109,13 @@ func TestAnalyticsQueriesAgainstPostgres(t *testing.T) {
 	require.Equal(t, "category:all", budget.Rows[0].CategoryID)
 	require.Equal(t, analytics.Decimal("1800.0000000000000000"), budget.Rows[0].Spent)
 	require.Equal(t, analytics.Decimal("1200.0000000000000000"), budget.Rows[1].Spent)
+	limitedBudget, err := store.BudgetProgress(ctx, principal, analytics.BudgetProgressQuery{
+		Range: dateRange,
+		Limit: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, limitedBudget.Rows, 1)
+	require.True(t, limitedBudget.HasMore)
 
 	page, err := store.SearchTransactions(ctx, principal, analytics.TransactionSearchQuery{
 		Range: dateRange,
@@ -146,6 +160,49 @@ func TestAnalyticsQueriesAgainstPostgres(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, freshness.LastCompleted)
 	require.Equal(t, int64(123), freshness.LastCompleted.ServerTimestamp)
+
+	verifyAnalyticsSnapshotIsolation(t, ctx, store, connection)
+}
+
+func verifyAnalyticsSnapshotIsolation(
+	t *testing.T,
+	ctx context.Context,
+	store *DB,
+	outside *pgx.Conn,
+) {
+	t.Helper()
+
+	observed, err := withAnalyticsSnapshot(ctx, store.pool, func(executor analyticsQueryExecutor) (
+		[]string,
+		error,
+	) {
+		var readOnly string
+		var isolation string
+		if err := executor.QueryRow(
+			ctx,
+			`SELECT current_setting('transaction_read_only'), current_setting('transaction_isolation')`,
+		).Scan(&readOnly, &isolation); err != nil {
+			return nil, err
+		}
+		var before string
+		if err := executor.QueryRow(ctx, `SELECT rate::text FROM instrument WHERE id = 1`).Scan(&before); err != nil {
+			return nil, err
+		}
+		if _, err := outside.Exec(ctx, `UPDATE instrument SET rate = 101 WHERE id = 1`); err != nil {
+			return nil, err
+		}
+		var after string
+		if err := executor.QueryRow(ctx, `SELECT rate::text FROM instrument WHERE id = 1`).Scan(&after); err != nil {
+			return nil, err
+		}
+		return []string{readOnly, isolation, before, after}, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"on", "repeatable read", "100", "100"}, observed)
+
+	var committed string
+	require.NoError(t, outside.QueryRow(ctx, `SELECT rate::text FROM instrument WHERE id = 1`).Scan(&committed))
+	require.Equal(t, "101", committed)
 }
 
 func seedAnalyticsIntegrationData(t *testing.T, ctx context.Context, connection *pgx.Conn) {

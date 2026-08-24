@@ -320,7 +320,7 @@ converted_budgets AS (
       ON parent.id = category.parent
      AND parent."user" = budget."user"
      AND parent.id <> category.id
-    WHERE budget.date >= date_trunc('month', $2::date)::date
+    WHERE budget.date >= $2::date
       AND budget.date < $3::date
       AND (
           cardinality($6::uuid[]) = 0

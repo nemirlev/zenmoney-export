@@ -8,8 +8,13 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/analytics"
+	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/require"
 )
+
+func expectAnalyticsSnapshotBegin(mock pgxmock.PgxPoolIface) {
+	mock.ExpectBeginTx(analyticsSnapshotTxOptions)
+}
 
 func analyticsTestRange() analytics.DateRange {
 	return analytics.DateRange{
@@ -49,12 +54,21 @@ func TestSpendingCategorySQLDeduplicatesRollsUpAndEqualSplits(t *testing.T) {
 	require.Contains(t, spendingCategoriesSQL, `NULL::uuid AS category_id`)
 }
 
+func TestBudgetSQLUsesStrictNormalizedMonthRange(t *testing.T) {
+	t.Parallel()
+
+	require.Contains(t, budgetProgressCTESQL, `budget.date >= $2::date`)
+	require.Contains(t, budgetProgressCTESQL, `budget.date < $3::date`)
+	require.NotContains(t, budgetProgressCTESQL, `date_trunc('month', $2::date)`)
+}
+
 func TestSpendingSummaryUsesAuthenticatedScopeAndStableUncategorizedID(t *testing.T) {
 	db, mock := newTestDB(t)
 	ctx := context.Background()
 	principal := analytics.Principal{Subject: "subject", UserIDs: []int64{42}}
-	query := analytics.SpendingSummaryQuery{Range: analyticsTestRange(), Limit: 10}
+	query := analytics.SpendingSummaryQuery{Range: analyticsTestRange(), Limit: 1}
 
+	expectAnalyticsSnapshotBegin(mock)
 	mock.ExpectQuery(regexp.QuoteMeta(resolveAnalyticsCurrencySQL)).
 		WithArgs(principal.UserIDs).
 		WillReturnRows(mock.NewRows([]string{"currency", "currency_count", "user_count"}).
@@ -68,15 +82,17 @@ func TestSpendingSummaryUsesAuthenticatedScopeAndStableUncategorizedID(t *testin
 		WillReturnRows(mock.NewRows([]string{"total", "transaction_count", "invalid_rate_count"}).
 			AddRow("1250.50", int64(2), int64(0)))
 	mock.ExpectQuery(regexp.QuoteMeta(spendingCategoriesSQL)).
-		WithArgs(append(baseArgs, 10)...).
+		WithArgs(append(baseArgs, 2)...).
 		WillReturnRows(mock.NewRows([]string{
 			"category_id", "category_title", "amount", "share", "transaction_count",
-		}).AddRow(nil, nil, "1250.50", "100", int64(2)))
+		}).AddRow(nil, nil, "1250.50", "100", int64(2)).
+			AddRow("00000000-0000-0000-0000-000000000020", "Food", "10", "1", int64(1)))
 	finished := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	mock.ExpectQuery(regexp.QuoteMeta(latestCompletedSyncSQL)).
 		WillReturnRows(mock.NewRows([]string{
 			"started_at", "finished_at", "status", "sync_type", "server_timestamp", "records_processed",
 		}).AddRow(finished.Add(-time.Minute), finished, "completed", "partial", int64(99), int64(3)))
+	mock.ExpectCommit()
 
 	data, err := db.SpendingSummary(ctx, principal, query)
 	require.NoError(t, err)
@@ -84,6 +100,7 @@ func TestSpendingSummaryUsesAuthenticatedScopeAndStableUncategorizedID(t *testin
 	require.Equal(t, analytics.Decimal("1250.50"), data.Total)
 	require.Equal(t, int64(2), data.TransactionCount)
 	require.Len(t, data.Categories, 1)
+	require.True(t, data.HasMore)
 	require.Equal(t, "category:uncategorized", data.Categories[0].CategoryID)
 	require.Equal(t, "spending:category:uncategorized", data.Categories[0].ID)
 	require.Equal(t, "Uncategorized", data.Categories[0].Title)
@@ -94,6 +111,7 @@ func TestSpendingSummaryRejectsMissingRate(t *testing.T) {
 	principal := analytics.Principal{UserIDs: []int64{42}}
 	query := analytics.SpendingSummaryQuery{Range: analyticsTestRange(), Limit: 10}
 
+	expectAnalyticsSnapshotBegin(mock)
 	mock.ExpectQuery(regexp.QuoteMeta(resolveAnalyticsCurrencySQL)).
 		WithArgs(principal.UserIDs).
 		WillReturnRows(mock.NewRows([]string{"currency", "currency_count", "user_count"}).
@@ -105,6 +123,7 @@ func TestSpendingSummaryRejectsMissingRate(t *testing.T) {
 		).
 		WillReturnRows(mock.NewRows([]string{"total", "transaction_count", "invalid_rate_count"}).
 			AddRow("0", int64(0), int64(1)))
+	mock.ExpectRollback()
 
 	_, err := db.SpendingSummary(context.Background(), principal, query)
 	require.ErrorIs(t, err, ErrAnalyticsRate)
@@ -137,6 +156,7 @@ func TestCashflowReturnsBoundedServerCurrencyPoints(t *testing.T) {
 	pointsSQL, err := cashflowPointsSQL(query.Granularity)
 	require.NoError(t, err)
 
+	expectAnalyticsSnapshotBegin(mock)
 	mock.ExpectQuery(regexp.QuoteMeta(resolveAnalyticsCurrencySQL)).
 		WithArgs(principal.UserIDs).
 		WillReturnRows(mock.NewRows([]string{"currency", "currency_count", "user_count"}).
@@ -155,6 +175,7 @@ func TestCashflowReturnsBoundedServerCurrencyPoints(t *testing.T) {
 			"from", "to", "income", "outcome", "net", "invalid",
 		}).AddRow("2026-08-01", "2026-09-01", "2000", "750", "1250", int64(0)))
 	mock.ExpectQuery(regexp.QuoteMeta(latestCompletedSyncSQL)).WillReturnError(pgx.ErrNoRows)
+	mock.ExpectCommit()
 
 	data, err := db.Cashflow(context.Background(), principal, query)
 	require.NoError(t, err)
@@ -173,6 +194,7 @@ func TestSearchTransactionsUsesKeysetAndStableFallbacks(t *testing.T) {
 		Limit: 2,
 	}
 
+	expectAnalyticsSnapshotBegin(mock)
 	mock.ExpectQuery(regexp.QuoteMeta(resolveAnalyticsCurrencySQL)).
 		WithArgs(principal.UserIDs).
 		WillReturnRows(mock.NewRows([]string{"currency", "currency_count", "user_count"}).
@@ -194,6 +216,7 @@ func TestSearchTransactionsUsesKeysetAndStableFallbacks(t *testing.T) {
 			[]string{"category:uncategorized"}, []string{"Uncategorized"}, nil, nil, false, false,
 		))
 	mock.ExpectQuery(regexp.QuoteMeta(latestCompletedSyncSQL)).WillReturnError(pgx.ErrNoRows)
+	mock.ExpectCommit()
 
 	page, err := db.SearchTransactions(context.Background(), principal, query)
 	require.NoError(t, err)
@@ -210,9 +233,10 @@ func TestSearchTransactionsUsesKeysetAndStableFallbacks(t *testing.T) {
 func TestBudgetProgressReturnsExactDecimalRows(t *testing.T) {
 	db, mock := newTestDB(t)
 	principal := analytics.Principal{UserIDs: []int64{42}}
-	query := analytics.BudgetProgressQuery{Range: analyticsTestRange(), Limit: 10}
+	query := analytics.BudgetProgressQuery{Range: analyticsTestRange(), Limit: 1}
 	categoryID := "00000000-0000-0000-0000-000000000020"
 
+	expectAnalyticsSnapshotBegin(mock)
 	mock.ExpectQuery(regexp.QuoteMeta(resolveAnalyticsCurrencySQL)).
 		WithArgs(principal.UserIDs).
 		WillReturnRows(mock.NewRows([]string{"currency", "currency_count", "user_count"}).
@@ -226,11 +250,13 @@ func TestBudgetProgressReturnsExactDecimalRows(t *testing.T) {
 		WillReturnRows(mock.NewRows([]string{"budget", "spent", "remaining", "percent", "invalid"}).
 			AddRow("1000.00", "250.00", "750.00", "25", int64(0)))
 	mock.ExpectQuery(regexp.QuoteMeta(budgetProgressRowsSQL)).
-		WithArgs(append(baseArgs, 10)...).
+		WithArgs(append(baseArgs, 2)...).
 		WillReturnRows(mock.NewRows([]string{
 			"category_id", "title", "budget", "spent", "remaining", "percent", "transaction_count",
-		}).AddRow(categoryID, "Food", "1000.00", "250.00", "750.00", "25", int64(2)))
+		}).AddRow(categoryID, "Food", "1000.00", "250.00", "750.00", "25", int64(2)).
+			AddRow("00000000-0000-0000-0000-000000000021", "Transport", "500", "50", "450", "10", int64(1)))
 	mock.ExpectQuery(regexp.QuoteMeta(latestCompletedSyncSQL)).WillReturnError(pgx.ErrNoRows)
+	mock.ExpectCommit()
 
 	data, err := db.BudgetProgress(context.Background(), principal, query)
 	require.NoError(t, err)
@@ -238,6 +264,7 @@ func TestBudgetProgressReturnsExactDecimalRows(t *testing.T) {
 	require.Equal(t, analytics.Decimal("1000.00"), data.Totals.Budget)
 	require.Equal(t, analytics.Decimal("25"), *data.Totals.Percent)
 	require.Len(t, data.Rows, 1)
+	require.True(t, data.HasMore)
 	require.Equal(t, "budget:category:"+categoryID, data.Rows[0].ID)
 	require.Equal(t, analytics.Decimal("250.00"), data.Rows[0].Spent)
 }
@@ -248,6 +275,7 @@ func TestDataFreshnessReturnsDatabaseWideCompletedAndLatestSnapshots(t *testing.
 	started := time.Date(2026, 8, 24, 10, 0, 0, 0, time.UTC)
 	finished := started.Add(time.Minute)
 
+	expectAnalyticsSnapshotBegin(mock)
 	mock.ExpectQuery(regexp.QuoteMeta(latestCompletedSyncSQL)).
 		WillReturnRows(mock.NewRows([]string{
 			"started_at", "finished_at", "status", "sync_type", "server_timestamp", "records_processed",
@@ -256,6 +284,7 @@ func TestDataFreshnessReturnsDatabaseWideCompletedAndLatestSnapshots(t *testing.
 		WillReturnRows(mock.NewRows([]string{
 			"started_at", "finished_at", "status", "sync_type", "server_timestamp", "records_processed",
 		}).AddRow(started.Add(time.Hour), nil, "failed", "partial", int64(11), int64(0)))
+	mock.ExpectCommit()
 
 	data, err := db.DataFreshness(context.Background(), principal)
 	require.NoError(t, err)

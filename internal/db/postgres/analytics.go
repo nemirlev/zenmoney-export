@@ -27,6 +27,40 @@ var (
 	ErrAnalyticsRange       = errors.New("analytics date range is invalid")
 )
 
+var analyticsSnapshotTxOptions = pgx.TxOptions{
+	IsoLevel:   pgx.RepeatableRead,
+	AccessMode: pgx.ReadOnly,
+}
+
+type analyticsQueryExecutor interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
+func withAnalyticsSnapshot[T any](
+	ctx context.Context,
+	pool PgxIface,
+	read func(analyticsQueryExecutor) (T, error),
+) (T, error) {
+	var zero T
+	tx, err := pool.BeginTx(ctx, analyticsSnapshotTxOptions)
+	if err != nil {
+		return zero, fmt.Errorf("begin analytics snapshot: %w", err)
+	}
+
+	result, err := read(tx)
+	if err != nil {
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {
+			return zero, errors.Join(err, fmt.Errorf("rollback analytics snapshot: %w", rollbackErr))
+		}
+		return zero, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return zero, fmt.Errorf("commit analytics snapshot: %w", err)
+	}
+	return result, nil
+}
+
 const resolveAnalyticsCurrencySQL = `
 SELECT COALESCE(MIN(report_instrument.short_title), ''),
        COUNT(DISTINCT report_user.currency),
@@ -87,12 +121,13 @@ func nonNilStrings(values []string) []string {
 
 func (s *DB) analyticsReportCurrency(
 	ctx context.Context,
+	executor analyticsQueryExecutor,
 	principal analytics.Principal,
 ) (string, error) {
 	var currency string
 	var currencyCount int64
 	var userCount int64
-	err := s.pool.QueryRow(ctx, resolveAnalyticsCurrencySQL, principal.UserIDs).Scan(
+	err := executor.QueryRow(ctx, resolveAnalyticsCurrencySQL, principal.UserIDs).Scan(
 		&currency,
 		&currencyCount,
 		&userCount,
@@ -130,10 +165,13 @@ func analyticsQueryArgs(
 	}
 }
 
-func (s *DB) lastCompletedSyncAt(ctx context.Context) (*time.Time, error) {
+func (s *DB) lastCompletedSyncAt(
+	ctx context.Context,
+	executor analyticsQueryExecutor,
+) (*time.Time, error) {
 	var snapshot analytics.SyncSnapshot
 	var finishedAt time.Time
-	err := s.pool.QueryRow(ctx, latestCompletedSyncSQL).Scan(
+	err := executor.QueryRow(ctx, latestCompletedSyncSQL).Scan(
 		&snapshot.StartedAt,
 		&finishedAt,
 		&snapshot.Status,
@@ -161,8 +199,21 @@ func (s *DB) SpendingSummary(
 	if err := validateAnalyticsLimit(query.Limit); err != nil {
 		return analytics.SpendingSummaryData{}, err
 	}
+	return withAnalyticsSnapshot(ctx, s.pool, func(executor analyticsQueryExecutor) (
+		analytics.SpendingSummaryData,
+		error,
+	) {
+		return s.spendingSummarySnapshot(ctx, executor, principal, query)
+	})
+}
 
-	currency, err := s.analyticsReportCurrency(ctx, principal)
+func (s *DB) spendingSummarySnapshot(
+	ctx context.Context,
+	executor analyticsQueryExecutor,
+	principal analytics.Principal,
+	query analytics.SpendingSummaryQuery,
+) (analytics.SpendingSummaryData, error) {
+	currency, err := s.analyticsReportCurrency(ctx, executor, principal)
 	if err != nil {
 		return analytics.SpendingSummaryData{}, err
 	}
@@ -171,7 +222,7 @@ func (s *DB) SpendingSummary(
 	var data analytics.SpendingSummaryData
 	data.Currency = currency
 	var invalidRates int64
-	if err := s.pool.QueryRow(ctx, spendingTotalsSQL, args...).Scan(
+	if err := executor.QueryRow(ctx, spendingTotalsSQL, args...).Scan(
 		&data.Total,
 		&data.TransactionCount,
 		&invalidRates,
@@ -186,8 +237,8 @@ func (s *DB) SpendingSummary(
 		)
 	}
 
-	categoryArgs := append(append([]any{}, args...), query.Limit)
-	rows, err := s.pool.Query(ctx, spendingCategoriesSQL, categoryArgs...)
+	categoryArgs := append(append([]any{}, args...), query.Limit+1)
+	rows, err := executor.Query(ctx, spendingCategoriesSQL, categoryArgs...)
 	if err != nil {
 		return analytics.SpendingSummaryData{}, fmt.Errorf("query spending categories: %w", err)
 	}
@@ -224,8 +275,12 @@ func (s *DB) SpendingSummary(
 	if err := rows.Err(); err != nil {
 		return analytics.SpendingSummaryData{}, fmt.Errorf("iterate spending categories: %w", err)
 	}
+	if len(data.Categories) > query.Limit {
+		data.HasMore = true
+		data.Categories = data.Categories[:query.Limit]
+	}
 
-	data.LastSyncAt, err = s.lastCompletedSyncAt(ctx)
+	data.LastSyncAt, err = s.lastCompletedSyncAt(ctx, executor)
 	if err != nil {
 		return analytics.SpendingSummaryData{}, err
 	}
@@ -286,11 +341,25 @@ func (s *DB) Cashflow(
 	if err := validateAnalyticsLimit(query.MaxPoints); err != nil {
 		return analytics.CashflowData{}, err
 	}
+	return withAnalyticsSnapshot(ctx, s.pool, func(executor analyticsQueryExecutor) (
+		analytics.CashflowData,
+		error,
+	) {
+		return s.cashflowSnapshot(ctx, executor, principal, query)
+	})
+}
+
+func (s *DB) cashflowSnapshot(
+	ctx context.Context,
+	executor analyticsQueryExecutor,
+	principal analytics.Principal,
+	query analytics.CashflowQuery,
+) (analytics.CashflowData, error) {
 	pointsSQL, err := cashflowPointsSQL(query.Granularity)
 	if err != nil {
 		return analytics.CashflowData{}, err
 	}
-	currency, err := s.analyticsReportCurrency(ctx, principal)
+	currency, err := s.analyticsReportCurrency(ctx, executor, principal)
 	if err != nil {
 		return analytics.CashflowData{}, err
 	}
@@ -299,7 +368,7 @@ func (s *DB) Cashflow(
 	var data analytics.CashflowData
 	data.Currency = currency
 	var invalidRates int64
-	if err := s.pool.QueryRow(ctx, cashflowTotalsSQL, args...).Scan(
+	if err := executor.QueryRow(ctx, cashflowTotalsSQL, args...).Scan(
 		&data.Totals.Income,
 		&data.Totals.Outcome,
 		&data.Totals.Net,
@@ -316,7 +385,7 @@ func (s *DB) Cashflow(
 	}
 
 	pointArgs := append(append([]any{}, args...), query.MaxPoints+1)
-	rows, err := s.pool.Query(ctx, pointsSQL, pointArgs...)
+	rows, err := executor.Query(ctx, pointsSQL, pointArgs...)
 	if err != nil {
 		return analytics.CashflowData{}, fmt.Errorf("query cashflow points: %w", err)
 	}
@@ -352,7 +421,7 @@ func (s *DB) Cashflow(
 		)
 	}
 
-	data.LastSyncAt, err = s.lastCompletedSyncAt(ctx)
+	data.LastSyncAt, err = s.lastCompletedSyncAt(ctx, executor)
 	if err != nil {
 		return analytics.CashflowData{}, err
 	}
@@ -370,7 +439,21 @@ func (s *DB) SearchTransactions(
 	if err := validateAnalyticsLimit(query.Limit); err != nil {
 		return analytics.TransactionPage{}, err
 	}
-	currency, err := s.analyticsReportCurrency(ctx, principal)
+	return withAnalyticsSnapshot(ctx, s.pool, func(executor analyticsQueryExecutor) (
+		analytics.TransactionPage,
+		error,
+	) {
+		return s.searchTransactionsSnapshot(ctx, executor, principal, query)
+	})
+}
+
+func (s *DB) searchTransactionsSnapshot(
+	ctx context.Context,
+	executor analyticsQueryExecutor,
+	principal analytics.Principal,
+	query analytics.TransactionSearchQuery,
+) (analytics.TransactionPage, error) {
+	currency, err := s.analyticsReportCurrency(ctx, executor, principal)
 	if err != nil {
 		return analytics.TransactionPage{}, err
 	}
@@ -383,7 +466,7 @@ func (s *DB) SearchTransactions(
 	}
 	args = append(args, query.Limit+1)
 
-	rows, err := s.pool.Query(ctx, searchTransactionsSQL, args...)
+	rows, err := executor.Query(ctx, searchTransactionsSQL, args...)
 	if err != nil {
 		return analytics.TransactionPage{}, fmt.Errorf("search transactions: %w", err)
 	}
@@ -473,7 +556,7 @@ func (s *DB) SearchTransactions(
 	if hasMore {
 		page.NextCursor = lastCursor
 	}
-	page.LastSyncAt, err = s.lastCompletedSyncAt(ctx)
+	page.LastSyncAt, err = s.lastCompletedSyncAt(ctx, executor)
 	if err != nil {
 		return analytics.TransactionPage{}, err
 	}
@@ -499,7 +582,21 @@ func (s *DB) BudgetProgress(
 	if err := validateAnalyticsLimit(query.Limit); err != nil {
 		return analytics.BudgetProgressData{}, err
 	}
-	currency, err := s.analyticsReportCurrency(ctx, principal)
+	return withAnalyticsSnapshot(ctx, s.pool, func(executor analyticsQueryExecutor) (
+		analytics.BudgetProgressData,
+		error,
+	) {
+		return s.budgetProgressSnapshot(ctx, executor, principal, query)
+	})
+}
+
+func (s *DB) budgetProgressSnapshot(
+	ctx context.Context,
+	executor analyticsQueryExecutor,
+	principal analytics.Principal,
+	query analytics.BudgetProgressQuery,
+) (analytics.BudgetProgressData, error) {
+	currency, err := s.analyticsReportCurrency(ctx, executor, principal)
 	if err != nil {
 		return analytics.BudgetProgressData{}, err
 	}
@@ -507,7 +604,7 @@ func (s *DB) BudgetProgress(
 	data := analytics.BudgetProgressData{Currency: currency}
 	var totalPercent sql.NullString
 	var invalidRates int64
-	if err := s.pool.QueryRow(ctx, budgetProgressTotalsSQL, args...).Scan(
+	if err := executor.QueryRow(ctx, budgetProgressTotalsSQL, args...).Scan(
 		&data.Totals.Budget,
 		&data.Totals.Spent,
 		&data.Totals.Remaining,
@@ -525,8 +622,8 @@ func (s *DB) BudgetProgress(
 	}
 	data.Totals.Percent = decimalPointer(totalPercent)
 
-	rowArgs := append(append([]any{}, args...), query.Limit)
-	rows, err := s.pool.Query(ctx, budgetProgressRowsSQL, rowArgs...)
+	rowArgs := append(append([]any{}, args...), query.Limit+1)
+	rows, err := executor.Query(ctx, budgetProgressRowsSQL, rowArgs...)
 	if err != nil {
 		return analytics.BudgetProgressData{}, fmt.Errorf("query budget progress rows: %w", err)
 	}
@@ -570,17 +667,25 @@ func (s *DB) BudgetProgress(
 	if err := rows.Err(); err != nil {
 		return analytics.BudgetProgressData{}, fmt.Errorf("iterate budget progress rows: %w", err)
 	}
-	data.LastSyncAt, err = s.lastCompletedSyncAt(ctx)
+	if len(data.Rows) > query.Limit {
+		data.HasMore = true
+		data.Rows = data.Rows[:query.Limit]
+	}
+	data.LastSyncAt, err = s.lastCompletedSyncAt(ctx, executor)
 	if err != nil {
 		return analytics.BudgetProgressData{}, err
 	}
 	return data, nil
 }
 
-func (s *DB) readSyncSnapshot(ctx context.Context, querySQL string) (*analytics.SyncSnapshot, error) {
+func (s *DB) readSyncSnapshot(
+	ctx context.Context,
+	executor analyticsQueryExecutor,
+	querySQL string,
+) (*analytics.SyncSnapshot, error) {
 	var snapshot analytics.SyncSnapshot
 	var finishedAt sql.NullTime
-	err := s.pool.QueryRow(ctx, querySQL).Scan(
+	err := executor.QueryRow(ctx, querySQL).Scan(
 		&snapshot.StartedAt,
 		&finishedAt,
 		&snapshot.Status,
@@ -607,11 +712,23 @@ func (s *DB) DataFreshness(
 	if err := validateAnalyticsPrincipal(principal); err != nil {
 		return analytics.FreshnessData{}, err
 	}
-	completed, err := s.readSyncSnapshot(ctx, latestCompletedSyncSQL)
+	return withAnalyticsSnapshot(ctx, s.pool, func(executor analyticsQueryExecutor) (
+		analytics.FreshnessData,
+		error,
+	) {
+		return s.dataFreshnessSnapshot(ctx, executor)
+	})
+}
+
+func (s *DB) dataFreshnessSnapshot(
+	ctx context.Context,
+	executor analyticsQueryExecutor,
+) (analytics.FreshnessData, error) {
+	completed, err := s.readSyncSnapshot(ctx, executor, latestCompletedSyncSQL)
 	if err != nil {
 		return analytics.FreshnessData{}, fmt.Errorf("read completed sync freshness: %w", err)
 	}
-	attempt, err := s.readSyncSnapshot(ctx, latestSyncAttemptSQL)
+	attempt, err := s.readSyncSnapshot(ctx, executor, latestSyncAttemptSQL)
 	if err != nil {
 		return analytics.FreshnessData{}, fmt.Errorf("read latest sync freshness: %w", err)
 	}
