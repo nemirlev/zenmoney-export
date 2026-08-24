@@ -16,17 +16,17 @@ func TestDBSyncLockUsesRawConnectionOutsidePool(t *testing.T) {
 	connConfig := &pgx.ConnConfig{}
 	pool := &configOnlyPool{config: &pgxpool.Config{ConnConfig: connConfig}}
 	conn := &recordingLockConnection{rows: []lockRow{{value: true}, {value: true}}}
-	factory := &recordingLockFactory{connections: []syncLockConnection{conn}}
+	connector := &recordingLockConnector{connections: []syncLockConnection{conn}}
 	db := &DB{pool: pool}
 
-	lock, err := db.acquireSyncLock(context.Background(), factory)
+	lock, err := db.acquireSyncLock(context.Background(), connector)
 	require.NoError(t, err)
 	require.Zero(t, pool.acquireCalls, "the advisory lock must not consume a working pool slot")
-	require.Len(t, factory.configs, 1)
+	require.Len(t, connector.configs, 1)
 	require.NotSame(
 		t,
 		connConfig,
-		factory.configs[0],
+		connector.configs[0],
 		"the raw connection must receive an isolated config copy",
 	)
 	require.Zero(t, conn.closeCalls, "the raw connection must remain open while the lock is held")
@@ -44,9 +44,9 @@ func TestDBSyncLockUsesRawConnectionOutsidePool(t *testing.T) {
 
 func TestAcquireSyncLockReturnsBusySentinelAndClosesRawConnection(t *testing.T) {
 	conn := &recordingLockConnection{rows: []lockRow{{value: false}}}
-	factory := &recordingLockFactory{connections: []syncLockConnection{conn}}
+	connector := &recordingLockConnector{connections: []syncLockConnection{conn}}
 
-	lock, err := acquireSyncLock(context.Background(), factory, nil)
+	lock, err := acquireSyncLock(context.Background(), connector, nil)
 
 	require.Nil(t, lock)
 	require.ErrorIs(t, err, interfaces.ErrSyncAlreadyRunning)
@@ -56,12 +56,12 @@ func TestAcquireSyncLockReturnsBusySentinelAndClosesRawConnection(t *testing.T) 
 func TestConcurrentSyncLockAttemptIsRejectedUntilOwnerUnlocks(t *testing.T) {
 	ownerConn := &recordingLockConnection{rows: []lockRow{{value: true}, {value: true}}}
 	contenderConn := &recordingLockConnection{rows: []lockRow{{value: false}}}
-	factory := &recordingLockFactory{connections: []syncLockConnection{ownerConn, contenderConn}}
+	connector := &recordingLockConnector{connections: []syncLockConnection{ownerConn, contenderConn}}
 
-	owner, err := acquireSyncLock(context.Background(), factory, nil)
+	owner, err := acquireSyncLock(context.Background(), connector, nil)
 	require.NoError(t, err)
 
-	contender, err := acquireSyncLock(context.Background(), factory, nil)
+	contender, err := acquireSyncLock(context.Background(), connector, nil)
 	require.Nil(t, contender)
 	require.ErrorIs(t, err, interfaces.ErrSyncAlreadyRunning)
 	require.Zero(
@@ -78,9 +78,9 @@ func TestConcurrentSyncLockAttemptIsRejectedUntilOwnerUnlocks(t *testing.T) {
 func TestAcquireSyncLockClosesConnectionAfterAmbiguousQueryError(t *testing.T) {
 	queryErr := errors.New("query failed")
 	conn := &recordingLockConnection{rows: []lockRow{{err: queryErr}}}
-	factory := &recordingLockFactory{connections: []syncLockConnection{conn}}
+	connector := &recordingLockConnector{connections: []syncLockConnection{conn}}
 
-	lock, err := acquireSyncLock(context.Background(), factory, nil)
+	lock, err := acquireSyncLock(context.Background(), connector, nil)
 
 	require.Nil(t, lock)
 	require.ErrorIs(t, err, queryErr)
@@ -90,9 +90,9 @@ func TestAcquireSyncLockClosesConnectionAfterAmbiguousQueryError(t *testing.T) {
 func TestUnlockClosesConnectionWhenAdvisoryUnlockFails(t *testing.T) {
 	unlockErr := errors.New("connection interrupted")
 	conn := &recordingLockConnection{rows: []lockRow{{value: true}, {err: unlockErr}}}
-	factory := &recordingLockFactory{connections: []syncLockConnection{conn}}
+	connector := &recordingLockConnector{connections: []syncLockConnection{conn}}
 
-	lock, err := acquireSyncLock(context.Background(), factory, nil)
+	lock, err := acquireSyncLock(context.Background(), connector, nil)
 	require.NoError(t, err)
 
 	err = lock.Unlock(context.Background())
@@ -103,9 +103,9 @@ func TestUnlockClosesConnectionWhenAdvisoryUnlockFails(t *testing.T) {
 
 func TestUnlockClosesConnectionWhenLockIsNotHeld(t *testing.T) {
 	conn := &recordingLockConnection{rows: []lockRow{{value: true}, {value: false}}}
-	factory := &recordingLockFactory{connections: []syncLockConnection{conn}}
+	connector := &recordingLockConnector{connections: []syncLockConnection{conn}}
 
-	lock, err := acquireSyncLock(context.Background(), factory, nil)
+	lock, err := acquireSyncLock(context.Background(), connector, nil)
 	require.NoError(t, err)
 
 	err = lock.Unlock(context.Background())
@@ -116,8 +116,8 @@ func TestUnlockClosesConnectionWhenLockIsNotHeld(t *testing.T) {
 
 func TestUnlockUsesFreshBoundedContextAfterCallerCancellation(t *testing.T) {
 	conn := &recordingLockConnection{rows: []lockRow{{value: true}, {value: true}}}
-	factory := &recordingLockFactory{connections: []syncLockConnection{conn}}
-	lock, err := acquireSyncLock(context.Background(), factory, nil)
+	connector := &recordingLockConnector{connections: []syncLockConnection{conn}}
+	lock, err := acquireSyncLock(context.Background(), connector, nil)
 	require.NoError(t, err)
 
 	canceledCtx, cancel := context.WithCancel(context.Background())
@@ -131,8 +131,8 @@ func TestUnlockUsesFreshBoundedContextAfterCallerCancellation(t *testing.T) {
 
 func TestUnlockDeadlineClosesBlackholedRawConnection(t *testing.T) {
 	conn := &recordingLockConnection{rows: []lockRow{{value: true}, {block: true}}}
-	factory := &recordingLockFactory{connections: []syncLockConnection{conn}}
-	lock, err := acquireSyncLock(context.Background(), factory, nil)
+	connector := &recordingLockConnector{connections: []syncLockConnection{conn}}
+	lock, err := acquireSyncLock(context.Background(), connector, nil)
 	require.NoError(t, err)
 	lock.(*postgresSyncLock).cleanupTimeout = 20 * time.Millisecond
 
@@ -160,13 +160,13 @@ func (p *configOnlyPool) Acquire(context.Context) (*pgxpool.Conn, error) {
 	return nil, errors.New("working pool must not be used for advisory lock")
 }
 
-type recordingLockFactory struct {
+type recordingLockConnector struct {
 	connections []syncLockConnection
 	configs     []*pgx.ConnConfig
 	err         error
 }
 
-func (f *recordingLockFactory) Connect(
+func (f *recordingLockConnector) Connect(
 	_ context.Context,
 	config *pgx.ConnConfig,
 ) (syncLockConnection, error) {

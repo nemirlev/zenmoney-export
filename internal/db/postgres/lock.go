@@ -24,13 +24,13 @@ type syncLockConnection interface {
 	Close(ctx context.Context) error
 }
 
-type syncLockConnectionFactory interface {
+type syncLockConnector interface {
 	Connect(ctx context.Context, config *pgx.ConnConfig) (syncLockConnection, error)
 }
 
-type pgxSyncLockConnectionFactory struct{}
+type pgxSyncLockConnector struct{}
 
-func (pgxSyncLockConnectionFactory) Connect(
+func (pgxSyncLockConnector) Connect(
 	ctx context.Context,
 	config *pgx.ConnConfig,
 ) (syncLockConnection, error) {
@@ -39,12 +39,12 @@ func (pgxSyncLockConnectionFactory) Connect(
 
 // AcquireSyncLock attempts to acquire the exporter lock without waiting.
 func (s *DB) AcquireSyncLock(ctx context.Context) (interfaces.SyncLock, error) {
-	return s.acquireSyncLock(ctx, pgxSyncLockConnectionFactory{})
+	return s.acquireSyncLock(ctx, pgxSyncLockConnector{})
 }
 
 func (s *DB) acquireSyncLock(
 	ctx context.Context,
-	factory syncLockConnectionFactory,
+	connector syncLockConnector,
 ) (interfaces.SyncLock, error) {
 	poolConfig := s.pool.Config()
 	if poolConfig == nil || poolConfig.ConnConfig == nil {
@@ -54,15 +54,15 @@ func (s *DB) acquireSyncLock(
 	// The advisory lock deliberately uses a raw connection outside pgxpool.
 	// Keeping a pooled connection checked out for the complete API fetch would
 	// deadlock Save and cursor queries when pool_max_conns=1.
-	return acquireSyncLock(ctx, factory, poolConfig.ConnConfig.Copy())
+	return acquireSyncLock(ctx, connector, poolConfig.ConnConfig.Copy())
 }
 
 func acquireSyncLock(
 	ctx context.Context,
-	factory syncLockConnectionFactory,
+	connector syncLockConnector,
 	config *pgx.ConnConfig,
 ) (interfaces.SyncLock, error) {
-	conn, err := factory.Connect(ctx, config)
+	conn, err := connector.Connect(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("open dedicated postgres connection: %w", err)
 	}
