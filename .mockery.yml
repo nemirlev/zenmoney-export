@@ -1,0 +1,14 @@
+all: false
+dir: mocks
+filename: mocks.go
+force-file-write: true
+formatter: goimports
+generate: true
+structname: Mock{{.InterfaceName}}
+pkgname: mocks
+template: testify
+packages:
+  github.com/nemirlev/zenmoney-export/v2/internal/interfaces:
+    interfaces:
+      Storage:
+      SyncUnlocker:

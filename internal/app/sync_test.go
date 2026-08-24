@@ -60,18 +60,6 @@ func (c *recordingSyncClient) record(event string) {
 	}
 }
 
-type testSyncLock struct {
-	onUnlock func()
-	err      error
-}
-
-func (l *testSyncLock) Unlock(context.Context) error {
-	if l.onUnlock != nil {
-		l.onUnlock()
-	}
-	return l.err
-}
-
 func TestSyncSelectsSDKMethod(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -129,12 +117,14 @@ func TestSyncSelectsSDKMethod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage := mocks.NewStorage(t)
-			storage.On("AcquireSyncLock", mock.Anything).Return(&testSyncLock{}, nil).Once()
-			storage.On("GetLastSyncStatus", mock.Anything).Return(tt.lastSync, nil).Once()
+			storage := mocks.NewMockStorage(t)
+			lock := mocks.NewMockSyncUnlocker(t)
+			lock.EXPECT().Unlock(mock.Anything).Return(nil).Once()
+			storage.EXPECT().AcquireSyncLock(mock.Anything).Return(lock, nil).Once()
+			storage.EXPECT().GetLastSyncStatus(mock.Anything).Return(tt.lastSync, nil).Once()
 
 			response := models.Response{ServerTimestamp: 999}
-			storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{
+			storage.EXPECT().Save(mock.Anything, &response, interfaces.SaveOptions{
 				BatchSize: interfaces.DefaultBatchSize,
 				SyncType:  tt.wantSyncType,
 			}).
@@ -207,7 +197,7 @@ func TestSyncRejectsInvalidEntitiesBeforeStorageOrAPI(t *testing.T) {
 
 	for _, value := range tests {
 		t.Run(value, func(t *testing.T) {
-			storage := mocks.NewStorage(t)
+			storage := mocks.NewMockStorage(t)
 			client := &recordingSyncClient{}
 			service := &SyncService{
 				app:    &Application{cfg: &config.Config{DBType: "postgres"}, db: storage},
@@ -262,8 +252,8 @@ func TestSummarizeResponseCountsEveryEntityType(t *testing.T) {
 }
 
 func TestSyncDryRunLogsSummaryWithoutSaving(t *testing.T) {
-	storage := mocks.NewStorage(t)
-	storage.On("GetLastSyncStatus", mock.Anything).Return(interfaces.SyncStatus{}, nil).Once()
+	storage := mocks.NewMockStorage(t)
+	storage.EXPECT().GetLastSyncStatus(mock.Anything).Return(interfaces.SyncStatus{}, nil).Once()
 
 	response := models.Response{
 		ServerTimestamp: 777,
@@ -332,23 +322,29 @@ func TestSyncDryRunLogsSummaryWithoutSaving(t *testing.T) {
 }
 
 func TestSyncHoldsLockAcrossCursorFetchAndSave(t *testing.T) {
-	storage := mocks.NewStorage(t)
+	storage := mocks.NewMockStorage(t)
 	events := make([]string, 0, 5)
-	lock := &testSyncLock{onUnlock: func() { events = append(events, "unlock") }}
-	storage.On("AcquireSyncLock", mock.Anything).
-		Run(func(mock.Arguments) { events = append(events, "lock") }).
+	lock := mocks.NewMockSyncUnlocker(t)
+	lock.EXPECT().Unlock(mock.Anything).
+		Run(func(context.Context) { events = append(events, "unlock") }).
+		Return(nil).
+		Once()
+	storage.EXPECT().AcquireSyncLock(mock.Anything).
+		Run(func(context.Context) { events = append(events, "lock") }).
 		Return(lock, nil).
 		Once()
-	storage.On("GetLastSyncStatus", mock.Anything).
-		Run(func(mock.Arguments) { events = append(events, "cursor") }).
+	storage.EXPECT().GetLastSyncStatus(mock.Anything).
+		Run(func(context.Context) { events = append(events, "cursor") }).
 		Return(interfaces.SyncStatus{}, nil).
 		Once()
 	response := models.Response{ServerTimestamp: 42}
-	storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{
+	storage.EXPECT().Save(mock.Anything, &response, interfaces.SaveOptions{
 		BatchSize: interfaces.DefaultBatchSize,
 		SyncType:  interfaces.SyncTypeFull,
 	}).
-		Run(func(mock.Arguments) { events = append(events, "save") }).
+		Run(func(context.Context, *models.Response, interfaces.SaveOptions) {
+			events = append(events, "save")
+		}).
 		Return(nil).
 		Once()
 	service := &SyncService{
@@ -366,11 +362,13 @@ func TestSyncHoldsLockAcrossCursorFetchAndSave(t *testing.T) {
 }
 
 func TestSyncPassesConfiguredBatchSizeToStorage(t *testing.T) {
-	storage := mocks.NewStorage(t)
-	storage.On("AcquireSyncLock", mock.Anything).Return(&testSyncLock{}, nil).Once()
-	storage.On("GetLastSyncStatus", mock.Anything).Return(interfaces.SyncStatus{}, nil).Once()
+	storage := mocks.NewMockStorage(t)
+	lock := mocks.NewMockSyncUnlocker(t)
+	lock.EXPECT().Unlock(mock.Anything).Return(nil).Once()
+	storage.EXPECT().AcquireSyncLock(mock.Anything).Return(lock, nil).Once()
+	storage.EXPECT().GetLastSyncStatus(mock.Anything).Return(interfaces.SyncStatus{}, nil).Once()
 	response := models.Response{ServerTimestamp: 42}
-	storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{
+	storage.EXPECT().Save(mock.Anything, &response, interfaces.SaveOptions{
 		BatchSize: 37,
 		SyncType:  interfaces.SyncTypeFull,
 	}).
@@ -387,11 +385,13 @@ func TestSyncPassesConfiguredBatchSizeToStorage(t *testing.T) {
 }
 
 func TestSyncPassesCopyWriteModeToStorage(t *testing.T) {
-	storage := mocks.NewStorage(t)
-	storage.On("AcquireSyncLock", mock.Anything).Return(&testSyncLock{}, nil).Once()
-	storage.On("GetLastSyncStatus", mock.Anything).Return(interfaces.SyncStatus{}, nil).Once()
+	storage := mocks.NewMockStorage(t)
+	lock := mocks.NewMockSyncUnlocker(t)
+	lock.EXPECT().Unlock(mock.Anything).Return(nil).Once()
+	storage.EXPECT().AcquireSyncLock(mock.Anything).Return(lock, nil).Once()
+	storage.EXPECT().GetLastSyncStatus(mock.Anything).Return(interfaces.SyncStatus{}, nil).Once()
 	response := models.Response{ServerTimestamp: 42}
-	storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{
+	storage.EXPECT().Save(mock.Anything, &response, interfaces.SaveOptions{
 		BatchSize: interfaces.DefaultBatchSize,
 		WriteMode: interfaces.WriteModeCopy,
 		SyncType:  interfaces.SyncTypeFull,
@@ -410,8 +410,8 @@ func TestSyncPassesCopyWriteModeToStorage(t *testing.T) {
 }
 
 func TestSyncReturnsBusyLockWithoutReadingCursorOrCallingAPI(t *testing.T) {
-	storage := mocks.NewStorage(t)
-	storage.On("AcquireSyncLock", mock.Anything).
+	storage := mocks.NewMockStorage(t)
+	storage.EXPECT().AcquireSyncLock(mock.Anything).
 		Return(nil, interfaces.ErrSyncAlreadyRunning).
 		Once()
 	client := &recordingSyncClient{}
@@ -431,13 +431,15 @@ func TestSyncReturnsBusyLockWithoutReadingCursorOrCallingAPI(t *testing.T) {
 
 func TestSyncReturnsUnlockFailureAfterSaving(t *testing.T) {
 	unlockErr := errors.New("unlock failed")
-	storage := mocks.NewStorage(t)
-	storage.On("AcquireSyncLock", mock.Anything).
-		Return(&testSyncLock{err: unlockErr}, nil).
+	storage := mocks.NewMockStorage(t)
+	lock := mocks.NewMockSyncUnlocker(t)
+	lock.EXPECT().Unlock(mock.Anything).Return(unlockErr).Once()
+	storage.EXPECT().AcquireSyncLock(mock.Anything).
+		Return(lock, nil).
 		Once()
-	storage.On("GetLastSyncStatus", mock.Anything).Return(interfaces.SyncStatus{}, nil).Once()
+	storage.EXPECT().GetLastSyncStatus(mock.Anything).Return(interfaces.SyncStatus{}, nil).Once()
 	response := models.Response{ServerTimestamp: 42}
-	storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{
+	storage.EXPECT().Save(mock.Anything, &response, interfaces.SaveOptions{
 		BatchSize: interfaces.DefaultBatchSize,
 		SyncType:  interfaces.SyncTypeFull,
 	}).

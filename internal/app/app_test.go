@@ -54,8 +54,8 @@ func TestNewApplicationClosesStorageWhenAPIClientInitializationFails(t *testing.
 	originalLogger := slog.Default()
 	t.Cleanup(func() { slog.SetDefault(originalLogger) })
 
-	storage := mocks.NewStorage(t)
-	storage.On("Close", mock.MatchedBy(func(ctx context.Context) bool {
+	storage := mocks.NewMockStorage(t)
+	storage.EXPECT().Close(mock.MatchedBy(func(ctx context.Context) bool {
 		return ctx.Err() == nil
 	})).Return(nil).Once()
 
@@ -87,8 +87,8 @@ func TestNewApplicationConfiguresZenMoneyResponseLimit(t *testing.T) {
 	originalLogger := slog.Default()
 	t.Cleanup(func() { slog.SetDefault(originalLogger) })
 
-	storage := mocks.NewStorage(t)
-	storage.On("Close", mock.Anything).Return(nil).Once()
+	storage := mocks.NewMockStorage(t)
+	storage.EXPECT().Close(mock.Anything).Return(nil).Once()
 
 	oversizedResponse := `{"padding":"` + strings.Repeat("a", 1<<20) + `"}`
 	httpClient := &http.Client{
@@ -128,8 +128,8 @@ func TestNewApplicationConfiguresZenMoneyResponseLimit(t *testing.T) {
 }
 
 func TestApplicationCloseClosesStorage(t *testing.T) {
-	storage := mocks.NewStorage(t)
-	storage.On("Close", mock.Anything).Return(nil).Once()
+	storage := mocks.NewMockStorage(t)
+	storage.EXPECT().Close(mock.Anything).Return(nil).Once()
 	application := &Application{db: storage}
 
 	require.NoError(t, application.Close(context.Background()))
