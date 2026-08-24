@@ -38,14 +38,14 @@ func (pgxSyncLockConnector) Connect(
 }
 
 // AcquireSyncLock attempts to acquire the exporter lock without waiting.
-func (s *DB) AcquireSyncLock(ctx context.Context) (interfaces.SyncLock, error) {
+func (s *DB) AcquireSyncLock(ctx context.Context) (interfaces.SyncUnlocker, error) {
 	return s.acquireSyncLock(ctx, pgxSyncLockConnector{})
 }
 
 func (s *DB) acquireSyncLock(
 	ctx context.Context,
 	connector syncLockConnector,
-) (interfaces.SyncLock, error) {
+) (interfaces.SyncUnlocker, error) {
 	poolConfig := s.pool.Config()
 	if poolConfig == nil || poolConfig.ConnConfig == nil {
 		return nil, errors.New("postgres connection config is not available for sync lock")
@@ -61,7 +61,7 @@ func acquireSyncLock(
 	ctx context.Context,
 	connector syncLockConnector,
 	config *pgx.ConnConfig,
-) (interfaces.SyncLock, error) {
+) (interfaces.SyncUnlocker, error) {
 	conn, err := connector.Connect(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("open dedicated postgres connection: %w", err)

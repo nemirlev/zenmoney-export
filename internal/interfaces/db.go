@@ -14,8 +14,8 @@ var ErrSyncAlreadyRunning = errors.New(
 	"another exporter instance is already synchronizing this database",
 )
 
-// SyncLock is held for the complete read-fetch-save synchronization cycle.
-type SyncLock interface {
+// SyncUnlocker releases the lock held for the complete read-fetch-save synchronization cycle.
+type SyncUnlocker interface {
 	Unlock(ctx context.Context) error
 }
 
@@ -61,7 +61,7 @@ const (
 type Storage interface {
 	Close(ctx context.Context) error
 	Ping(ctx context.Context) error
-	AcquireSyncLock(ctx context.Context) (SyncLock, error)
+	AcquireSyncLock(ctx context.Context) (SyncUnlocker, error)
 
 	SaveSyncStatus(ctx context.Context, status SyncStatus) error
 	GetLastSyncStatus(ctx context.Context) (SyncStatus, error)
