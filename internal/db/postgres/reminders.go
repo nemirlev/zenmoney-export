@@ -4,27 +4,35 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 )
 
-// GetReminder retrieves a specific reminder by its ID
-func (s *DB) GetReminder(ctx context.Context, id string) (*models.Reminder, error) {
-	query := `
+const reminderSelectQuery = `
         SELECT id, "user", income, outcome, changed, income_instrument,
                outcome_instrument, step, points, tag,
                to_char(start_date, 'YYYY-MM-DD') AS start_date,
                to_char(end_date, 'YYYY-MM-DD') AS end_date,
                notify, interval, income_account, outcome_account, comment,
                payee, merchant
-        FROM reminder
-        WHERE id = $1`
+        FROM reminder`
 
-	reminder := &models.Reminder{}
-	err := s.pool.QueryRow(ctx, query, id).Scan(
+const reminderInsertQuery = `
+        INSERT INTO reminder (
+            id, "user", income, outcome, changed, income_instrument,
+            outcome_instrument, step, points, tag, start_date, end_date,
+            notify, interval, income_account, outcome_account, comment,
+            payee, merchant
+        ) VALUES ($1, $2, $3::text::numeric, $4::text::numeric, $5, $6, $7,
+                  $8, $9, $10, $11::text::date,
+                  NULLIF(BTRIM($12::text), '')::date, $13, $14,
+                  $15::text::uuid, $16::text::uuid, $17, $18, $19)`
+
+func scanReminder(row rowScanner) (models.Reminder, error) {
+	var reminder models.Reminder
+	err := row.Scan(
 		&reminder.ID,
 		&reminder.User,
 		&reminder.Income,
@@ -45,104 +53,11 @@ func (s *DB) GetReminder(ctx context.Context, id string) (*models.Reminder, erro
 		&reminder.Payee,
 		&reminder.Merchant,
 	)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("reminder not found: %s", id)
-		}
-		return nil, fmt.Errorf("failed to get reminder: %w", err)
-	}
-
-	return reminder, nil
+	return reminder, err
 }
 
-// ListReminders retrieves a list of reminders based on the provided filter
-func (s *DB) ListReminders(
-	ctx context.Context,
-	filter interfaces.Filter,
-) ([]models.Reminder, error) {
-	var conditions []string
-	var args []any
-	argNum := 1
-
-	if filter.UserID != nil {
-		conditions = append(conditions, fmt.Sprintf(`"user" = $%d`, argNum))
-		args = append(args, *filter.UserID)
-		argNum++
-	}
-
-	query := `
-        SELECT id, "user", income, outcome, changed, income_instrument,
-               outcome_instrument, step, points, tag,
-               to_char(start_date, 'YYYY-MM-DD') AS start_date,
-               to_char(end_date, 'YYYY-MM-DD') AS end_date,
-               notify, interval, income_account, outcome_account, comment,
-               payee, merchant
-        FROM reminder`
-
-	if len(conditions) > 0 {
-		query += " WHERE " + strings.Join(conditions, " AND ")
-	}
-
-	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argNum, argNum+1)
-	args = append(args, filter.Limit, (filter.Page-1)*filter.Limit)
-
-	rows, err := s.pool.Query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list reminders: %w", err)
-	}
-	defer rows.Close()
-
-	var reminders []models.Reminder
-	for rows.Next() {
-		var reminder models.Reminder
-		err := rows.Scan(
-			&reminder.ID,
-			&reminder.User,
-			&reminder.Income,
-			&reminder.Outcome,
-			&reminder.Changed,
-			&reminder.IncomeInstrument,
-			&reminder.OutcomeInstrument,
-			&reminder.Step,
-			&reminder.Points,
-			&reminder.Tag,
-			&reminder.StartDate,
-			&reminder.EndDate,
-			&reminder.Notify,
-			&reminder.Interval,
-			&reminder.IncomeAccount,
-			&reminder.OutcomeAccount,
-			&reminder.Comment,
-			&reminder.Payee,
-			&reminder.Merchant,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan reminder: %w", err)
-		}
-		reminders = append(reminders, reminder)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating reminders: %w", err)
-	}
-
-	return reminders, nil
-}
-
-// CreateReminder creates a new reminder record
-func (s *DB) CreateReminder(ctx context.Context, reminder *models.Reminder) error {
-	query := `
-        INSERT INTO reminder (
-            id, "user", income, outcome, changed, income_instrument,
-            outcome_instrument, step, points, tag, start_date, end_date,
-            notify, interval, income_account, outcome_account, comment,
-            payee, merchant
-        ) VALUES ($1, $2, $3::text::numeric, $4::text::numeric, $5, $6, $7,
-                  $8, $9, $10, $11::text::date,
-                  NULLIF(BTRIM($12::text), '')::date, $13, $14,
-                  $15::text::uuid, $16::text::uuid, $17, $18, $19)`
-
-	_, err := s.pool.Exec(ctx, query,
+func reminderValues(reminder *models.Reminder) []any {
+	return []any{
 		reminder.ID,
 		reminder.User,
 		decimalString(reminder.Income),
@@ -162,12 +77,48 @@ func (s *DB) CreateReminder(ctx context.Context, reminder *models.Reminder) erro
 		reminder.Comment,
 		reminder.Payee,
 		reminder.Merchant,
-	)
+	}
+}
+
+// GetReminder retrieves a specific reminder by its ID
+func (s *DB) GetReminder(ctx context.Context, id string) (*models.Reminder, error) {
+	reminder, err := scanReminder(s.pool.QueryRow(ctx, reminderSelectQuery+` WHERE id = $1`, id))
 	if err != nil {
-		return fmt.Errorf("failed to create reminder: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("reminder not found: %s", id)
+		}
+		return nil, fmt.Errorf("failed to get reminder: %w", err)
 	}
 
-	return nil
+	return &reminder, nil
+}
+
+// ListReminders retrieves a list of reminders based on the provided filter
+func (s *DB) ListReminders(
+	ctx context.Context,
+	filter interfaces.Filter,
+) ([]models.Reminder, error) {
+	query, args := buildListQuery(reminderSelectQuery, filter, false, "")
+
+	rows, err := s.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list reminders: %w", err)
+	}
+	defer rows.Close()
+
+	return collectRows(rows, scanReminder, "failed to scan reminder", "error iterating reminders")
+}
+
+// CreateReminder creates a new reminder record
+func (s *DB) CreateReminder(ctx context.Context, reminder *models.Reminder) error {
+	_, err := execCommand(
+		ctx,
+		s.pool,
+		reminderInsertQuery,
+		"failed to create reminder",
+		reminderValues(reminder)...,
+	)
+	return err
 }
 
 // UpdateReminder updates an existing reminder record
@@ -194,50 +145,28 @@ func (s *DB) UpdateReminder(ctx context.Context, reminder *models.Reminder) erro
             merchant = $19
         WHERE id = $1`
 
-	commandTag, err := s.pool.Exec(ctx, query,
-		reminder.ID,
-		reminder.User,
-		decimalString(reminder.Income),
-		decimalString(reminder.Outcome),
-		reminder.Changed,
-		reminder.IncomeInstrument,
-		reminder.OutcomeInstrument,
-		reminder.Step,
-		reminder.Points,
-		reminder.Tag,
-		reminder.StartDate,
-		reminder.EndDate,
-		reminder.Notify,
-		reminder.Interval,
-		reminder.IncomeAccount,
-		reminder.OutcomeAccount,
-		reminder.Comment,
-		reminder.Payee,
-		reminder.Merchant,
+	commandTag, err := execCommand(
+		ctx,
+		s.pool,
+		query,
+		"failed to update reminder",
+		reminderValues(reminder)...,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to update reminder: %w", err)
+		return err
 	}
 
-	if commandTag.RowsAffected() == 0 {
-		return fmt.Errorf("reminder not found: %s", reminder.ID)
-	}
-
-	return nil
+	return requireRowsAffected(commandTag, fmt.Sprintf("reminder not found: %s", reminder.ID))
 }
 
 // DeleteReminder deletes a reminder by its ID
 func (s *DB) DeleteReminder(ctx context.Context, id string) error {
 	query := `DELETE FROM reminder WHERE id = $1`
 
-	commandTag, err := s.pool.Exec(ctx, query, id)
+	commandTag, err := execCommand(ctx, s.pool, query, "failed to delete reminder", id)
 	if err != nil {
-		return fmt.Errorf("failed to delete reminder: %w", err)
+		return err
 	}
 
-	if commandTag.RowsAffected() == 0 {
-		return fmt.Errorf("reminder not found: %s", id)
-	}
-
-	return nil
+	return requireRowsAffected(commandTag, fmt.Sprintf("reminder not found: %s", id))
 }

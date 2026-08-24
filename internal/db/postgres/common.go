@@ -2,8 +2,10 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -27,6 +29,92 @@ func optionalDecimalString(value *float64) any {
 	}
 
 	return decimalString(*value)
+}
+
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func buildListQuery(
+	baseQuery string,
+	filter interfaces.Filter,
+	includeDateRange bool,
+	orderBy string,
+) (string, []any) {
+	conditions := make([]string, 0, 3)
+	args := make([]any, 0, 5)
+
+	addCondition := func(column string, value any) {
+		conditions = append(conditions, fmt.Sprintf(`%s = $%d`, column, len(args)+1))
+		args = append(args, value)
+	}
+
+	if filter.UserID != nil {
+		addCondition(`"user"`, *filter.UserID)
+	}
+	if includeDateRange && filter.StartDate != nil {
+		conditions = append(conditions, fmt.Sprintf(`date >= $%d`, len(args)+1))
+		args = append(args, *filter.StartDate)
+	}
+	if includeDateRange && filter.EndDate != nil {
+		conditions = append(conditions, fmt.Sprintf(`date <= $%d`, len(args)+1))
+		args = append(args, *filter.EndDate)
+	}
+
+	query := baseQuery
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	query += orderBy
+	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
+	args = append(args, filter.Limit, (filter.Page-1)*filter.Limit)
+
+	return query, args
+}
+
+func collectRows[T any](
+	rows pgx.Rows,
+	scan func(rowScanner) (T, error),
+	scanFailure string,
+	iterationFailure string,
+) ([]T, error) {
+	var items []T
+	for rows.Next() {
+		item, err := scan(rows)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", scanFailure, err)
+		}
+		items = append(items, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("%s: %w", iterationFailure, err)
+	}
+
+	return items, nil
+}
+
+func execCommand(
+	ctx context.Context,
+	executor commandExecutor,
+	query string,
+	failure string,
+	args ...any,
+) (pgconn.CommandTag, error) {
+	commandTag, err := executor.Exec(ctx, query, args...)
+	if err != nil {
+		return commandTag, fmt.Errorf("%s: %w", failure, err)
+	}
+
+	return commandTag, nil
+}
+
+func requireRowsAffected(commandTag pgconn.CommandTag, notFound string) error {
+	if commandTag.RowsAffected() == 0 {
+		return errors.New(notFound)
+	}
+
+	return nil
 }
 
 type DB struct {

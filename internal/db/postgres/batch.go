@@ -49,7 +49,10 @@ func executeBatch(
 	results := db.SendBatch(ctx, batch)
 	defer func() {
 		if closeErr := results.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("close %s batch starting at %d: %w", entity, start, closeErr))
+			err = errors.Join(
+				err,
+				fmt.Errorf("close %s batch starting at %d: %w", entity, start, closeErr),
+			)
 		}
 	}()
 
@@ -102,7 +105,12 @@ func (s *DB) SaveInstruments(ctx context.Context, instruments []models.Instrumen
 	})
 }
 
-func saveInstruments(ctx context.Context, db batchSender, instruments []models.Instrument, batchSize int) error {
+func saveInstruments(
+	ctx context.Context,
+	db batchSender,
+	instruments []models.Instrument,
+	batchSize int,
+) error {
 	if len(instruments) == 0 {
 		return nil
 	}
@@ -117,17 +125,24 @@ func saveInstruments(ctx context.Context, db batchSender, instruments []models.I
             rate = EXCLUDED.rate,
             changed = EXCLUDED.changed`
 
-	return saveInChunks(ctx, db, "instrument", instruments, batchSize, func(batch *pgx.Batch, inst models.Instrument) {
-		batch.Queue(
-			query,
-			inst.ID,
-			inst.Title,
-			inst.ShortTitle,
-			inst.Symbol,
-			decimalString(inst.Rate),
-			inst.Changed,
-		)
-	})
+	return saveInChunks(
+		ctx,
+		db,
+		"instrument",
+		instruments,
+		batchSize,
+		func(batch *pgx.Batch, inst models.Instrument) {
+			batch.Queue(
+				query,
+				inst.ID,
+				inst.Title,
+				inst.ShortTitle,
+				inst.Symbol,
+				decimalString(inst.Rate),
+				inst.Changed,
+			)
+		},
+	)
 }
 
 // SaveCountries saves a batch of countries to the database
@@ -141,7 +156,12 @@ func (s *DB) SaveCountries(ctx context.Context, countries []models.Country) erro
 	})
 }
 
-func saveCountries(ctx context.Context, db batchSender, countries []models.Country, batchSize int) error {
+func saveCountries(
+	ctx context.Context,
+	db batchSender,
+	countries []models.Country,
+	batchSize int,
+) error {
 	if len(countries) == 0 {
 		return nil
 	}
@@ -154,9 +174,16 @@ func saveCountries(ctx context.Context, db batchSender, countries []models.Count
             currency = EXCLUDED.currency,
             domain = EXCLUDED.domain`
 
-	return saveInChunks(ctx, db, "country", countries, batchSize, func(batch *pgx.Batch, country models.Country) {
-		batch.Queue(query, country.ID, country.Title, country.Currency, country.Domain)
-	})
+	return saveInChunks(
+		ctx,
+		db,
+		"country",
+		countries,
+		batchSize,
+		func(batch *pgx.Batch, country models.Country) {
+			batch.Queue(query, country.ID, country.Title, country.Currency, country.Domain)
+		},
+	)
 }
 
 // SaveCompanies saves a batch of companies to the database
@@ -170,7 +197,12 @@ func (s *DB) SaveCompanies(ctx context.Context, companies []models.Company) erro
 	})
 }
 
-func saveCompanies(ctx context.Context, db batchSender, companies []models.Company, batchSize int) error {
+func saveCompanies(
+	ctx context.Context,
+	db batchSender,
+	companies []models.Company,
+	batchSize int,
+) error {
 	if len(companies) == 0 {
 		return nil
 	}
@@ -189,13 +221,20 @@ func saveCompanies(ctx context.Context, db batchSender, companies []models.Compa
             country_code = EXCLUDED.country_code,
             changed = EXCLUDED.changed`
 
-	return saveInChunks(ctx, db, "company", companies, batchSize, func(batch *pgx.Batch, company models.Company) {
-		batch.Queue(query,
-			company.ID, company.Title, company.FullTitle,
-			company.Www, company.Country, company.Deleted,
-			company.CountryCode, company.Changed,
-		)
-	})
+	return saveInChunks(
+		ctx,
+		db,
+		"company",
+		companies,
+		batchSize,
+		func(batch *pgx.Batch, company models.Company) {
+			batch.Queue(query,
+				company.ID, company.Title, company.FullTitle,
+				company.Www, company.Country, company.Deleted,
+				company.CountryCode, company.Changed,
+			)
+		},
+	)
 }
 
 // SaveUsers saves a batch of users to the database
@@ -237,16 +276,23 @@ func saveUsers(ctx context.Context, db batchSender, users []models.User, batchSi
             subscription = EXCLUDED.subscription,
             subscription_renewal_date = EXCLUDED.subscription_renewal_date`
 
-	return saveInChunks(ctx, db, "user", users, batchSize, func(batch *pgx.Batch, user models.User) {
-		batch.Queue(query,
-			user.ID, user.Country, user.Login, user.Parent,
-			user.CountryCode, user.Email, user.Changed,
-			user.Currency, user.PaidTill, user.MonthStartDay,
-			user.IsForecastEnabled, user.PlanBalanceMode,
-			user.PlanSettings, user.Subscription,
-			user.SubscriptionRenewalDate,
-		)
-	})
+	return saveInChunks(
+		ctx,
+		db,
+		"user",
+		users,
+		batchSize,
+		func(batch *pgx.Batch, user models.User) {
+			batch.Queue(query,
+				user.ID, user.Country, user.Login, user.Parent,
+				user.CountryCode, user.Email, user.Changed,
+				user.Currency, user.PaidTill, user.MonthStartDay,
+				user.IsForecastEnabled, user.PlanBalanceMode,
+				user.PlanSettings, user.Subscription,
+				user.SubscriptionRenewalDate,
+			)
+		},
+	)
 }
 
 // SaveAccounts saves a batch of accounts to the database
@@ -259,23 +305,17 @@ func (s *DB) SaveAccounts(ctx context.Context, accounts []models.Account) error 
 	})
 }
 
-func saveAccounts(ctx context.Context, db batchSender, accounts []models.Account, batchSize int) error {
+func saveAccounts(
+	ctx context.Context,
+	db batchSender,
+	accounts []models.Account,
+	batchSize int,
+) error {
 	if len(accounts) == 0 {
 		return nil
 	}
 
-	query := `
-        INSERT INTO account (
-            id, "user", instrument, type, role, private, savings,
-            title, in_balance, credit_limit, start_balance, balance,
-            company, archive, enable_correction, balance_correction_type,
-            start_date, capitalization, percent, changed, sync_id,
-            enable_sms, end_date_offset, end_date_offset_interval,
-            payoff_step, payoff_interval
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::text::numeric,
-                  $11::text::numeric, $12::text::numeric, $13, $14, $15, $16,
-                  NULLIF(BTRIM($17::text), '')::date, $18, $19::text::numeric,
-                  $20, $21, $22, $23, $24, $25, $26)
+	query := accountInsertQuery + `
         ON CONFLICT (id) DO UPDATE SET
             "user" = EXCLUDED.user,
             instrument = EXCLUDED.instrument,
@@ -303,36 +343,16 @@ func saveAccounts(ctx context.Context, db batchSender, accounts []models.Account
             payoff_step = EXCLUDED.payoff_step,
             payoff_interval = EXCLUDED.payoff_interval`
 
-	return saveInChunks(ctx, db, "account", accounts, batchSize, func(batch *pgx.Batch, account models.Account) {
-		batch.Queue(query,
-			account.ID,
-			account.User,
-			account.Instrument,
-			account.Type,
-			account.Role,
-			account.Private,
-			account.Savings,
-			account.Title,
-			account.InBalance,
-			optionalDecimalString(account.CreditLimit),
-			optionalDecimalString(account.StartBalance),
-			optionalDecimalString(account.Balance),
-			account.Company,
-			account.Archive,
-			account.EnableCorrection,
-			account.BalanceCorrectionType,
-			account.StartDate,
-			account.Capitalization,
-			optionalDecimalString(account.Percent),
-			account.Changed,
-			account.SyncID,
-			account.EnableSMS,
-			account.EndDateOffset,
-			account.EndDateOffsetInterval,
-			account.PayoffStep,
-			account.PayoffInterval,
-		)
-	})
+	return saveInChunks(
+		ctx,
+		db,
+		"account",
+		accounts,
+		batchSize,
+		func(batch *pgx.Batch, account models.Account) {
+			batch.Queue(query, accountValues(&account)...)
+		},
+	)
 }
 
 // SaveTags saves a batch of tags to the database
@@ -404,7 +424,12 @@ func (s *DB) SaveMerchants(ctx context.Context, merchants []models.Merchant) err
 	})
 }
 
-func saveMerchants(ctx context.Context, db batchSender, merchants []models.Merchant, batchSize int) error {
+func saveMerchants(
+	ctx context.Context,
+	db batchSender,
+	merchants []models.Merchant,
+	batchSize int,
+) error {
 	if len(merchants) == 0 {
 		return nil
 	}
@@ -418,15 +443,22 @@ func saveMerchants(ctx context.Context, db batchSender, merchants []models.Merch
             changed = EXCLUDED.changed,
             mcc = EXCLUDED.mcc`
 
-	return saveInChunks(ctx, db, "merchant", merchants, batchSize, func(batch *pgx.Batch, merchant models.Merchant) {
-		batch.Queue(query,
-			merchant.ID,
-			merchant.User,
-			merchant.Title,
-			merchant.Changed,
-			merchant.MCC,
-		)
-	})
+	return saveInChunks(
+		ctx,
+		db,
+		"merchant",
+		merchants,
+		batchSize,
+		func(batch *pgx.Batch, merchant models.Merchant) {
+			batch.Queue(query,
+				merchant.ID,
+				merchant.User,
+				merchant.Title,
+				merchant.Changed,
+				merchant.MCC,
+			)
+		},
+	)
 }
 
 // SaveBudgets saves a batch of budgets to the database
@@ -439,17 +471,17 @@ func (s *DB) SaveBudgets(ctx context.Context, budgets []models.Budget) error {
 	})
 }
 
-func saveBudgets(ctx context.Context, db batchSender, budgets []models.Budget, batchSize int) error {
+func saveBudgets(
+	ctx context.Context,
+	db batchSender,
+	budgets []models.Budget,
+	batchSize int,
+) error {
 	if len(budgets) == 0 {
 		return nil
 	}
 
-	query := `
-        INSERT INTO budget (
-            "user", changed, date, tag, income, outcome,
-            income_lock, outcome_lock, is_income_forecast, is_outcome_forecast
-        ) VALUES ($1, $2, $3::text::date, $4, $5::text::numeric,
-                  $6::text::numeric, $7, $8, $9, $10)
+	query := budgetInsertQuery + `
         ON CONFLICT ("user", date, tag) DO UPDATE SET
             changed = EXCLUDED.changed,
             income = EXCLUDED.income,
@@ -459,20 +491,16 @@ func saveBudgets(ctx context.Context, db batchSender, budgets []models.Budget, b
             is_income_forecast = EXCLUDED.is_income_forecast,
             is_outcome_forecast = EXCLUDED.is_outcome_forecast`
 
-	return saveInChunks(ctx, db, "budget", budgets, batchSize, func(batch *pgx.Batch, budget models.Budget) {
-		batch.Queue(query,
-			budget.User,
-			budget.Changed,
-			budget.Date,
-			budget.Tag,
-			decimalString(budget.Income),
-			decimalString(budget.Outcome),
-			budget.IncomeLock,
-			budget.OutcomeLock,
-			budget.IsIncomeForecast,
-			budget.IsOutcomeForecast,
-		)
-	})
+	return saveInChunks(
+		ctx,
+		db,
+		"budget",
+		budgets,
+		batchSize,
+		func(batch *pgx.Batch, budget models.Budget) {
+			batch.Queue(query, budgetValues(&budget)...)
+		},
+	)
 }
 
 // SaveReminders saves a batch of reminders to the database
@@ -485,21 +513,17 @@ func (s *DB) SaveReminders(ctx context.Context, reminders []models.Reminder) err
 	})
 }
 
-func saveReminders(ctx context.Context, db batchSender, reminders []models.Reminder, batchSize int) error {
+func saveReminders(
+	ctx context.Context,
+	db batchSender,
+	reminders []models.Reminder,
+	batchSize int,
+) error {
 	if len(reminders) == 0 {
 		return nil
 	}
 
-	query := `
-        INSERT INTO reminder (
-            id, "user", income, outcome, changed, income_instrument,
-            outcome_instrument, step, points, tag, start_date, end_date,
-            notify, interval, income_account, outcome_account, comment,
-            payee, merchant
-        ) VALUES ($1, $2, $3::text::numeric, $4::text::numeric, $5, $6, $7,
-                  $8, $9, $10, $11::text::date,
-                  NULLIF(BTRIM($12::text), '')::date, $13, $14,
-                  $15::text::uuid, $16::text::uuid, $17, $18, $19)
+	query := reminderInsertQuery + `
         ON CONFLICT (id) DO UPDATE SET
             "user" = EXCLUDED.user,
             income = EXCLUDED.income,
@@ -520,29 +544,16 @@ func saveReminders(ctx context.Context, db batchSender, reminders []models.Remin
             payee = EXCLUDED.payee,
             merchant = EXCLUDED.merchant`
 
-	return saveInChunks(ctx, db, "reminder", reminders, batchSize, func(batch *pgx.Batch, reminder models.Reminder) {
-		batch.Queue(query,
-			reminder.ID,
-			reminder.User,
-			decimalString(reminder.Income),
-			decimalString(reminder.Outcome),
-			reminder.Changed,
-			reminder.IncomeInstrument,
-			reminder.OutcomeInstrument,
-			reminder.Step,
-			reminder.Points,
-			reminder.Tag,
-			reminder.StartDate,
-			reminder.EndDate,
-			reminder.Notify,
-			reminder.Interval,
-			reminder.IncomeAccount,
-			reminder.OutcomeAccount,
-			reminder.Comment,
-			reminder.Payee,
-			reminder.Merchant,
-		)
-	})
+	return saveInChunks(
+		ctx,
+		db,
+		"reminder",
+		reminders,
+		batchSize,
+		func(batch *pgx.Batch, reminder models.Reminder) {
+			batch.Queue(query, reminderValues(&reminder)...)
+		},
+	)
 }
 
 // SaveReminderMarkers saves a batch of reminder markers to the database
@@ -555,7 +566,12 @@ func (s *DB) SaveReminderMarkers(ctx context.Context, markers []models.ReminderM
 	})
 }
 
-func saveReminderMarkers(ctx context.Context, db batchSender, markers []models.ReminderMarker, batchSize int) error {
+func saveReminderMarkers(
+	ctx context.Context,
+	db batchSender,
+	markers []models.ReminderMarker,
+	batchSize int,
+) error {
 	if len(markers) == 0 {
 		return nil
 	}
@@ -588,28 +604,35 @@ func saveReminderMarkers(ctx context.Context, db batchSender, markers []models.R
             notify = EXCLUDED.notify,
             tag = EXCLUDED.tag`
 
-	return saveInChunks(ctx, db, "reminder marker", markers, batchSize, func(batch *pgx.Batch, marker models.ReminderMarker) {
-		batch.Queue(query,
-			marker.ID,
-			marker.User,
-			marker.Date,
-			decimalString(marker.Income),
-			decimalString(marker.Outcome),
-			marker.Changed,
-			marker.IncomeInstrument,
-			marker.OutcomeInstrument,
-			marker.State,
-			marker.IsForecast,
-			marker.Reminder,
-			marker.IncomeAccount,
-			marker.OutcomeAccount,
-			marker.Comment,
-			marker.Payee,
-			marker.Merchant,
-			marker.Notify,
-			marker.Tag,
-		)
-	})
+	return saveInChunks(
+		ctx,
+		db,
+		"reminder marker",
+		markers,
+		batchSize,
+		func(batch *pgx.Batch, marker models.ReminderMarker) {
+			batch.Queue(query,
+				marker.ID,
+				marker.User,
+				marker.Date,
+				decimalString(marker.Income),
+				decimalString(marker.Outcome),
+				marker.Changed,
+				marker.IncomeInstrument,
+				marker.OutcomeInstrument,
+				marker.State,
+				marker.IsForecast,
+				marker.Reminder,
+				marker.IncomeAccount,
+				marker.OutcomeAccount,
+				marker.Comment,
+				marker.Payee,
+				marker.Merchant,
+				marker.Notify,
+				marker.Tag,
+			)
+		},
+	)
 }
 
 // SaveTransactions saves a batch of transactions to the database
@@ -622,25 +645,17 @@ func (s *DB) SaveTransactions(ctx context.Context, transactions []models.Transac
 	})
 }
 
-func saveTransactions(ctx context.Context, db batchSender, transactions []models.Transaction, batchSize int) error {
+func saveTransactions(
+	ctx context.Context,
+	db batchSender,
+	transactions []models.Transaction,
+	batchSize int,
+) error {
 	if len(transactions) == 0 {
 		return nil
 	}
 
-	query := `
-       INSERT INTO transaction (
-           id, "user", date, income, outcome, changed, income_instrument,
-           outcome_instrument, created, original_payee, deleted, viewed,
-           hold, qr_code, source, income_account, outcome_account, tag,
-           comment, payee, op_income, op_outcome, op_income_instrument,
-           op_outcome_instrument, latitude, longitude, merchant,
-           income_bank_id, outcome_bank_id, reminder_marker
-       ) VALUES ($1, $2, $3::text::date, $4::text::numeric,
-                 $5::text::numeric, $6, $7, $8, $9, $10, $11, $12, $13,
-                 $14, $15, $16::text::uuid,
-                 NULLIF(BTRIM($17::text), '')::uuid, $18, $19, $20,
-                 $21::text::numeric, $22::text::numeric, $23, $24,
-                 $25, $26, $27, $28, $29, $30)
+	query := transactionInsertQuery + `
        ON CONFLICT (id) DO UPDATE SET
            "user" = EXCLUDED.user,
            date = EXCLUDED.date,
@@ -672,38 +687,14 @@ func saveTransactions(ctx context.Context, db batchSender, transactions []models
            outcome_bank_id = EXCLUDED.outcome_bank_id,
            reminder_marker = EXCLUDED.reminder_marker`
 
-	return saveInChunks(ctx, db, "transaction", transactions, batchSize, func(batch *pgx.Batch, tx models.Transaction) {
-		batch.Queue(query,
-			tx.ID,
-			tx.User,
-			tx.Date,
-			decimalString(tx.Income),
-			decimalString(tx.Outcome),
-			tx.Changed,
-			tx.IncomeInstrument,
-			tx.OutcomeInstrument,
-			tx.Created,
-			tx.OriginalPayee,
-			tx.Deleted,
-			tx.Viewed,
-			tx.Hold,
-			tx.QRCode,
-			tx.Source,
-			tx.IncomeAccount,
-			tx.OutcomeAccount,
-			tx.Tag,
-			tx.Comment,
-			tx.Payee,
-			decimalString(tx.OpIncome),
-			decimalString(tx.OpOutcome),
-			tx.OpIncomeInstrument,
-			tx.OpOutcomeInstrument,
-			tx.Latitude,
-			tx.Longitude,
-			tx.Merchant,
-			tx.IncomeBankID,
-			tx.OutcomeBankID,
-			tx.ReminderMarker,
-		)
-	})
+	return saveInChunks(
+		ctx,
+		db,
+		"transaction",
+		transactions,
+		batchSize,
+		func(batch *pgx.Batch, tx models.Transaction) {
+			batch.Queue(query, transactionValues(&tx)...)
+		},
+	)
 }

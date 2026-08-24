@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -12,22 +11,22 @@ import (
 	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 )
 
-// GetBudget retrieves a specific budget by user ID, tag ID and date
-func (s *DB) GetBudget(
-	ctx context.Context,
-	userID int,
-	tagID string,
-	date time.Time,
-) (*models.Budget, error) {
-	query := `
+const budgetSelectQuery = `
         SELECT "user", changed, to_char(date, 'YYYY-MM-DD') AS date,
                tag, income, outcome,
                income_lock, outcome_lock, is_income_forecast, is_outcome_forecast
-        FROM budget
-        WHERE "user" = $1 AND tag = $2 AND date = $3`
+        FROM budget`
 
-	budget := &models.Budget{}
-	err := s.pool.QueryRow(ctx, query, userID, tagID, date).Scan(
+const budgetInsertQuery = `
+        INSERT INTO budget (
+            "user", changed, date, tag, income, outcome,
+            income_lock, outcome_lock, is_income_forecast, is_outcome_forecast
+        ) VALUES ($1, $2, $3::text::date, $4, $5::text::numeric,
+                  $6::text::numeric, $7, $8, $9, $10)`
+
+func scanBudget(row rowScanner) (models.Budget, error) {
+	var budget models.Budget
+	err := row.Scan(
 		&budget.User,
 		&budget.Changed,
 		&budget.Date,
@@ -39,98 +38,11 @@ func (s *DB) GetBudget(
 		&budget.IsIncomeForecast,
 		&budget.IsOutcomeForecast,
 	)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("budget not found for user %d, tag %s, date %s",
-				userID, tagID, date.Format("2006-01-02"))
-		}
-		return nil, fmt.Errorf("failed to get budget: %w", err)
-	}
-
-	return budget, nil
+	return budget, err
 }
 
-// ListBudgets retrieves a list of budgets based on the provided filter
-func (s *DB) ListBudgets(ctx context.Context, filter interfaces.Filter) ([]models.Budget, error) {
-	var conditions []string
-	var args []any
-	argNum := 1
-
-	if filter.UserID != nil {
-		conditions = append(conditions, fmt.Sprintf(`"user" = $%d`, argNum))
-		args = append(args, *filter.UserID)
-		argNum++
-	}
-
-	if filter.StartDate != nil {
-		conditions = append(conditions, fmt.Sprintf(`date >= $%d`, argNum))
-		args = append(args, *filter.StartDate)
-		argNum++
-	}
-
-	if filter.EndDate != nil {
-		conditions = append(conditions, fmt.Sprintf(`date <= $%d`, argNum))
-		args = append(args, *filter.EndDate)
-		argNum++
-	}
-
-	query := `
-        SELECT "user", changed, to_char(date, 'YYYY-MM-DD') AS date,
-               tag, income, outcome,
-               income_lock, outcome_lock, is_income_forecast, is_outcome_forecast
-        FROM budget`
-
-	if len(conditions) > 0 {
-		query += " WHERE " + strings.Join(conditions, " AND ")
-	}
-
-	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argNum, argNum+1)
-	args = append(args, filter.Limit, (filter.Page-1)*filter.Limit)
-
-	rows, err := s.pool.Query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list budgets: %w", err)
-	}
-	defer rows.Close()
-
-	var budgets []models.Budget
-	for rows.Next() {
-		var budget models.Budget
-		err := rows.Scan(
-			&budget.User,
-			&budget.Changed,
-			&budget.Date,
-			&budget.Tag,
-			&budget.Income,
-			&budget.Outcome,
-			&budget.IncomeLock,
-			&budget.OutcomeLock,
-			&budget.IsIncomeForecast,
-			&budget.IsOutcomeForecast,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan budget: %w", err)
-		}
-		budgets = append(budgets, budget)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating budgets: %w", err)
-	}
-
-	return budgets, nil
-}
-
-// CreateBudget creates a new budget record
-func (s *DB) CreateBudget(ctx context.Context, budget *models.Budget) error {
-	query := `
-        INSERT INTO budget (
-            "user", changed, date, tag, income, outcome,
-            income_lock, outcome_lock, is_income_forecast, is_outcome_forecast
-        ) VALUES ($1, $2, $3::text::date, $4, $5::text::numeric,
-                  $6::text::numeric, $7, $8, $9, $10)`
-
-	_, err := s.pool.Exec(ctx, query,
+func budgetValues(budget *models.Budget) []any {
+	return []any{
 		budget.User,
 		budget.Changed,
 		budget.Date,
@@ -141,12 +53,59 @@ func (s *DB) CreateBudget(ctx context.Context, budget *models.Budget) error {
 		budget.OutcomeLock,
 		budget.IsIncomeForecast,
 		budget.IsOutcomeForecast,
+	}
+}
+
+// GetBudget retrieves a specific budget by user ID, tag ID and date
+func (s *DB) GetBudget(
+	ctx context.Context,
+	userID int,
+	tagID string,
+	date time.Time,
+) (*models.Budget, error) {
+	budget, err := scanBudget(
+		s.pool.QueryRow(
+			ctx,
+			budgetSelectQuery+` WHERE "user" = $1 AND tag = $2 AND date = $3`,
+			userID,
+			tagID,
+			date,
+		),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create budget: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("budget not found for user %d, tag %s, date %s",
+				userID, tagID, date.Format("2006-01-02"))
+		}
+		return nil, fmt.Errorf("failed to get budget: %w", err)
 	}
 
-	return nil
+	return &budget, nil
+}
+
+// ListBudgets retrieves a list of budgets based on the provided filter
+func (s *DB) ListBudgets(ctx context.Context, filter interfaces.Filter) ([]models.Budget, error) {
+	query, args := buildListQuery(budgetSelectQuery, filter, true, "")
+
+	rows, err := s.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list budgets: %w", err)
+	}
+	defer rows.Close()
+
+	return collectRows(rows, scanBudget, "failed to scan budget", "error iterating budgets")
+}
+
+// CreateBudget creates a new budget record
+func (s *DB) CreateBudget(ctx context.Context, budget *models.Budget) error {
+	_, err := execCommand(
+		ctx,
+		s.pool,
+		budgetInsertQuery,
+		"failed to create budget",
+		budgetValues(budget)...,
+	)
+	return err
 }
 
 // UpdateBudget updates an existing budget record
@@ -162,7 +121,7 @@ func (s *DB) UpdateBudget(ctx context.Context, budget *models.Budget) error {
             is_outcome_forecast = $10
         WHERE "user" = $1 AND tag = $2 AND date = $3::text::date`
 
-	commandTag, err := s.pool.Exec(ctx, query,
+	commandTag, err := execCommand(ctx, s.pool, query, "failed to update budget",
 		budget.User,
 		budget.Tag,
 		budget.Date,
@@ -175,7 +134,7 @@ func (s *DB) UpdateBudget(ctx context.Context, budget *models.Budget) error {
 		budget.IsOutcomeForecast,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to update budget: %w", err)
+		return err
 	}
 
 	if commandTag.RowsAffected() == 0 {
@@ -190,9 +149,17 @@ func (s *DB) UpdateBudget(ctx context.Context, budget *models.Budget) error {
 func (s *DB) DeleteBudget(ctx context.Context, userID int, tagID string, date time.Time) error {
 	query := `DELETE FROM budget WHERE "user" = $1 AND tag = $2 AND date = $3`
 
-	commandTag, err := s.pool.Exec(ctx, query, userID, tagID, date)
+	commandTag, err := execCommand(
+		ctx,
+		s.pool,
+		query,
+		"failed to delete budget",
+		userID,
+		tagID,
+		date,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to delete budget: %w", err)
+		return err
 	}
 
 	if commandTag.RowsAffected() == 0 {

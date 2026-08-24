@@ -4,16 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 )
 
-// GetTransaction retrieves a specific transaction by its ID
-func (s *DB) GetTransaction(ctx context.Context, id string) (*models.Transaction, error) {
-	query := `
+const transactionSelectQuery = `
         SELECT id, "user", to_char(date, 'YYYY-MM-DD') AS date,
                income, outcome, changed, income_instrument,
                outcome_instrument, created, original_payee, deleted, viewed,
@@ -21,11 +18,26 @@ func (s *DB) GetTransaction(ctx context.Context, id string) (*models.Transaction
                comment, payee, op_income, op_outcome, op_income_instrument,
                op_outcome_instrument, latitude, longitude, merchant,
                income_bank_id, outcome_bank_id, reminder_marker
-        FROM transaction
-        WHERE id = $1`
+        FROM transaction`
 
-	tx := &models.Transaction{}
-	err := s.pool.QueryRow(ctx, query, id).Scan(
+const transactionInsertQuery = `
+        INSERT INTO transaction (
+            id, "user", date, income, outcome, changed, income_instrument,
+            outcome_instrument, created, original_payee, deleted, viewed,
+            hold, qr_code, source, income_account, outcome_account, tag,
+            comment, payee, op_income, op_outcome, op_income_instrument,
+            op_outcome_instrument, latitude, longitude, merchant,
+            income_bank_id, outcome_bank_id, reminder_marker
+        ) VALUES ($1, $2, $3::text::date, $4::text::numeric,
+                  $5::text::numeric, $6, $7, $8, $9, $10, $11, $12, $13,
+                  $14, $15, $16::text::uuid,
+                  NULLIF(BTRIM($17::text), '')::uuid, $18, $19, $20,
+                  $21::text::numeric, $22::text::numeric, $23, $24,
+                  $25, $26, $27, $28, $29, $30)`
+
+func scanTransaction(row rowScanner) (models.Transaction, error) {
+	var tx models.Transaction
+	err := row.Scan(
 		&tx.ID,
 		&tx.User,
 		&tx.Date,
@@ -57,133 +69,11 @@ func (s *DB) GetTransaction(ctx context.Context, id string) (*models.Transaction
 		&tx.OutcomeBankID,
 		&tx.ReminderMarker,
 	)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("transaction not found: %s", id)
-		}
-		return nil, fmt.Errorf("failed to get transaction: %w", err)
-	}
-
-	return tx, nil
+	return tx, err
 }
 
-// ListTransactions retrieves a list of transactions based on the provided filter
-func (s *DB) ListTransactions(
-	ctx context.Context,
-	filter interfaces.Filter,
-) ([]models.Transaction, error) {
-	var conditions []string
-	var args []any
-	argNum := 1
-
-	if filter.UserID != nil {
-		conditions = append(conditions, fmt.Sprintf(`"user" = $%d`, argNum))
-		args = append(args, *filter.UserID)
-		argNum++
-	}
-
-	if filter.StartDate != nil {
-		conditions = append(conditions, fmt.Sprintf(`date >= $%d`, argNum))
-		args = append(args, *filter.StartDate)
-		argNum++
-	}
-
-	if filter.EndDate != nil {
-		conditions = append(conditions, fmt.Sprintf(`date <= $%d`, argNum))
-		args = append(args, *filter.EndDate)
-		argNum++
-	}
-
-	query := `
-        SELECT id, "user", to_char(date, 'YYYY-MM-DD') AS date,
-               income, outcome, changed, income_instrument,
-               outcome_instrument, created, original_payee, deleted, viewed,
-               hold, qr_code, source, income_account, outcome_account, tag,
-               comment, payee, op_income, op_outcome, op_income_instrument,
-               op_outcome_instrument, latitude, longitude, merchant,
-               income_bank_id, outcome_bank_id, reminder_marker
-        FROM transaction`
-
-	if len(conditions) > 0 {
-		query += " WHERE " + strings.Join(conditions, " AND ")
-	}
-
-	query += ` ORDER BY date DESC, created DESC`
-	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argNum, argNum+1)
-	args = append(args, filter.Limit, (filter.Page-1)*filter.Limit)
-
-	rows, err := s.pool.Query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list transactions: %w", err)
-	}
-	defer rows.Close()
-
-	var transactions []models.Transaction
-	for rows.Next() {
-		var tx models.Transaction
-		err := rows.Scan(
-			&tx.ID,
-			&tx.User,
-			&tx.Date,
-			&tx.Income,
-			&tx.Outcome,
-			&tx.Changed,
-			&tx.IncomeInstrument,
-			&tx.OutcomeInstrument,
-			&tx.Created,
-			&tx.OriginalPayee,
-			&tx.Deleted,
-			&tx.Viewed,
-			&tx.Hold,
-			&tx.QRCode,
-			&tx.Source,
-			&tx.IncomeAccount,
-			&tx.OutcomeAccount,
-			&tx.Tag,
-			&tx.Comment,
-			&tx.Payee,
-			&tx.OpIncome,
-			&tx.OpOutcome,
-			&tx.OpIncomeInstrument,
-			&tx.OpOutcomeInstrument,
-			&tx.Latitude,
-			&tx.Longitude,
-			&tx.Merchant,
-			&tx.IncomeBankID,
-			&tx.OutcomeBankID,
-			&tx.ReminderMarker,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan transaction: %w", err)
-		}
-		transactions = append(transactions, tx)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating transactions: %w", err)
-	}
-
-	return transactions, nil
-}
-
-// CreateTransaction creates a new transaction record
-func (s *DB) CreateTransaction(ctx context.Context, tx *models.Transaction) error {
-	query := `
-        INSERT INTO transaction (
-            id, "user", date, income, outcome, changed, income_instrument,
-            outcome_instrument, created, original_payee, deleted, viewed,
-            hold, qr_code, source, income_account, outcome_account, tag,
-            comment, payee, op_income, op_outcome, op_income_instrument,
-            op_outcome_instrument, latitude, longitude, merchant,
-            income_bank_id, outcome_bank_id, reminder_marker
-        ) VALUES ($1, $2, $3::text::date, $4::text::numeric,
-                  $5::text::numeric, $6, $7, $8, $9, $10, $11, $12, $13,
-                  $14, $15, $16::text::uuid,
-                  NULLIF(BTRIM($17::text), '')::uuid, $18, $19, $20,
-                  $21::text::numeric, $22::text::numeric, $23, $24,
-                  $25, $26, $27, $28, $29, $30)`
-
-	_, err := s.pool.Exec(ctx, query,
+func transactionValues(tx *models.Transaction) []any {
+	return []any{
 		tx.ID,
 		tx.User,
 		tx.Date,
@@ -214,12 +104,58 @@ func (s *DB) CreateTransaction(ctx context.Context, tx *models.Transaction) erro
 		tx.IncomeBankID,
 		tx.OutcomeBankID,
 		tx.ReminderMarker,
-	)
+	}
+}
+
+// GetTransaction retrieves a specific transaction by its ID
+func (s *DB) GetTransaction(ctx context.Context, id string) (*models.Transaction, error) {
+	tx, err := scanTransaction(s.pool.QueryRow(ctx, transactionSelectQuery+` WHERE id = $1`, id))
 	if err != nil {
-		return fmt.Errorf("failed to create transaction: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("transaction not found: %s", id)
+		}
+		return nil, fmt.Errorf("failed to get transaction: %w", err)
 	}
 
-	return nil
+	return &tx, nil
+}
+
+// ListTransactions retrieves a list of transactions based on the provided filter
+func (s *DB) ListTransactions(
+	ctx context.Context,
+	filter interfaces.Filter,
+) ([]models.Transaction, error) {
+	query, args := buildListQuery(
+		transactionSelectQuery,
+		filter,
+		true,
+		` ORDER BY date DESC, created DESC`,
+	)
+
+	rows, err := s.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list transactions: %w", err)
+	}
+	defer rows.Close()
+
+	return collectRows(
+		rows,
+		scanTransaction,
+		"failed to scan transaction",
+		"error iterating transactions",
+	)
+}
+
+// CreateTransaction creates a new transaction record
+func (s *DB) CreateTransaction(ctx context.Context, tx *models.Transaction) error {
+	_, err := execCommand(
+		ctx,
+		s.pool,
+		transactionInsertQuery,
+		"failed to create transaction",
+		transactionValues(tx)...,
+	)
+	return err
 }
 
 // UpdateTransaction updates an existing transaction record
@@ -257,61 +193,28 @@ func (s *DB) UpdateTransaction(ctx context.Context, tx *models.Transaction) erro
             reminder_marker = $30
         WHERE id = $1`
 
-	commandTag, err := s.pool.Exec(ctx, query,
-		tx.ID,
-		tx.User,
-		tx.Date,
-		decimalString(tx.Income),
-		decimalString(tx.Outcome),
-		tx.Changed,
-		tx.IncomeInstrument,
-		tx.OutcomeInstrument,
-		tx.Created,
-		tx.OriginalPayee,
-		tx.Deleted,
-		tx.Viewed,
-		tx.Hold,
-		tx.QRCode,
-		tx.Source,
-		tx.IncomeAccount,
-		tx.OutcomeAccount,
-		tx.Tag,
-		tx.Comment,
-		tx.Payee,
-		decimalString(tx.OpIncome),
-		decimalString(tx.OpOutcome),
-		tx.OpIncomeInstrument,
-		tx.OpOutcomeInstrument,
-		tx.Latitude,
-		tx.Longitude,
-		tx.Merchant,
-		tx.IncomeBankID,
-		tx.OutcomeBankID,
-		tx.ReminderMarker,
+	commandTag, err := execCommand(
+		ctx,
+		s.pool,
+		query,
+		"failed to update transaction",
+		transactionValues(tx)...,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to update transaction: %w", err)
+		return err
 	}
 
-	if commandTag.RowsAffected() == 0 {
-		return fmt.Errorf("transaction not found: %s", tx.ID)
-	}
-
-	return nil
+	return requireRowsAffected(commandTag, fmt.Sprintf("transaction not found: %s", tx.ID))
 }
 
 // DeleteTransaction deletes a transaction by its ID
 func (s *DB) DeleteTransaction(ctx context.Context, id string) error {
 	query := `DELETE FROM transaction WHERE id = $1`
 
-	commandTag, err := s.pool.Exec(ctx, query, id)
+	commandTag, err := execCommand(ctx, s.pool, query, "failed to delete transaction", id)
 	if err != nil {
-		return fmt.Errorf("failed to delete transaction: %w", err)
+		return err
 	}
 
-	if commandTag.RowsAffected() == 0 {
-		return fmt.Errorf("transaction not found: %s", id)
-	}
-
-	return nil
+	return requireRowsAffected(commandTag, fmt.Sprintf("transaction not found: %s", id))
 }
