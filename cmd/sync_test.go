@@ -132,58 +132,63 @@ func TestSyncCommandRejectsUnknownWriteMode(t *testing.T) {
 	require.ErrorContains(t, cmd.Args(cmd, nil), "--write-mode must be one of: batch, copy")
 }
 
+type runSyncAndCloseTestCase struct {
+	name            string
+	daemon          bool
+	cancel          bool
+	runnerErr       error
+	wantErr         error
+	wantSyncCalls   int
+	wantDaemonCalls int
+}
+
 func TestRunSyncAndCloseAlwaysClosesDatabase(t *testing.T) {
 	operationError := errors.New("operation failed")
-	tests := []struct {
-		name      string
-		daemon    bool
-		cancel    bool
-		runnerErr error
-		wantErr   error
-	}{
-		{name: "one-shot success"},
-		{name: "one-shot error", runnerErr: operationError, wantErr: operationError},
-		{name: "daemon error", daemon: true, runnerErr: operationError, wantErr: operationError},
-		{name: "cancellation is clean", cancel: true, runnerErr: context.Canceled},
+	tests := []runSyncAndCloseTestCase{
+		{name: "one-shot success", wantSyncCalls: 1},
+		{name: "one-shot error", runnerErr: operationError, wantErr: operationError, wantSyncCalls: 1},
+		{
+			name:            "daemon error",
+			daemon:          true,
+			runnerErr:       operationError,
+			wantErr:         operationError,
+			wantDaemonCalls: 1,
+		},
+		{name: "cancellation is clean", cancel: true, runnerErr: context.Canceled, wantSyncCalls: 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			if tt.cancel {
-				cancel()
-			} else {
-				defer cancel()
-			}
-
-			runner := &stubSyncRunner{}
-			if tt.daemon {
-				runner.daemonErr = tt.runnerErr
-			} else {
-				runner.syncErr = tt.runnerErr
-			}
-			closer := &recordingCloser{}
-
-			err := runSyncAndClose(ctx, runner, closer, &app.SyncParams{}, tt.daemon, 30)
-
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
-			} else {
-				require.NoError(t, err)
-			}
-			require.Equal(t, 1, closer.calls)
-			require.NoError(
-				t,
-				closer.contexts[0].Err(),
-				"database close must not inherit cancellation",
-			)
-			if tt.daemon {
-				require.Equal(t, 1, runner.daemonCalls)
-				require.Zero(t, runner.syncCalls)
-			} else {
-				require.Equal(t, 1, runner.syncCalls)
-				require.Zero(t, runner.daemonCalls)
-			}
+			testRunSyncAndClose(t, tt)
 		})
 	}
+}
+
+func testRunSyncAndClose(t *testing.T, tt runSyncAndCloseTestCase) {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	if tt.cancel {
+		cancel()
+	}
+
+	runner := &stubSyncRunner{syncErr: tt.runnerErr, daemonErr: tt.runnerErr}
+	closer := &recordingCloser{}
+
+	err := runSyncAndClose(ctx, runner, closer, &app.SyncParams{}, tt.daemon, 30)
+
+	if tt.wantErr != nil {
+		require.ErrorIs(t, err, tt.wantErr)
+	} else {
+		require.NoError(t, err)
+	}
+	require.Equal(t, 1, closer.calls)
+	require.NoError(
+		t,
+		closer.contexts[0].Err(),
+		"database close must not inherit cancellation",
+	)
+	require.Equal(t, tt.wantSyncCalls, runner.syncCalls)
+	require.Equal(t, tt.wantDaemonCalls, runner.daemonCalls)
 }
