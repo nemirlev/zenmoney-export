@@ -56,7 +56,9 @@ func TestAcquireSyncLockReturnsBusySentinelAndClosesRawConnection(t *testing.T) 
 func TestConcurrentSyncLockAttemptIsRejectedUntilOwnerUnlocks(t *testing.T) {
 	ownerConn := &recordingLockConnection{rows: []lockRow{{value: true}, {value: true}}}
 	contenderConn := &recordingLockConnection{rows: []lockRow{{value: false}}}
-	connector := &recordingLockConnector{connections: []syncLockConnection{ownerConn, contenderConn}}
+	connector := &recordingLockConnector{
+		connections: []syncLockConnection{ownerConn, contenderConn},
+	}
 
 	owner, err := acquireSyncLock(context.Background(), connector, nil)
 	require.NoError(t, err)

@@ -146,7 +146,12 @@ func TestRunSyncAndCloseAlwaysClosesDatabase(t *testing.T) {
 	operationError := errors.New("operation failed")
 	tests := []runSyncAndCloseTestCase{
 		{name: "one-shot success", wantSyncCalls: 1},
-		{name: "one-shot error", runnerErr: operationError, wantErr: operationError, wantSyncCalls: 1},
+		{
+			name:          "one-shot error",
+			runnerErr:     operationError,
+			wantErr:       operationError,
+			wantSyncCalls: 1,
+		},
 		{
 			name:            "daemon error",
 			daemon:          true,
@@ -154,7 +159,12 @@ func TestRunSyncAndCloseAlwaysClosesDatabase(t *testing.T) {
 			wantErr:         operationError,
 			wantDaemonCalls: 1,
 		},
-		{name: "cancellation is clean", cancel: true, runnerErr: context.Canceled, wantSyncCalls: 1},
+		{
+			name:          "cancellation is clean",
+			cancel:        true,
+			runnerErr:     context.Canceled,
+			wantSyncCalls: 1,
+		},
 	}
 
 	for _, tt := range tests {
