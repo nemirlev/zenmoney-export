@@ -12,17 +12,103 @@ import (
 func (s *Service) NormalizeRenderRequest(
 	request RenderFinanceChartRequest,
 ) (NormalizedRenderRequest, error) {
-	report, err := s.NormalizeReportRequest(request.Report)
+	reportRequest := request.Report
+	if reportRequest.Kind == ReportCashflow && reportRequest.Cashflow != nil &&
+		reportRequest.Cashflow.Granularity == "" && request.Chart.Granularity != "" {
+		cashflow := *reportRequest.Cashflow
+		cashflow.Granularity = request.Chart.Granularity
+		reportRequest.Cashflow = &cashflow
+	}
+	report, err := s.NormalizeReportRequest(reportRequest)
 	if err != nil {
 		return NormalizedRenderRequest{}, err
 	}
-	if err := ValidateChartSpec(request.Chart, s.limits.MaxChartPoints); err != nil {
+	chart, err := s.normalizeChartSpec(report, request.Chart)
+	if err != nil {
 		return NormalizedRenderRequest{}, err
 	}
-	if err := validateChartForReport(report.Kind, request.Chart); err != nil {
+	if err := ValidateChartSpec(chart, s.limits.MaxChartPoints); err != nil {
 		return NormalizedRenderRequest{}, err
 	}
-	return NormalizedRenderRequest{Report: report, Chart: request.Chart}, nil
+	if err := validateChartForReport(report.Kind, chart); err != nil {
+		return NormalizedRenderRequest{}, err
+	}
+	return NormalizedRenderRequest{Report: report, Chart: chart}, nil
+}
+
+func (s *Service) normalizeChartSpec(
+	report NormalizedReportRequest,
+	chart ChartSpec,
+) (ChartSpec, error) {
+	chart.Title = strings.TrimSpace(chart.Title)
+	chart.Subtitle = strings.TrimSpace(chart.Subtitle)
+	chart.Other.Label = strings.TrimSpace(chart.Other.Label)
+	chart.Table.Caption = strings.TrimSpace(chart.Table.Caption)
+	for index := range chart.Series {
+		chart.Series[index].Label = strings.TrimSpace(chart.Series[index].Label)
+	}
+	if chart.Stacking == "" {
+		chart.Stacking = StackingNone
+		if chart.Type == ChartStackedBar {
+			chart.Stacking = StackingNormal
+		}
+	}
+	if chart.Sort.By == "" {
+		chart.Sort.By = SortDimension
+	}
+	if chart.Sort.Direction == "" {
+		chart.Sort.Direction = SortAscending
+	}
+	if chart.Sort.By == SortValue && chart.Sort.Series == "" && len(chart.Series) > 0 {
+		chart.Sort.Series = chart.Series[0].Key
+	}
+	if chart.Other.Label == "" {
+		chart.Other.Label = "Other"
+	}
+	chart.Table.Enabled = true
+	if chart.Table.Caption == "" {
+		chart.Table.Caption = chart.Title + " data"
+	}
+
+	if report.Kind != ReportCashflow {
+		if chart.Granularity != "" {
+			return ChartSpec{}, errors.New("chart granularity is only valid for cashflow period reports")
+		}
+		if chart.ComparisonPeriods {
+			return ChartSpec{}, errors.New("comparison periods are only valid for cashflow period reports")
+		}
+		return chart, nil
+	}
+	if report.Cashflow == nil {
+		return ChartSpec{}, errors.New("normalized cashflow report is missing its payload")
+	}
+	reportGranularity := report.Cashflow.Granularity
+	if chart.Granularity == "" {
+		chart.Granularity = reportGranularity
+	} else if chart.Granularity != reportGranularity {
+		return ChartSpec{}, fmt.Errorf(
+			"chart granularity %q does not match cashflow granularity %q",
+			chart.Granularity,
+			reportGranularity,
+		)
+	}
+	if !chart.ComparisonPeriods {
+		return chart, nil
+	}
+	if chart.TopN != 0 || chart.Other.Enabled {
+		return ChartSpec{}, errors.New("comparison periods cannot use topN or an Other bucket")
+	}
+	if chart.Sort.By != SortDimension || chart.Sort.Direction != SortAscending {
+		return ChartSpec{}, errors.New("comparison periods require ascending chronological sorting")
+	}
+	dateRange, _, _, err := s.normalizePeriod(report.Cashflow.Period)
+	if err != nil {
+		return ChartSpec{}, fmt.Errorf("normalize comparison period: %w", err)
+	}
+	if estimatePoints(dateRange, reportGranularity) < 2 {
+		return ChartSpec{}, errors.New("comparison periods require at least two authoritative time buckets")
+	}
+	return chart, nil
 }
 
 func (s *Service) RenderFinanceChart(
@@ -41,6 +127,11 @@ func (s *Service) RenderFinanceChart(
 	points, table, err := chartData(report)
 	if err != nil {
 		return RenderFinanceChartResult{}, err
+	}
+	if normalized.Chart.ComparisonPeriods && len(points) < 2 {
+		return RenderFinanceChartResult{}, errors.New(
+			"comparison periods require at least two authoritative result buckets",
+		)
 	}
 	points, err = applyPresentation(points, normalized.Chart)
 	if err != nil {

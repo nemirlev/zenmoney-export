@@ -186,6 +186,28 @@ func TestServiceRejectsInvalidRequestBeforeStore(t *testing.T) {
 	require.Zero(t, store.spendingCalls)
 }
 
+func TestFiltersAcceptEveryPostgresUUIDShape(t *testing.T) {
+	store := &fakeStore{spendingData: SpendingSummaryData{Currency: "RUB", Total: "0"}}
+	service := newTestService(t, store)
+	request := SpendingSummaryRequest{
+		Period: PeriodRequest{From: "2026-08-01", To: "2026-08-01"},
+		Filters: Filters{AccountIDs: []string{
+			"00000000-0000-0000-0000-000000000000",
+			"ABCDEFAB-CDEF-0ABC-0ABC-ABCDEFABCDEF",
+		}},
+	}
+
+	_, err := service.GetSpendingSummary(
+		context.Background(), Principal{Subject: "user", UserIDs: []int64{1}}, request,
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		"00000000-0000-0000-0000-000000000000",
+		"abcdefab-cdef-0abc-0abc-abcdefabcdef",
+	}, store.spendingQuery.Filters.AccountIDs)
+}
+
 func TestServiceRejectsMissingAuthorization(t *testing.T) {
 	service := newTestService(t, &fakeStore{})
 	request := SpendingSummaryRequest{Period: PeriodRequest{From: "2026-08-01", To: "2026-08-24"}}

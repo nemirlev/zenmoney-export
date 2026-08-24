@@ -225,6 +225,20 @@ func ValidateChartSpec(spec ChartSpec, maxPoints int) error {
 	if spec.Granularity != "" && !validGranularity(spec.Granularity) {
 		return fmt.Errorf("unsupported granularity %q", spec.Granularity)
 	}
+	if spec.Granularity != "" && spec.Dimension != DimensionPeriod {
+		return fmt.Errorf("granularity requires period dimension")
+	}
+	if spec.ComparisonPeriods {
+		if spec.Granularity == "" {
+			return fmt.Errorf("comparison periods require explicit granularity")
+		}
+		if spec.TopN != 0 || spec.Other.Enabled {
+			return fmt.Errorf("comparison periods cannot use topN or an Other bucket")
+		}
+		if spec.Sort.By != SortDimension || spec.Sort.Direction != SortAscending {
+			return fmt.Errorf("comparison periods require ascending chronological sorting")
+		}
+	}
 	return nil
 }
 
