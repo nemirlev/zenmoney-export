@@ -1,9 +1,11 @@
 package mcpserver
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -23,6 +25,7 @@ type HTTPOptions struct {
 	JSONResponse                 bool
 	MaxRequestBodyBytes          int64
 	PropagateRequestCancellation bool
+	RequestTimeout               time.Duration
 }
 
 type HTTPHandlers struct {
@@ -38,6 +41,10 @@ func NewHTTPHandlers(server *Server, options HTTPOptions) (HTTPHandlers, error) 
 	if options.IdentityResolver == nil {
 		return HTTPHandlers{}, errors.New("identity resolver is required")
 	}
+	if options.RequestTimeout <= 0 {
+		return HTTPHandlers{}, errors.New("MCP request timeout must be greater than zero")
+	}
+	server.core.AddReceivingMiddleware(withMCPRequestTimeout(options.RequestTimeout))
 
 	streamable := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return server.core },
@@ -72,6 +79,16 @@ func NewHTTPHandlers(server *Server, options HTTPOptions) (HTTPHandlers, error) 
 			writeStatus(w, http.StatusOK, "ready")
 		}),
 	}, nil
+}
+
+func withMCPRequestTimeout(timeout time.Duration) mcp.Middleware {
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, request mcp.Request) (mcp.Result, error) {
+			ctx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+			return next(ctx, method, request)
+		}
+	}
 }
 
 func resolveIdentity(resolver IdentityResolver, next http.Handler) http.Handler {

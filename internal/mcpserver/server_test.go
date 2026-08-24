@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/nemirlev/zenmoney-export/v2/internal/analytics"
 	"github.com/stretchr/testify/assert"
@@ -17,8 +18,9 @@ import (
 )
 
 type fakeAnalyticsService struct {
-	mu         sync.Mutex
-	principals []analytics.Principal
+	mu                 sync.Mutex
+	principals         []analytics.Principal
+	spendingContextErr chan error
 }
 
 func (f *fakeAnalyticsService) record(principal analytics.Principal) {
@@ -27,8 +29,13 @@ func (f *fakeAnalyticsService) record(principal analytics.Principal) {
 	f.principals = append(f.principals, principal)
 }
 
-func (f *fakeAnalyticsService) GetSpendingSummary(_ context.Context, principal analytics.Principal, _ analytics.SpendingSummaryRequest) (analytics.SpendingSummaryResult, error) {
+func (f *fakeAnalyticsService) GetSpendingSummary(ctx context.Context, principal analytics.Principal, _ analytics.SpendingSummaryRequest) (analytics.SpendingSummaryResult, error) {
 	f.record(principal)
+	if f.spendingContextErr != nil {
+		<-ctx.Done()
+		f.spendingContextErr <- ctx.Err()
+		return analytics.SpendingSummaryResult{}, ctx.Err()
+	}
 	return analytics.SpendingSummaryResult{
 		Metadata:         metadata(analytics.ReportSpendingSummary, "RUB"),
 		Total:            "123.45",
@@ -111,8 +118,9 @@ func newTestHandlers(t *testing.T, service *fakeAnalyticsService) HTTPHandlers {
 			}
 			return analytics.Principal{Subject: subject, UserIDs: []int64{userID}}, nil
 		}),
-		ProtectOrigin: func(next http.Handler) http.Handler { return next },
-		JSONResponse:  true,
+		ProtectOrigin:  func(next http.Handler) http.Handler { return next },
+		JSONResponse:   true,
+		RequestTimeout: 30 * time.Second,
 	})
 	require.NoError(t, err)
 	return handlers
@@ -268,6 +276,7 @@ func TestOriginProtectionRunsBeforeIdentityResolution(t *testing.T) {
 				http.Error(w, "origin rejected", http.StatusForbidden)
 			})
 		},
+		RequestTimeout: 30 * time.Second,
 	})
 	require.NoError(t, err)
 
@@ -283,6 +292,7 @@ func TestHealthAndReadiness(t *testing.T) {
 		IdentityResolver: StaticIdentityResolver{Principal: analytics.Principal{Subject: "local", UserIDs: []int64{1}}},
 		ProtectOrigin:    func(next http.Handler) http.Handler { return next },
 		ReadinessCheck:   func(*http.Request) error { return errors.New("database unavailable") },
+		RequestTimeout:   30 * time.Second,
 	})
 	require.NoError(t, err)
 
@@ -292,6 +302,44 @@ func TestHealthAndReadiness(t *testing.T) {
 	ready := httptest.NewRecorder()
 	handlers.Readiness.ServeHTTP(ready, httptest.NewRequest(http.MethodGet, "/readyz", nil))
 	assert.Equal(t, http.StatusServiceUnavailable, ready.Code)
+}
+
+func TestMCPRequestTimeoutCancelsServiceContext(t *testing.T) {
+	canceled := make(chan error, 1)
+	service := &fakeAnalyticsService{spendingContextErr: canceled}
+	server, err := New(service, ServerOptions{Name: "test", Version: "1.0.0"})
+	require.NoError(t, err)
+	handlers, err := NewHTTPHandlers(server, HTTPOptions{
+		IdentityResolver: StaticIdentityResolver{Principal: analytics.Principal{
+			Subject: "local", UserIDs: []int64{1},
+		}},
+		ProtectOrigin:  func(next http.Handler) http.Handler { return next },
+		JSONResponse:   true,
+		RequestTimeout: 20 * time.Millisecond,
+	})
+	require.NoError(t, err)
+
+	response := postMCP(t, handlers.MCP, "local", "tools/call", ToolGetSpendingSummary, map[string]any{
+		"name": ToolGetSpendingSummary,
+		"arguments": map[string]any{
+			"period": map[string]any{"from": "2026-01-01", "to": "2026-01-31"},
+		},
+	})
+
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	require.ErrorIs(t, <-canceled, context.DeadlineExceeded)
+}
+
+func TestNewHTTPHandlersRequiresPositiveRequestTimeout(t *testing.T) {
+	server, err := New(&fakeAnalyticsService{}, ServerOptions{})
+	require.NoError(t, err)
+
+	_, err = NewHTTPHandlers(server, HTTPOptions{
+		IdentityResolver: StaticIdentityResolver{Principal: analytics.Principal{
+			Subject: "local", UserIDs: []int64{1},
+		}},
+	})
+	require.ErrorContains(t, err, "timeout must be greater than zero")
 }
 
 func postMCP(t *testing.T, handler http.Handler, subject, method, name string, params map[string]any) *httptest.ResponseRecorder {

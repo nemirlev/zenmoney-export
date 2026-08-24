@@ -88,6 +88,7 @@ func run() error {
 		JSONResponse:                 true,
 		MaxRequestBodyBytes:          configValue.MaxRequestBodyBytes,
 		PropagateRequestCancellation: true,
+		RequestTimeout:               configValue.RequestTimeout,
 	})
 	if err != nil {
 		return fmt.Errorf("initialize MCP HTTP handlers: %w", err)
@@ -99,7 +100,7 @@ func run() error {
 	mux.Handle("/readyz", handlers.Readiness)
 	httpServer := &http.Server{
 		Addr: configValue.ListenAddress, Handler: mux,
-		ReadHeaderTimeout: readTimeout, IdleTimeout: idleTimeout,
+		ReadHeaderTimeout: readTimeout, ReadTimeout: readTimeout, IdleTimeout: idleTimeout,
 	}
 
 	serveError := make(chan error, 1)

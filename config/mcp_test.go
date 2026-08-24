@@ -23,6 +23,7 @@ func TestNewMCPConfigFromEnvUsesIndependentDefaults(t *testing.T) {
 	require.Equal(t, defaultMCPReportTimezone, config.ReportTimezone)
 	require.Equal(t, defaultMCPMaxRequestBodyByte, config.MaxRequestBodyBytes)
 	require.Equal(t, defaultMCPStaleAfter, config.StaleAfter)
+	require.Equal(t, defaultMCPRequestTimeout, config.RequestTimeout)
 }
 
 func TestMCPPrefixedDatabaseURLTakesPriority(t *testing.T) {
@@ -43,7 +44,7 @@ func TestNewMCPConfigFromEnvReadsLimitsOriginsAndBearerMode(t *testing.T) {
 	t.Setenv("ZENMCP_LISTEN_ADDRESS", "0.0.0.0:9090")
 	t.Setenv("ZENMCP_ENDPOINT", "/api/mcp")
 	t.Setenv("ZENMCP_AUTH_MODE", "bearer")
-	t.Setenv("ZENMCP_BEARER_TOKEN", "secret")
+	t.Setenv("ZENMCP_BEARER_TOKEN", "0123456789abcdef0123456789abcdef")
 	t.Setenv("ZENMCP_USER_IDS", "42")
 	t.Setenv("ZENMCP_ALLOWED_ORIGINS", "https://app.example/, http://localhost:3000,https://app.example")
 	t.Setenv("ZENMCP_REPORT_TIMEZONE", "Europe/Moscow")
@@ -55,6 +56,7 @@ func TestNewMCPConfigFromEnvReadsLimitsOriginsAndBearerMode(t *testing.T) {
 	t.Setenv("ZENMCP_MAX_FILTER_VALUES", "30")
 	t.Setenv("ZENMCP_MAX_REQUEST_BODY_BYTES", "2048")
 	t.Setenv("ZENMCP_STALE_AFTER", "6h")
+	t.Setenv("ZENMCP_REQUEST_TIMEOUT", "45s")
 
 	config, err := NewMCPConfigFromEnv()
 
@@ -69,6 +71,7 @@ func TestNewMCPConfigFromEnvReadsLimitsOriginsAndBearerMode(t *testing.T) {
 	require.Equal(t, 30, config.MaxFilterValues)
 	require.Equal(t, int64(2048), config.MaxRequestBodyBytes)
 	require.Equal(t, 6*time.Hour, config.StaleAfter)
+	require.Equal(t, 45*time.Second, config.RequestTimeout)
 }
 
 func TestValidateMCPConfigRejectsUnsafeAuthenticationConfiguration(t *testing.T) {
@@ -93,7 +96,7 @@ func TestValidateMCPConfigRejectsUnsafeAuthenticationConfiguration(t *testing.T)
 				config.AuthMode = MCPAuthBearer
 				config.ListenAddress = "0.0.0.0:8080"
 			},
-			want: "non-empty secret",
+			want: "at least 32 bytes",
 		},
 		{
 			name:   "missing users",
@@ -131,7 +134,10 @@ func TestValidateMCPConfigRejectsInvalidPathsOriginsAndLimits(t *testing.T) {
 		{name: "invalid timezone", mutate: func(config *MCPConfig) { config.ReportTimezone = "Mars/Base" }, want: "timezone"},
 		{name: "invalid log level", mutate: func(config *MCPConfig) { config.LogLevel = "trace" }, want: "log level"},
 		{name: "page sizes reversed", mutate: func(config *MCPConfig) { config.DefaultPageSize = 101 }, want: "must not exceed"},
+		{name: "page limit above store hard limit", mutate: func(config *MCPConfig) { config.MaxPageSize = 501 }, want: "PostgreSQL hard limit 500"},
+		{name: "chart limit above store hard limit", mutate: func(config *MCPConfig) { config.MaxChartPoints = 501 }, want: "PostgreSQL hard limit 500"},
 		{name: "zero body limit", mutate: func(config *MCPConfig) { config.MaxRequestBodyBytes = 0 }, want: "greater than zero"},
+		{name: "zero request timeout", mutate: func(config *MCPConfig) { config.RequestTimeout = 0 }, want: "greater than zero"},
 	}
 
 	for _, test := range tests {
@@ -156,6 +162,32 @@ func TestNewMCPConfigFromEnvRejectsMalformedValuesWithoutLeakingSecret(t *testin
 	require.NotContains(t, err.Error(), "do-not-leak")
 }
 
+func TestNewMCPConfigFromEnvRejectsShortBearerWithoutLeakingSecret(t *testing.T) {
+	resetMCPEnvironment(t)
+	t.Setenv("ZENMCP_DB_URL", "postgres://localhost/zenmoney")
+	t.Setenv("ZENMCP_LISTEN_ADDRESS", "0.0.0.0:8080")
+	t.Setenv("ZENMCP_AUTH_MODE", "bearer")
+	t.Setenv("ZENMCP_USER_IDS", "1")
+	secret := "short-private-secret"
+	t.Setenv("ZENMCP_BEARER_TOKEN", secret)
+
+	_, err := NewMCPConfigFromEnv()
+
+	require.ErrorContains(t, err, "at least 32 bytes")
+	require.NotContains(t, err.Error(), secret)
+}
+
+func TestNewMCPConfigFromEnvRejectsNonPositiveRequestTimeout(t *testing.T) {
+	resetMCPEnvironment(t)
+	t.Setenv("ZENMCP_DB_URL", "postgres://localhost/zenmoney")
+	t.Setenv("ZENMCP_USER_IDS", "1")
+	t.Setenv("ZENMCP_REQUEST_TIMEOUT", "0s")
+
+	_, err := NewMCPConfigFromEnv()
+
+	require.ErrorContains(t, err, "ZENMCP_REQUEST_TIMEOUT must be a positive duration")
+}
+
 func validMCPConfig() *MCPConfig {
 	return &MCPConfig{
 		ListenAddress: "127.0.0.1:8080", Endpoint: "/mcp",
@@ -163,7 +195,7 @@ func validMCPConfig() *MCPConfig {
 		AuthMode: MCPAuthLocal, UserIDs: []int64{1}, ReportTimezone: "UTC",
 		MaxPeriodDays: 365, DefaultPageSize: 25, MaxPageSize: 100,
 		MaxChartPoints: 200, MaxFilterValues: 50, MaxRequestBodyBytes: 1024,
-		StaleAfter: time.Hour,
+		StaleAfter: time.Hour, RequestTimeout: 30 * time.Second,
 	}
 }
 
@@ -175,6 +207,7 @@ func resetMCPEnvironment(t *testing.T) {
 		"ZENMCP_ALLOWED_ORIGINS", "ZENMCP_REPORT_TIMEZONE", "ZENMCP_MAX_PERIOD_DAYS",
 		"ZENMCP_DEFAULT_PAGE_SIZE", "ZENMCP_MAX_PAGE_SIZE", "ZENMCP_MAX_CHART_POINTS",
 		"ZENMCP_MAX_FILTER_VALUES", "ZENMCP_MAX_REQUEST_BODY_BYTES", "ZENMCP_STALE_AFTER",
+		"ZENMCP_REQUEST_TIMEOUT",
 	} {
 		t.Setenv(name, "")
 	}

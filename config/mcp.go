@@ -33,6 +33,9 @@ const (
 	defaultMCPMaxFilterValues    = 100
 	defaultMCPMaxRequestBodyByte = int64(1 << 20)
 	defaultMCPStaleAfter         = 24 * time.Hour
+	defaultMCPRequestTimeout     = 30 * time.Second
+	maxMCPPostgresRows           = 500
+	minimumMCPBearerTokenBytes   = 32
 )
 
 type MCPConfig struct {
@@ -52,6 +55,7 @@ type MCPConfig struct {
 	MaxFilterValues     int
 	MaxRequestBodyBytes int64
 	StaleAfter          time.Duration
+	RequestTimeout      time.Duration
 }
 
 func NewMCPConfigFromEnv() (*MCPConfig, error) {
@@ -99,6 +103,9 @@ func NewMCPConfigFromEnv() (*MCPConfig, error) {
 	if config.StaleAfter, err = envPositiveDuration("ZENMCP_STALE_AFTER", defaultMCPStaleAfter); err != nil {
 		return nil, err
 	}
+	if config.RequestTimeout, err = envPositiveDuration("ZENMCP_REQUEST_TIMEOUT", defaultMCPRequestTimeout); err != nil {
+		return nil, err
+	}
 
 	if err := ValidateMCPConfig(config); err != nil {
 		return nil, err
@@ -126,8 +133,11 @@ func ValidateMCPConfig(config *MCPConfig) error {
 			return errors.New("local MCP authentication may only listen on a loopback address")
 		}
 	case MCPAuthBearer:
-		if strings.TrimSpace(config.BearerToken) == "" {
-			return errors.New("bearer authentication requires a non-empty secret")
+		if len([]byte(config.BearerToken)) < minimumMCPBearerTokenBytes {
+			return fmt.Errorf(
+				"bearer authentication requires a secret of at least %d bytes",
+				minimumMCPBearerTokenBytes,
+			)
 		}
 	default:
 		return fmt.Errorf("unsupported MCP authentication mode %q", config.AuthMode)
@@ -149,11 +159,17 @@ func ValidateMCPConfig(config *MCPConfig) error {
 	}
 	if config.MaxPeriodDays <= 0 || config.DefaultPageSize <= 0 || config.MaxPageSize <= 0 ||
 		config.MaxChartPoints <= 0 || config.MaxFilterValues <= 0 ||
-		config.MaxRequestBodyBytes <= 0 || config.StaleAfter <= 0 {
+		config.MaxRequestBodyBytes <= 0 || config.StaleAfter <= 0 || config.RequestTimeout <= 0 {
 		return errors.New("MCP limits must be greater than zero")
 	}
 	if config.DefaultPageSize > config.MaxPageSize {
 		return errors.New("default MCP page size must not exceed maximum page size")
+	}
+	if config.MaxPageSize > maxMCPPostgresRows {
+		return fmt.Errorf("maximum MCP page size must not exceed PostgreSQL hard limit %d", maxMCPPostgresRows)
+	}
+	if config.MaxChartPoints > maxMCPPostgresRows {
+		return fmt.Errorf("maximum MCP chart points must not exceed PostgreSQL hard limit %d", maxMCPPostgresRows)
 	}
 	for _, origin := range config.AllowedOrigins {
 		if _, err := normalizeMCPOrigin(origin); err != nil {
