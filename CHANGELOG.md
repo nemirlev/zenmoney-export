@@ -8,6 +8,38 @@
 ### 🐛 Bug Fixes
 
 - Upgrades Go version in Docker build image (#22)
+## [2.1.1](https://github.com/nemirlev/zenmoney-export/compare/v2.1.0...v2.1.1) (2026-08-24)
+
+
+### 🐛 Bug Fixes
+
+* **ci:** remove codeql from configs fot use github deafult ([f3ad8dd](https://github.com/nemirlev/zenmoney-export/commit/f3ad8dd21fffc2c87fd8ec8972a1f0501049c1dd))
+* **sync:** persist actual synchronization type ([322d45d](https://github.com/nemirlev/zenmoney-export/commit/322d45d912eea51dcaeee192e096aa6e4dd48389))
+
+
+### 🚜 Refactor
+
+* **postgres:** consolidate persistence helpers ([5261178](https://github.com/nemirlev/zenmoney-export/commit/5261178236a5ae064e2defd23a53839d1a9a27f9))
+* **postgres:** rename sync lock connector ([f78439f](https://github.com/nemirlev/zenmoney-export/commit/f78439f83371d1f42a5bffb6673f0b8da6b7e9c9))
+* **postgres:** simplify response persistence ([35bdce4](https://github.com/nemirlev/zenmoney-export/commit/35bdce42b759ed7f19f36f998be38c69f02ff35c))
+* rename sync lock interface ([119fe9b](https://github.com/nemirlev/zenmoney-export/commit/119fe9b369cefc02a8940d3a5695e2cc0b210f00))
+
+
+### 🧪 Testing
+
+* **cmd:** simplify sync cleanup scenarios ([da0e5f1](https://github.com/nemirlev/zenmoney-export/commit/da0e5f139d39f461e5f7b1f9540101e52c76fe00))
+* **postgres:** consolidate shared fixtures ([ae49110](https://github.com/nemirlev/zenmoney-export/commit/ae49110fef5313f0f4282beab6d37b24b1c6c5cf))
+
+
+### 📦 Build System
+
+* **docker:** upgrade compose to PostgreSQL 18 ([c5c15c7](https://github.com/nemirlev/zenmoney-export/commit/c5c15c70fa8ae83f9843081e1c42644d486843f0))
+
+
+### 👷 Continuous Integration
+
+* pin workflow actions to commit SHAs ([2167181](https://github.com/nemirlev/zenmoney-export/commit/216718130b2e8614998cde1776f0b63af7b8ab7f))
+
 ## [2.1.0](https://github.com/nemirlev/zenmoney-export/compare/v2.0.3...v2.1.0) (2026-08-24)
 
 
