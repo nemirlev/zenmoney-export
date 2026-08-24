@@ -64,6 +64,13 @@ func TestAnalyticsQueriesAgainstPostgres(t *testing.T) {
 		From: time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
 		To:   time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
 	}
+	combinedSpending, err := store.SpendingSummary(ctx, analytics.Principal{
+		Subject: "integration",
+		UserIDs: []int64{42, 43},
+	}, analytics.SpendingSummaryQuery{Range: dateRange, Limit: 10})
+	require.NoError(t, err)
+	require.Equal(t, "RUB", combinedSpending.Currency)
+	require.Equal(t, analytics.Decimal("101700.0000000000000000"), combinedSpending.Total)
 
 	spending, err := store.SpendingSummary(ctx, principal, analytics.SpendingSummaryQuery{
 		Range: dateRange,

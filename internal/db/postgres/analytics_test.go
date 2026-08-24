@@ -179,6 +179,22 @@ func TestSpendingSummaryRejectsMissingRate(t *testing.T) {
 	require.ErrorIs(t, err, ErrAnalyticsRate)
 }
 
+func TestSpendingSummaryRejectsMixedUserCurrencies(t *testing.T) {
+	db, mock := newTestDB(t)
+	principal := analytics.Principal{Subject: "owner", UserIDs: []int64{42, 43}}
+	query := analytics.SpendingSummaryQuery{Range: analyticsTestRange(), Limit: 10}
+
+	expectAnalyticsSnapshotBegin(mock)
+	mock.ExpectQuery(regexp.QuoteMeta(resolveAnalyticsCurrencySQL)).
+		WithArgs(principal.UserIDs).
+		WillReturnRows(mock.NewRows([]string{"currency", "currency_count", "user_count"}).
+			AddRow("RUB", int64(2), int64(2)))
+	mock.ExpectRollback()
+
+	_, err := db.SpendingSummary(context.Background(), principal, query)
+	require.ErrorIs(t, err, ErrAnalyticsCurrency)
+}
+
 func TestCashflowBucketSQLOnlyAcceptsKnownGranularities(t *testing.T) {
 	t.Parallel()
 
