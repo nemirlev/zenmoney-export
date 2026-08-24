@@ -7,18 +7,13 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetInstrument_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	instrumentID := 1
 	expectedInstrument := &models.Instrument{
@@ -40,16 +35,10 @@ func TestGetInstrument_Success(t *testing.T) {
 	result, err := db.GetInstrument(context.Background(), instrumentID)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedInstrument, result)
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestGetInstrument_NotFound(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	instrumentID := 1
 
@@ -61,16 +50,10 @@ func TestGetInstrument_NotFound(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), fmt.Sprintf("instrument not found: %d", instrumentID))
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestGetInstrument_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	instrumentID := 1
 
@@ -82,22 +65,12 @@ func TestGetInstrument_QueryError(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get instrument")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestListInstruments_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	filter := interfaces.Filter{
-		UserID: new(1),
-		Limit:  10,
-		Page:   1,
-	}
+	filter := testPageFilter()
 
 	rows := mock.NewRows([]string{"id", "title", "short_title", "symbol", "rate", "changed"}).
 		AddRow(1, "United States Dollar", "USD", "$", 1.0, 1234567890).
@@ -116,22 +89,12 @@ func TestListInstruments_Success(t *testing.T) {
 	assert.Equal(t, "$", instruments[0].Symbol)
 	assert.Equal(t, 1.0, instruments[0].Rate)
 	assert.Equal(t, int64(1234567890), instruments[0].Changed)
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestListInstruments_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	filter := interfaces.Filter{
-		UserID: new(1),
-		Limit:  10,
-		Page:   1,
-	}
+	filter := testPageFilter()
 
 	mock.ExpectQuery(`SELECT id, title, short_title, symbol, rate, changed FROM instrument WHERE user_id = \$1 LIMIT \$2 OFFSET \$3`).
 		WithArgs(1, 10, 0).
@@ -141,16 +104,10 @@ func TestListInstruments_QueryError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, instruments)
 	assert.Contains(t, err.Error(), "failed to list instruments")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestCreateInstrument_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	instrument := &models.Instrument{
 		ID:         1,
@@ -165,18 +122,12 @@ func TestCreateInstrument_Success(t *testing.T) {
 		WithArgs(instrument.ID, instrument.Title, instrument.ShortTitle, instrument.Symbol, decimalString(instrument.Rate), instrument.Changed).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
-	err = db.CreateInstrument(context.Background(), instrument)
+	err := db.CreateInstrument(context.Background(), instrument)
 	assert.NoError(t, err)
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestCreateInstrument_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	instrument := &models.Instrument{
 		ID:         1,
@@ -191,19 +142,13 @@ func TestCreateInstrument_QueryError(t *testing.T) {
 		WithArgs(instrument.ID, instrument.Title, instrument.ShortTitle, instrument.Symbol, decimalString(instrument.Rate), instrument.Changed).
 		WillReturnError(errors.New("insert error"))
 
-	err = db.CreateInstrument(context.Background(), instrument)
+	err := db.CreateInstrument(context.Background(), instrument)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create instrument")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestUpdateInstrument_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	instrument := &models.Instrument{
 		ID:         1,
@@ -218,18 +163,12 @@ func TestUpdateInstrument_Success(t *testing.T) {
 		WithArgs(instrument.ID, instrument.Title, instrument.ShortTitle, instrument.Symbol, decimalString(instrument.Rate), instrument.Changed).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
-	err = db.UpdateInstrument(context.Background(), instrument)
+	err := db.UpdateInstrument(context.Background(), instrument)
 	assert.NoError(t, err)
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestUpdateInstrument_NotFound(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	instrument := &models.Instrument{
 		ID:         1,
@@ -244,19 +183,13 @@ func TestUpdateInstrument_NotFound(t *testing.T) {
 		WithArgs(instrument.ID, instrument.Title, instrument.ShortTitle, instrument.Symbol, decimalString(instrument.Rate), instrument.Changed).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 
-	err = db.UpdateInstrument(context.Background(), instrument)
+	err := db.UpdateInstrument(context.Background(), instrument)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "instrument not found")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestUpdateInstrument_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	instrument := &models.Instrument{
 		ID:         1,
@@ -271,19 +204,13 @@ func TestUpdateInstrument_QueryError(t *testing.T) {
 		WithArgs(instrument.ID, instrument.Title, instrument.ShortTitle, instrument.Symbol, decimalString(instrument.Rate), instrument.Changed).
 		WillReturnError(errors.New("update error"))
 
-	err = db.UpdateInstrument(context.Background(), instrument)
+	err := db.UpdateInstrument(context.Background(), instrument)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to update instrument")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestDeleteInstrument_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	instrumentID := 1
 
@@ -291,18 +218,12 @@ func TestDeleteInstrument_Success(t *testing.T) {
 		WithArgs(instrumentID).
 		WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
-	err = db.DeleteInstrument(context.Background(), instrumentID)
+	err := db.DeleteInstrument(context.Background(), instrumentID)
 	assert.NoError(t, err)
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestDeleteInstrument_NotFound(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	instrumentID := 1
 
@@ -310,19 +231,13 @@ func TestDeleteInstrument_NotFound(t *testing.T) {
 		WithArgs(instrumentID).
 		WillReturnResult(pgxmock.NewResult("DELETE", 0))
 
-	err = db.DeleteInstrument(context.Background(), instrumentID)
+	err := db.DeleteInstrument(context.Background(), instrumentID)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "instrument not found")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestDeleteInstrument_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	instrumentID := 1
 
@@ -330,9 +245,7 @@ func TestDeleteInstrument_QueryError(t *testing.T) {
 		WithArgs(instrumentID).
 		WillReturnError(errors.New("delete error"))
 
-	err = db.DeleteInstrument(context.Background(), instrumentID)
+	err := db.DeleteInstrument(context.Background(), instrumentID)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to delete instrument")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }

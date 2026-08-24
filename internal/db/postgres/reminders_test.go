@@ -7,41 +7,15 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
-	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetReminder_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	id := "test-id"
-	expectedReminder := &models.Reminder{
-		ID:                id,
-		User:              1,
-		Income:            100.0,
-		Outcome:           50.0,
-		Changed:           1234567890,
-		IncomeInstrument:  1,
-		OutcomeInstrument: 2,
-		Step:              7,
-		Points:            []int{0, 2, 4},
-		Tag:               []string{"tag1", "tag2"},
-		StartDate:         "2025-01-01",
-		EndDate:           nil,
-		Notify:            true,
-		Interval:          new("week"),
-		IncomeAccount:     "income-account",
-		OutcomeAccount:    "outcome-account",
-		Comment:           new("test comment"),
-		Payee:             new("payee-id"),
-		Merchant:          new("merchant-id"),
-	}
+	expectedReminder := testReminder(id)
 
 	rows := mock.NewRows([]string{
 		"id", "user", "income", "outcome", "changed", "income_instrument",
@@ -78,16 +52,10 @@ func TestGetReminder_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedReminder, result)
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestGetReminder_NotFound(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	id := "non-existent-id"
 
@@ -99,16 +67,10 @@ func TestGetReminder_NotFound(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), fmt.Sprintf("reminder not found: %s", id))
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestGetReminder_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	id := "test-id"
 
@@ -120,44 +82,14 @@ func TestGetReminder_QueryError(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get reminder")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestListReminders_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
+	filter := testPageFilter()
 
-	filter := interfaces.Filter{
-		UserID: new(1),
-		Limit:  10,
-		Page:   1,
-	}
-
-	expectedReminder := models.Reminder{
-		ID:                "test-id",
-		User:              1,
-		Income:            100.0,
-		Outcome:           50.0,
-		Changed:           1234567890,
-		IncomeInstrument:  1,
-		OutcomeInstrument: 2,
-		Step:              7,
-		Points:            []int{0, 2, 4},
-		Tag:               []string{"tag1", "tag2"},
-		StartDate:         "2025-01-01",
-		EndDate:           nil,
-		Notify:            true,
-		Interval:          new("week"),
-		IncomeAccount:     "income-account",
-		OutcomeAccount:    "outcome-account",
-		Comment:           new("test comment"),
-		Payee:             new("payee-id"),
-		Merchant:          new("merchant-id"),
-	}
+	expectedReminder := *testReminder("test-id")
 
 	rows := mock.NewRows([]string{
 		"id", "user", "income", "outcome", "changed", "income_instrument",
@@ -194,22 +126,12 @@ func TestListReminders_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, reminders, 1)
 	assert.Equal(t, expectedReminder, reminders[0])
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestListReminders_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	filter := interfaces.Filter{
-		UserID: new(1),
-		Limit:  10,
-		Page:   1,
-	}
+	filter := testPageFilter()
 
 	mock.ExpectQuery(`SELECT id, "user", income, outcome, changed, income_instrument, outcome_instrument, step, points, tag, to_char[(]start_date, 'YYYY-MM-DD'[)] AS start_date, to_char[(]end_date, 'YYYY-MM-DD'[)] AS end_date, notify, interval, income_account, outcome_account, comment, payee, merchant FROM reminder WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
 		WithArgs(1, 10, 0).
@@ -219,308 +141,78 @@ func TestListReminders_QueryError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, reminders)
 	assert.Contains(t, err.Error(), "failed to list reminders")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestCreateReminder_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	reminder := &models.Reminder{
-		ID:                "test-id",
-		User:              1,
-		Income:            100.0,
-		Outcome:           50.0,
-		Changed:           1234567890,
-		IncomeInstrument:  1,
-		OutcomeInstrument: 2,
-		Step:              7,
-		Points:            []int{0, 2, 4},
-		Tag:               []string{"tag1", "tag2"},
-		StartDate:         "2025-01-01",
-		EndDate:           nil,
-		Notify:            true,
-		Interval:          new("week"),
-		IncomeAccount:     "income-account",
-		OutcomeAccount:    "outcome-account",
-		Comment:           new("test comment"),
-		Payee:             new("payee-id"),
-		Merchant:          new("merchant-id"),
-	}
+	reminder := testReminder("test-id")
 
 	mock.ExpectExec(`INSERT INTO reminder`).
-		WithArgs(
-			reminder.ID,
-			reminder.User,
-			decimalString(reminder.Income),
-			decimalString(reminder.Outcome),
-			reminder.Changed,
-			reminder.IncomeInstrument,
-			reminder.OutcomeInstrument,
-			reminder.Step,
-			reminder.Points,
-			reminder.Tag,
-			reminder.StartDate,
-			reminder.EndDate,
-			reminder.Notify,
-			reminder.Interval,
-			reminder.IncomeAccount,
-			reminder.OutcomeAccount,
-			reminder.Comment,
-			reminder.Payee,
-			reminder.Merchant,
-		).
+		WithArgs(reminderArgs(reminder)...).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
-	err = db.CreateReminder(context.Background(), reminder)
+	err := db.CreateReminder(context.Background(), reminder)
 	assert.NoError(t, err)
 }
 
 func TestCreateReminder_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	reminder := &models.Reminder{
-		ID:                "test-id",
-		User:              1,
-		Income:            100.0,
-		Outcome:           50.0,
-		Changed:           1234567890,
-		IncomeInstrument:  1,
-		OutcomeInstrument: 2,
-		Step:              7,
-		Points:            []int{0, 2, 4},
-		Tag:               []string{"tag1", "tag2"},
-		StartDate:         "2025-01-01",
-		EndDate:           nil,
-		Notify:            true,
-		Interval:          new("week"),
-		IncomeAccount:     "income-account",
-		OutcomeAccount:    "outcome-account",
-		Comment:           new("test comment"),
-		Payee:             new("payee-id"),
-		Merchant:          new("merchant-id"),
-	}
+	reminder := testReminder("test-id")
 
 	mock.ExpectExec(`INSERT INTO reminder`).
-		WithArgs(
-			reminder.ID,
-			reminder.User,
-			decimalString(reminder.Income),
-			decimalString(reminder.Outcome),
-			reminder.Changed,
-			reminder.IncomeInstrument,
-			reminder.OutcomeInstrument,
-			reminder.Step,
-			reminder.Points,
-			reminder.Tag,
-			reminder.StartDate,
-			reminder.EndDate,
-			reminder.Notify,
-			reminder.Interval,
-			reminder.IncomeAccount,
-			reminder.OutcomeAccount,
-			reminder.Comment,
-			reminder.Payee,
-			reminder.Merchant,
-		).
+		WithArgs(reminderArgs(reminder)...).
 		WillReturnError(errors.New("insert error"))
 
-	err = db.CreateReminder(context.Background(), reminder)
+	err := db.CreateReminder(context.Background(), reminder)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create reminder")
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestUpdateReminder_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	reminder := &models.Reminder{
-		ID:                "test-id",
-		User:              1,
-		Income:            100.0,
-		Outcome:           50.0,
-		Changed:           1234567890,
-		IncomeInstrument:  1,
-		OutcomeInstrument: 2,
-		Step:              7,
-		Points:            []int{0, 2, 4},
-		Tag:               []string{"tag1", "tag2"},
-		StartDate:         "2025-01-01",
-		EndDate:           nil,
-		Notify:            true,
-		Interval:          new("week"),
-		IncomeAccount:     "income-account",
-		OutcomeAccount:    "outcome-account",
-		Comment:           new("test comment"),
-		Payee:             new("payee-id"),
-		Merchant:          new("merchant-id"),
-	}
+	reminder := testReminder("test-id")
 
 	mock.ExpectExec(`UPDATE reminder SET`).
-		WithArgs(
-			reminder.ID,
-			reminder.User,
-			decimalString(reminder.Income),
-			decimalString(reminder.Outcome),
-			reminder.Changed,
-			reminder.IncomeInstrument,
-			reminder.OutcomeInstrument,
-			reminder.Step,
-			reminder.Points,
-			reminder.Tag,
-			reminder.StartDate,
-			reminder.EndDate,
-			reminder.Notify,
-			reminder.Interval,
-			reminder.IncomeAccount,
-			reminder.OutcomeAccount,
-			reminder.Comment,
-			reminder.Payee,
-			reminder.Merchant,
-		).
+		WithArgs(reminderArgs(reminder)...).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
-	err = db.UpdateReminder(context.Background(), reminder)
+	err := db.UpdateReminder(context.Background(), reminder)
 	assert.NoError(t, err)
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestUpdateReminder_NotFound(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	reminder := &models.Reminder{
-		ID:                "non-existent-id",
-		User:              1,
-		Income:            100.0,
-		Outcome:           50.0,
-		Changed:           1234567890,
-		IncomeInstrument:  1,
-		OutcomeInstrument: 2,
-		Step:              7,
-		Points:            []int{0, 2, 4},
-		Tag:               []string{"tag1", "tag2"},
-		StartDate:         "2025-01-01",
-		EndDate:           nil,
-		Notify:            true,
-		Interval:          new("week"),
-		IncomeAccount:     "income-account",
-		OutcomeAccount:    "outcome-account",
-		Comment:           new("test comment"),
-		Payee:             new("payee-id"),
-		Merchant:          new("merchant-id"),
-	}
+	reminder := testReminder("non-existent-id")
 
 	mock.ExpectExec(`UPDATE reminder SET`).
-		WithArgs(
-			reminder.ID,
-			reminder.User,
-			decimalString(reminder.Income),
-			decimalString(reminder.Outcome),
-			reminder.Changed,
-			reminder.IncomeInstrument,
-			reminder.OutcomeInstrument,
-			reminder.Step,
-			reminder.Points,
-			reminder.Tag,
-			reminder.StartDate,
-			reminder.EndDate,
-			reminder.Notify,
-			reminder.Interval,
-			reminder.IncomeAccount,
-			reminder.OutcomeAccount,
-			reminder.Comment,
-			reminder.Payee,
-			reminder.Merchant,
-		).
+		WithArgs(reminderArgs(reminder)...).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 
-	err = db.UpdateReminder(context.Background(), reminder)
+	err := db.UpdateReminder(context.Background(), reminder)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "reminder not found")
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestUpdateReminder_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	reminder := &models.Reminder{
-		ID:                "test-id",
-		User:              1,
-		Income:            100.0,
-		Outcome:           50.0,
-		Changed:           1234567890,
-		IncomeInstrument:  1,
-		OutcomeInstrument: 2,
-		Step:              7,
-		Points:            []int{0, 2, 4},
-		Tag:               []string{"tag1", "tag2"},
-		StartDate:         "2025-01-01",
-		EndDate:           nil,
-		Notify:            true,
-		Interval:          new("week"),
-		IncomeAccount:     "income-account",
-		OutcomeAccount:    "outcome-account",
-		Comment:           new("test comment"),
-		Payee:             new("payee-id"),
-		Merchant:          new("merchant-id"),
-	}
+	reminder := testReminder("test-id")
 
 	mock.ExpectExec(`UPDATE reminder SET`).
-		WithArgs(
-			reminder.ID,
-			reminder.User,
-			decimalString(reminder.Income),
-			decimalString(reminder.Outcome),
-			reminder.Changed,
-			reminder.IncomeInstrument,
-			reminder.OutcomeInstrument,
-			reminder.Step,
-			reminder.Points,
-			reminder.Tag,
-			reminder.StartDate,
-			reminder.EndDate,
-			reminder.Notify,
-			reminder.Interval,
-			reminder.IncomeAccount,
-			reminder.OutcomeAccount,
-			reminder.Comment,
-			reminder.Payee,
-			reminder.Merchant,
-		).
+		WithArgs(reminderArgs(reminder)...).
 		WillReturnError(errors.New("update error"))
 
-	err = db.UpdateReminder(context.Background(), reminder)
+	err := db.UpdateReminder(context.Background(), reminder)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to update reminder")
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestDeleteReminder_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	id := "test-id"
 
@@ -528,17 +220,12 @@ func TestDeleteReminder_Success(t *testing.T) {
 		WithArgs(id).
 		WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
-	err = db.DeleteReminder(context.Background(), id)
+	err := db.DeleteReminder(context.Background(), id)
 	assert.NoError(t, err)
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestDeleteReminder_NotFound(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	id := "non-existent-id"
 
@@ -546,18 +233,13 @@ func TestDeleteReminder_NotFound(t *testing.T) {
 		WithArgs(id).
 		WillReturnResult(pgxmock.NewResult("DELETE", 0))
 
-	err = db.DeleteReminder(context.Background(), id)
+	err := db.DeleteReminder(context.Background(), id)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "reminder not found")
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestDeleteReminder_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	id := "test-id"
 
@@ -565,8 +247,7 @@ func TestDeleteReminder_QueryError(t *testing.T) {
 		WithArgs(id).
 		WillReturnError(errors.New("delete error"))
 
-	err = db.DeleteReminder(context.Background(), id)
+	err := db.DeleteReminder(context.Background(), id)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to delete reminder")
-	assert.NoError(t, mock.ExpectationsWereMet())
 }

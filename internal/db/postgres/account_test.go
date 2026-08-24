@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
@@ -14,13 +13,7 @@ import (
 
 // Тест успешного получения аккаунта
 func TestGetAccount_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	if err != nil {
-		t.Fatalf("failed to create mock pool: %v", err)
-	}
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	accountID := "test-id"
 	expectedAccount := &models.Account{
@@ -56,21 +49,11 @@ func TestGetAccount_Success(t *testing.T) {
 	assert.Equal(t, expectedAccount.Title, result.Title)
 	assert.Equal(t, expectedAccount.Type, result.Type)
 	assert.Equal(t, expectedAccount.Private, result.Private)
-
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Errorf("expectations were not met: %v", err)
-	}
 }
 
 // Тест случая, когда аккаунт не найден
 func TestGetAccount_NotFound(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	if err != nil {
-		t.Fatalf("failed to create mock pool: %v", err)
-	}
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	accountID := "non-existing-id"
 
@@ -82,24 +65,12 @@ func TestGetAccount_NotFound(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "account not found")
-
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Errorf("expectations were not met: %v", err)
-	}
 }
 
 func TestListAccounts_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	filter := interfaces.Filter{
-		UserID: new(1),
-		Limit:  10,
-		Page:   1,
-	}
+	filter := testPageFilter()
 
 	rows := mock.NewRows([]string{
 		"id", "user", "instrument", "type", "role", "private", "savings",
@@ -123,22 +94,12 @@ func TestListAccounts_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, accounts, 1)
 	assert.Equal(t, "test-id", accounts[0].ID)
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestListAccounts_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	filter := interfaces.Filter{
-		UserID: new(1),
-		Limit:  10,
-		Page:   1,
-	}
+	filter := testPageFilter()
 
 	mock.ExpectQuery(`(?s)SELECT id, "user", instrument, type, role, private, savings,.*to_char[(]start_date, 'YYYY-MM-DD'[)] AS start_date`).
 		WithArgs(1, 10, 0).
@@ -148,16 +109,10 @@ func TestListAccounts_QueryError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, accounts)
 	assert.Contains(t, err.Error(), "failed to list accounts")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestCreateAccount_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	account := &models.Account{
 		ID:      "test-id",
@@ -181,18 +136,12 @@ func TestCreateAccount_Success(t *testing.T) {
 		).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
-	err = db.CreateAccount(context.Background(), account)
+	err := db.CreateAccount(context.Background(), account)
 	assert.NoError(t, err)
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestCreateAccount_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	account := &models.Account{
 		ID:      "test-id",
@@ -216,19 +165,13 @@ func TestCreateAccount_QueryError(t *testing.T) {
 		).
 		WillReturnError(errors.New("insert error"))
 
-	err = db.CreateAccount(context.Background(), account)
+	err := db.CreateAccount(context.Background(), account)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create account")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestUpdateAccount_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	account := &models.Account{
 		ID:    "test-id",
@@ -249,18 +192,12 @@ func TestUpdateAccount_Success(t *testing.T) {
 		).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
-	err = db.UpdateAccount(context.Background(), account)
+	err := db.UpdateAccount(context.Background(), account)
 	assert.NoError(t, err)
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestUpdateAccount_NotFound(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	account := &models.Account{
 		ID:    "test-id",
@@ -281,19 +218,13 @@ func TestUpdateAccount_NotFound(t *testing.T) {
 		).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 
-	err = db.UpdateAccount(context.Background(), account)
+	err := db.UpdateAccount(context.Background(), account)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "account not found") // <-- теперь содержит "account not found"
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestDeleteAccount_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	accountID := "test-id"
 
@@ -301,18 +232,12 @@ func TestDeleteAccount_Success(t *testing.T) {
 		WithArgs(accountID).
 		WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
-	err = db.DeleteAccount(context.Background(), accountID)
+	err := db.DeleteAccount(context.Background(), accountID)
 	assert.NoError(t, err)
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestDeleteAccount_NotFound(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	accountID := "test-id"
 
@@ -320,9 +245,7 @@ func TestDeleteAccount_NotFound(t *testing.T) {
 		WithArgs(accountID).
 		WillReturnResult(pgxmock.NewResult("DELETE", 0))
 
-	err = db.DeleteAccount(context.Background(), accountID)
+	err := db.DeleteAccount(context.Background(), accountID)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "account not found")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }

@@ -7,20 +7,13 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
 	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetBudget_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	if err != nil {
-		t.Fatalf("failed to create mock pool: %v", err)
-	}
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	userID := 1
 	tagID := "test-tag"
@@ -62,18 +55,10 @@ func TestGetBudget_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedBudget, result)
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestGetBudget_NotFound(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	if err != nil {
-		t.Fatalf("failed to create mock pool: %v", err)
-	}
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	userID := 1
 	tagID := "test-tag"
@@ -87,18 +72,10 @@ func TestGetBudget_NotFound(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "budget not found")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestGetBudget_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	if err != nil {
-		t.Fatalf("failed to create mock pool: %v", err)
-	}
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	userID := 1
 	tagID := "test-tag"
@@ -112,26 +89,12 @@ func TestGetBudget_QueryError(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get budget")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestListBudgets_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	if err != nil {
-		t.Fatalf("failed to create mock pool: %v", err)
-	}
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	filter := interfaces.Filter{
-		UserID:    new(1),
-		StartDate: new(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
-		EndDate:   new(time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)),
-		Limit:     10,
-		Page:      1,
-	}
+	filter := testDateRangeFilter()
 
 	rows := mock.NewRows([]string{
 		"user", "changed", "date", "tag", "income", "outcome",
@@ -148,26 +111,12 @@ func TestListBudgets_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, budgets, 1)
 	assert.Equal(t, 1, budgets[0].User)
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestListBudgets_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	if err != nil {
-		t.Fatalf("failed to create mock pool: %v", err)
-	}
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	filter := interfaces.Filter{
-		UserID:    new(1),
-		StartDate: new(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
-		EndDate:   new(time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)),
-		Limit:     10,
-		Page:      1,
-	}
+	filter := testDateRangeFilter()
 
 	mock.ExpectQuery(`SELECT "user", changed, to_char[(]date, 'YYYY-MM-DD'[)] AS date, tag, income, outcome, income_lock, outcome_lock, is_income_forecast, is_outcome_forecast FROM budget WHERE "user" = \$1 AND date >= \$2 AND date <= \$3 LIMIT \$4 OFFSET \$5`).
 		WithArgs(1, *filter.StartDate, *filter.EndDate, 10, 0).
@@ -177,16 +126,10 @@ func TestListBudgets_QueryError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, budgets)
 	assert.Contains(t, err.Error(), "failed to list budgets")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestCreateBudget_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	budget := &models.Budget{
 		User:              1,
@@ -209,17 +152,12 @@ func TestCreateBudget_Success(t *testing.T) {
 		).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
-	err = db.CreateBudget(context.Background(), budget)
+	err := db.CreateBudget(context.Background(), budget)
 	assert.NoError(t, err)
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestCreateBudget_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	budget := &models.Budget{
 		User:              1,
@@ -242,18 +180,13 @@ func TestCreateBudget_QueryError(t *testing.T) {
 		).
 		WillReturnError(errors.New("insert error"))
 
-	err = db.CreateBudget(context.Background(), budget)
+	err := db.CreateBudget(context.Background(), budget)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create budget")
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestDeleteBudget_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	userID := 1
 	tagID := "test-tag"
@@ -262,22 +195,17 @@ func TestDeleteBudget_Success(t *testing.T) {
 		WithArgs(userID, tagID, time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)).
 		WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
-	err = db.DeleteBudget(
+	err := db.DeleteBudget(
 		context.Background(),
 		userID,
 		tagID,
 		time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
 	)
 	assert.NoError(t, err)
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestDeleteBudget_NotFound(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	userID := 1
 	tagID := "test-tag"
@@ -286,7 +214,7 @@ func TestDeleteBudget_NotFound(t *testing.T) {
 		WithArgs(userID, tagID, time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)).
 		WillReturnResult(pgxmock.NewResult("DELETE", 0))
 
-	err = db.DeleteBudget(
+	err := db.DeleteBudget(
 		context.Background(),
 		userID,
 		tagID,
@@ -294,5 +222,4 @@ func TestDeleteBudget_NotFound(t *testing.T) {
 	)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "budget not found")
-	assert.NoError(t, mock.ExpectationsWereMet())
 }

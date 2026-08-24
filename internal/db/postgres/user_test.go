@@ -7,36 +7,14 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/nemirlev/zenmoney-export/v2/internal/interfaces"
-	"github.com/nemirlev/zenmoney-go-sdk/v3/models"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetUser_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	expectedUser := &models.User{
-		ID:                      1,
-		Country:                 1,
-		Login:                   "testuser",
-		Parent:                  nil,
-		CountryCode:             "US",
-		Email:                   "testuser@example.com",
-		Changed:                 1234567890,
-		Currency:                1,
-		PaidTill:                1234567890,
-		MonthStartDay:           1,
-		IsForecastEnabled:       true,
-		PlanBalanceMode:         "balance",
-		PlanSettings:            "settings",
-		Subscription:            "subscription",
-		SubscriptionRenewalDate: nil,
-	}
+	expectedUser := testUser("testuser", "testuser@example.com")
 
 	rows := mock.NewRows([]string{
 		"id", "country", "login", "parent", "country_code", "email",
@@ -57,16 +35,10 @@ func TestGetUser_Success(t *testing.T) {
 	result, err := db.GetUser(context.Background(), expectedUser.ID)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedUser, result)
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestGetUser_NotFound(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	userID := 1
 
@@ -78,16 +50,10 @@ func TestGetUser_NotFound(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), fmt.Sprintf("user not found: %d", userID))
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestGetUser_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	userID := 1
 
@@ -99,22 +65,12 @@ func TestGetUser_QueryError(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get user")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestListUsers_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	filter := interfaces.Filter{
-		UserID: new(1),
-		Limit:  10,
-		Page:   1,
-	}
+	filter := testPageFilter()
 
 	rows := mock.NewRows([]string{
 		"id", "country", "login", "parent", "country_code", "email",
@@ -136,22 +92,12 @@ func TestListUsers_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, users, 1)
 	assert.Equal(t, 1, users[0].ID)
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestListUsers_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	filter := interfaces.Filter{
-		UserID: new(1),
-		Limit:  10,
-		Page:   1,
-	}
+	filter := testPageFilter()
 
 	mock.ExpectQuery(`SELECT id, country, login, parent, country_code, email,`).
 		WithArgs(1, 10, 0).
@@ -161,219 +107,78 @@ func TestListUsers_QueryError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, users)
 	assert.Contains(t, err.Error(), "failed to list users")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestCreateUser_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	user := &models.User{
-		ID:                      1,
-		Country:                 1,
-		Login:                   "testuser",
-		Parent:                  nil,
-		CountryCode:             "US",
-		Email:                   "testuser@example.com",
-		Changed:                 1234567890,
-		Currency:                1,
-		PaidTill:                1234567890,
-		MonthStartDay:           1,
-		IsForecastEnabled:       true,
-		PlanBalanceMode:         "balance",
-		PlanSettings:            "settings",
-		Subscription:            "subscription",
-		SubscriptionRenewalDate: nil,
-	}
+	user := testUser("testuser", "testuser@example.com")
 
 	mock.ExpectExec(`INSERT INTO "user"`).
-		WithArgs(
-			user.ID, user.Country, user.Login, user.Parent, user.CountryCode, user.Email,
-			user.Changed, user.Currency, user.PaidTill, user.MonthStartDay,
-			user.IsForecastEnabled, user.PlanBalanceMode, user.PlanSettings,
-			user.Subscription, user.SubscriptionRenewalDate,
-		).
+		WithArgs(userArgs(user)...).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
-	err = db.CreateUser(context.Background(), user)
+	err := db.CreateUser(context.Background(), user)
 	assert.NoError(t, err)
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestCreateUser_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	user := &models.User{
-		ID:                      1,
-		Country:                 1,
-		Login:                   "testuser",
-		Parent:                  nil,
-		CountryCode:             "US",
-		Email:                   "testuser@example.com",
-		Changed:                 1234567890,
-		Currency:                1,
-		PaidTill:                1234567890,
-		MonthStartDay:           1,
-		IsForecastEnabled:       true,
-		PlanBalanceMode:         "balance",
-		PlanSettings:            "settings",
-		Subscription:            "subscription",
-		SubscriptionRenewalDate: nil,
-	}
+	user := testUser("testuser", "testuser@example.com")
 
 	mock.ExpectExec(`INSERT INTO "user"`).
-		WithArgs(
-			user.ID, user.Country, user.Login, user.Parent, user.CountryCode, user.Email,
-			user.Changed, user.Currency, user.PaidTill, user.MonthStartDay,
-			user.IsForecastEnabled, user.PlanBalanceMode, user.PlanSettings,
-			user.Subscription, user.SubscriptionRenewalDate,
-		).
+		WithArgs(userArgs(user)...).
 		WillReturnError(errors.New("insert error"))
 
-	err = db.CreateUser(context.Background(), user)
+	err := db.CreateUser(context.Background(), user)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create user")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestUpdateUser_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	user := &models.User{
-		ID:                      1,
-		Country:                 1,
-		Login:                   "updateduser",
-		Parent:                  nil,
-		CountryCode:             "US",
-		Email:                   "updateduser@example.com",
-		Changed:                 1234567890,
-		Currency:                1,
-		PaidTill:                1234567890,
-		MonthStartDay:           1,
-		IsForecastEnabled:       true,
-		PlanBalanceMode:         "balance",
-		PlanSettings:            "settings",
-		Subscription:            "subscription",
-		SubscriptionRenewalDate: nil,
-	}
+	user := testUser("updateduser", "updateduser@example.com")
 
 	mock.ExpectExec(`UPDATE "user" SET`).
-		WithArgs(
-			user.ID, user.Country, user.Login, user.Parent, user.CountryCode, user.Email,
-			user.Changed, user.Currency, user.PaidTill, user.MonthStartDay,
-			user.IsForecastEnabled, user.PlanBalanceMode, user.PlanSettings,
-			user.Subscription, user.SubscriptionRenewalDate,
-		).
+		WithArgs(userArgs(user)...).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
-	err = db.UpdateUser(context.Background(), user)
+	err := db.UpdateUser(context.Background(), user)
 	assert.NoError(t, err)
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestUpdateUser_NotFound(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	user := &models.User{
-		ID:                      1,
-		Country:                 1,
-		Login:                   "updateduser",
-		Parent:                  nil,
-		CountryCode:             "US",
-		Email:                   "updateduser@example.com",
-		Changed:                 1234567890,
-		Currency:                1,
-		PaidTill:                1234567890,
-		MonthStartDay:           1,
-		IsForecastEnabled:       true,
-		PlanBalanceMode:         "balance",
-		PlanSettings:            "settings",
-		Subscription:            "subscription",
-		SubscriptionRenewalDate: nil,
-	}
+	user := testUser("updateduser", "updateduser@example.com")
 
 	mock.ExpectExec(`UPDATE "user" SET`).
-		WithArgs(
-			user.ID, user.Country, user.Login, user.Parent, user.CountryCode, user.Email,
-			user.Changed, user.Currency, user.PaidTill, user.MonthStartDay,
-			user.IsForecastEnabled, user.PlanBalanceMode, user.PlanSettings,
-			user.Subscription, user.SubscriptionRenewalDate,
-		).
+		WithArgs(userArgs(user)...).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 
-	err = db.UpdateUser(context.Background(), user)
+	err := db.UpdateUser(context.Background(), user)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "user not found")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestUpdateUser_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
+	db, mock := newTestDB(t)
 
-	db := &DB{pool: mock}
-
-	user := &models.User{
-		ID:                      1,
-		Country:                 1,
-		Login:                   "updateduser",
-		Parent:                  nil,
-		CountryCode:             "US",
-		Email:                   "updateduser@example.com",
-		Changed:                 1234567890,
-		Currency:                1,
-		PaidTill:                1234567890,
-		MonthStartDay:           1,
-		IsForecastEnabled:       true,
-		PlanBalanceMode:         "balance",
-		PlanSettings:            "settings",
-		Subscription:            "subscription",
-		SubscriptionRenewalDate: nil,
-	}
+	user := testUser("updateduser", "updateduser@example.com")
 
 	mock.ExpectExec(`UPDATE "user" SET`).
-		WithArgs(
-			user.ID, user.Country, user.Login, user.Parent, user.CountryCode, user.Email,
-			user.Changed, user.Currency, user.PaidTill, user.MonthStartDay,
-			user.IsForecastEnabled, user.PlanBalanceMode, user.PlanSettings,
-			user.Subscription, user.SubscriptionRenewalDate,
-		).
+		WithArgs(userArgs(user)...).
 		WillReturnError(errors.New("update error"))
 
-	err = db.UpdateUser(context.Background(), user)
+	err := db.UpdateUser(context.Background(), user)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to update user")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestDeleteUser_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	userID := 1
 
@@ -381,18 +186,12 @@ func TestDeleteUser_Success(t *testing.T) {
 		WithArgs(userID).
 		WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
-	err = db.DeleteUser(context.Background(), userID)
+	err := db.DeleteUser(context.Background(), userID)
 	assert.NoError(t, err)
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestDeleteUser_NotFound(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	userID := 1
 
@@ -400,19 +199,13 @@ func TestDeleteUser_NotFound(t *testing.T) {
 		WithArgs(userID).
 		WillReturnResult(pgxmock.NewResult("DELETE", 0))
 
-	err = db.DeleteUser(context.Background(), userID)
+	err := db.DeleteUser(context.Background(), userID)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "user not found")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestDeleteUser_QueryError(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	userID := 1
 
@@ -420,9 +213,7 @@ func TestDeleteUser_QueryError(t *testing.T) {
 		WithArgs(userID).
 		WillReturnError(errors.New("delete error"))
 
-	err = db.DeleteUser(context.Background(), userID)
+	err := db.DeleteUser(context.Background(), userID)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to delete user")
-
-	assert.NoError(t, mock.ExpectationsWereMet())
 }

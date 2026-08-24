@@ -13,11 +13,7 @@ import (
 )
 
 func TestSaveSyncStatus_Success(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	status := interfaces.SyncStatus{
 		StartedAt:        time.Now(),
@@ -40,17 +36,12 @@ func TestSaveSyncStatus_Success(t *testing.T) {
 		).
 		WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(int64(1)))
 
-	err = db.SaveSyncStatus(context.Background(), status)
+	err := db.SaveSyncStatus(context.Background(), status)
 	assert.NoError(t, err)
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestSaveSyncStatus_Error(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	status := interfaces.SyncStatus{
 		StartedAt:        time.Now(),
@@ -73,20 +64,15 @@ func TestSaveSyncStatus_Error(t *testing.T) {
 		).
 		WillReturnError(errors.New("insert error"))
 
-	err = db.SaveSyncStatus(context.Background(), status)
+	err := db.SaveSyncStatus(context.Background(), status)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to save sync status")
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 const lastCompletedSyncStatusQuery = `SELECT id, started_at, finished_at, sync_type, server_timestamp, records_processed, status, error_message, created_at, updated_at FROM sync_status WHERE status = 'completed' ORDER BY id DESC LIMIT 1`
 
 func TestGetLastSyncStatus_ReturnsLatestCompleted(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	expectedStatus := interfaces.SyncStatus{
 		ID:               1,
@@ -118,15 +104,10 @@ func TestGetLastSyncStatus_ReturnsLatestCompleted(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedStatus, status)
 
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestGetLastSyncStatus_NoCompletedSync(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	mock.ExpectQuery(lastCompletedSyncStatusQuery).
 		WillReturnError(pgx.ErrNoRows)
@@ -135,15 +116,10 @@ func TestGetLastSyncStatus_NoCompletedSync(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, interfaces.SyncStatus{}, status)
 
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestGetLastSyncStatus_Error(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	assert.NoError(t, err)
-	defer mock.Close()
-
-	db := &DB{pool: mock}
+	db, mock := newTestDB(t)
 
 	mock.ExpectQuery(lastCompletedSyncStatusQuery).
 		WillReturnError(errors.New("query error"))
@@ -153,5 +129,4 @@ func TestGetLastSyncStatus_Error(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to get last sync status")
 	assert.Equal(t, interfaces.SyncStatus{}, status)
 
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
