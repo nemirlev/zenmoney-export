@@ -70,6 +70,41 @@ func TestBudgetSQLUsesStrictNormalizedMonthRange(t *testing.T) {
 	require.NotContains(t, budgetProgressCTESQL, `date_trunc('month', $2::date)`)
 }
 
+func TestAnalyticsUsersDiscoversAllDatabaseUsers(t *testing.T) {
+	db, mock := newTestDB(t)
+	principal := analytics.Principal{Subject: "local", AllUsers: true}
+
+	expectAnalyticsSnapshotBegin(mock)
+	mock.ExpectQuery(regexp.QuoteMeta(analyticsUsersSQL)).
+		WithArgs(true, []int64(nil)).
+		WillReturnRows(mock.NewRows([]string{"id", "label", "currency"}).
+			AddRow(int64(7), "Family", "RUB").
+			AddRow(int64(42), "Personal", "RUB"))
+	mock.ExpectCommit()
+
+	users, err := db.AnalyticsUsers(context.Background(), principal)
+	require.NoError(t, err)
+	require.Equal(t, []analytics.AnalyticsUser{
+		{UserID: 7, ID: "user:7", Label: "Family", Currency: "RUB"},
+		{UserID: 42, ID: "user:42", Label: "Personal", Currency: "RUB"},
+	}, users)
+}
+
+func TestAnalyticsUsersRejectsMissingAllowlistUser(t *testing.T) {
+	db, mock := newTestDB(t)
+	principal := analytics.Principal{Subject: "restricted", UserIDs: []int64{7, 42}}
+
+	expectAnalyticsSnapshotBegin(mock)
+	mock.ExpectQuery(regexp.QuoteMeta(analyticsUsersSQL)).
+		WithArgs(false, principal.UserIDs).
+		WillReturnRows(mock.NewRows([]string{"id", "label", "currency"}).
+			AddRow(int64(7), "Family", "RUB"))
+	mock.ExpectRollback()
+
+	_, err := db.AnalyticsUsers(context.Background(), principal)
+	require.ErrorIs(t, err, ErrAnalyticsUserCatalog)
+}
+
 func TestSpendingSummaryUsesAuthenticatedScopeAndStableUncategorizedID(t *testing.T) {
 	db, mock := newTestDB(t)
 	ctx := context.Background()

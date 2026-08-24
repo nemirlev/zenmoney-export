@@ -16,20 +16,47 @@ const (
 )
 
 type fakeStore struct {
-	principal       Principal
-	spendingQuery   SpendingSummaryQuery
-	budgetQuery     BudgetProgressQuery
-	searchQuery     TransactionSearchQuery
-	spendingCalls   int
-	spendingData    SpendingSummaryData
-	cashflowData    CashflowData
-	cashflowCalls   int
-	cashflowQueries []CashflowQuery
-	cashflowDataSet []CashflowData
-	budgetData      BudgetProgressData
-	transactionPage TransactionPage
-	freshnessData   FreshnessData
-	err             error
+	userCatalog        []AnalyticsUser
+	usersErr           error
+	usersCalls         int
+	catalogPrincipal   Principal
+	principal          Principal
+	spendingQuery      SpendingSummaryQuery
+	budgetQuery        BudgetProgressQuery
+	searchQuery        TransactionSearchQuery
+	spendingCalls      int
+	spendingData       SpendingSummaryData
+	cashflowData       CashflowData
+	cashflowCalls      int
+	cashflowPrincipals []Principal
+	cashflowQueries    []CashflowQuery
+	cashflowDataSet    []CashflowData
+	budgetData         BudgetProgressData
+	transactionPage    TransactionPage
+	freshnessData      FreshnessData
+	freshnessPrincipal Principal
+	err                error
+}
+
+func (s *fakeStore) AnalyticsUsers(
+	_ context.Context,
+	principal Principal,
+) ([]AnalyticsUser, error) {
+	s.usersCalls++
+	s.catalogPrincipal = principal
+	if s.usersErr != nil {
+		return nil, s.usersErr
+	}
+	if s.userCatalog != nil {
+		return cloneAnalyticsUsers(s.userCatalog), nil
+	}
+	users := make([]AnalyticsUser, 0, len(principal.UserIDs))
+	for _, userID := range principal.UserIDs {
+		users = append(users, AnalyticsUser{
+			UserID: userID, ID: analyticsUserKey(userID), Currency: "RUB",
+		})
+	}
+	return users, nil
 }
 
 func (s *fakeStore) SpendingSummary(
@@ -45,9 +72,10 @@ func (s *fakeStore) SpendingSummary(
 
 func (s *fakeStore) Cashflow(
 	_ context.Context,
-	_ Principal,
+	principal Principal,
 	query CashflowQuery,
 ) (CashflowData, error) {
+	s.cashflowPrincipals = append(s.cashflowPrincipals, principal)
 	s.cashflowQueries = append(s.cashflowQueries, query)
 	s.cashflowCalls++
 	if s.cashflowCalls <= len(s.cashflowDataSet) {
@@ -74,7 +102,8 @@ func (s *fakeStore) SearchTransactions(
 	return s.transactionPage, s.err
 }
 
-func (s *fakeStore) DataFreshness(context.Context, Principal) (FreshnessData, error) {
+func (s *fakeStore) DataFreshness(_ context.Context, principal Principal) (FreshnessData, error) {
+	s.freshnessPrincipal = principal
 	return s.freshnessData, s.err
 }
 
@@ -112,6 +141,120 @@ func TestSpendingSummaryNormalizesAuthorizationPeriodAndFilters(t *testing.T) {
 	require.NotNil(t, result.Metadata.NormalizedRequest)
 	require.Empty(t, result.Metadata.NormalizedRequest.SpendingSummary.Filters.AccountIDs[1:])
 	require.Contains(t, result.Metadata.Rules.MultiTag, "split equally")
+}
+
+func TestAllUsersPrincipalResolvesCatalogAndCanonicalizesEmptySelection(t *testing.T) {
+	store := &fakeStore{
+		userCatalog: []AnalyticsUser{
+			{UserID: 9, ID: "user:9", Label: " Second ", Currency: "RUB"},
+			{UserID: 4, ID: "user:4", Label: "First", Currency: "RUB"},
+		},
+		spendingData: SpendingSummaryData{Currency: "RUB", Total: "0"},
+	}
+	service := newTestService(t, store)
+
+	result, err := service.GetSpendingSummary(
+		context.Background(),
+		Principal{Subject: " database-owner ", AllUsers: true},
+		SpendingSummaryRequest{Period: PeriodRequest{From: "2026-08-01", To: "2026-08-01"}},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, Principal{Subject: "database-owner", AllUsers: true}, store.catalogPrincipal)
+	require.Equal(t, Principal{Subject: "database-owner", UserIDs: []int64{4, 9}}, store.principal)
+	require.Equal(t, []string{"user:4", "user:9"}, result.Metadata.NormalizedRequest.SpendingSummary.Users.UserIDs)
+	require.Equal(t, []AnalyticsUser{
+		{UserID: 4, ID: "user:4", Label: "First", Currency: "RUB"},
+		{UserID: 9, ID: "user:9", Label: "Second", Currency: "RUB"},
+	}, result.Metadata.Users)
+}
+
+func TestUserSelectionNarrowsAllowlistAndRejectsUnknownUsers(t *testing.T) {
+	store := &fakeStore{
+		userCatalog: []AnalyticsUser{
+			{UserID: 4, ID: "user:4", Currency: "RUB"},
+			{UserID: 9, ID: "user:9", Currency: "RUB"},
+		},
+		spendingData: SpendingSummaryData{Currency: "RUB", Total: "0"},
+	}
+	service := newTestService(t, store)
+	principal := Principal{Subject: "owner", UserIDs: []int64{9, 4}}
+	period := PeriodRequest{From: "2026-08-01", To: "2026-08-01"}
+
+	result, err := service.GetSpendingSummary(
+		context.Background(), principal,
+		SpendingSummaryRequest{
+			Period: period,
+			Users:  UserSelection{UserIDs: []string{" user:9 ", "user:9"}},
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, Principal{Subject: "owner", UserIDs: []int64{9}}, store.principal)
+	require.Equal(t, []string{"user:9"}, result.Metadata.NormalizedRequest.SpendingSummary.Users.UserIDs)
+	require.Equal(t, []AnalyticsUser{{UserID: 9, ID: "user:9", Currency: "RUB"}}, result.Metadata.Users)
+
+	before := store.spendingCalls
+	_, err = service.GetSpendingSummary(
+		context.Background(), principal,
+		SpendingSummaryRequest{
+			Period: period, Users: UserSelection{UserIDs: []string{"user:10"}},
+		},
+	)
+	require.ErrorContains(t, err, "unknown or not authorized")
+	require.Equal(t, before, store.spendingCalls)
+}
+
+func TestUserCatalogCannotExpandExplicitPrincipal(t *testing.T) {
+	store := &fakeStore{
+		userCatalog:  []AnalyticsUser{{UserID: 2, ID: "user:2", Currency: "RUB"}},
+		spendingData: SpendingSummaryData{Currency: "RUB", Total: "0"},
+	}
+	service := newTestService(t, store)
+
+	_, err := service.GetSpendingSummary(
+		context.Background(), Principal{Subject: "owner", UserIDs: []int64{1}},
+		SpendingSummaryRequest{Period: PeriodRequest{From: "2026-08-01", To: "2026-08-01"}},
+	)
+
+	require.ErrorContains(t, err, "outside principal scope")
+	require.Zero(t, store.spendingCalls)
+}
+
+func TestAggregateResultCurrencyMustMatchEverySelectedUser(t *testing.T) {
+	store := &fakeStore{
+		userCatalog: []AnalyticsUser{
+			{UserID: 1, ID: "user:1", Currency: "RUB"},
+			{UserID: 2, ID: "user:2", Currency: "USD"},
+		},
+		spendingData: SpendingSummaryData{Currency: "RUB", Total: "0"},
+	}
+	service := newTestService(t, store)
+
+	_, err := service.GetSpendingSummary(
+		context.Background(), Principal{Subject: "owner", AllUsers: true},
+		SpendingSummaryRequest{Period: PeriodRequest{From: "2026-08-01", To: "2026-08-01"}},
+	)
+
+	require.ErrorContains(t, err, "does not match selected analytics user user:2")
+}
+
+func TestPrincipalScopeMustBeExplicitAndUnambiguous(t *testing.T) {
+	service := newTestService(t, &fakeStore{
+		spendingData: SpendingSummaryData{Currency: "RUB", Total: "0"},
+	})
+	request := SpendingSummaryRequest{
+		Period: PeriodRequest{From: "2026-08-01", To: "2026-08-01"},
+	}
+
+	_, err := service.GetSpendingSummary(
+		context.Background(), Principal{Subject: "owner", AllUsers: true, UserIDs: []int64{1}}, request,
+	)
+	require.ErrorContains(t, err, "cannot combine")
+
+	_, err = service.GetSpendingSummary(
+		context.Background(), Principal{Subject: "owner"}, request,
+	)
+	require.ErrorContains(t, err, "no authorized users")
 }
 
 func TestServiceUsesConfiguredTimezoneWhenRequestOmitsIt(t *testing.T) {
@@ -342,6 +485,8 @@ func TestDataFreshnessIsDatabaseScopedWithoutPublicRecordCounts(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, FreshnessScopeDatabase, result.Scope)
+	require.Equal(t, []AnalyticsUser{{UserID: 1, ID: "user:1", Currency: "RUB"}}, result.Users)
+	require.Equal(t, result.Users, result.Metadata.Users)
 	require.Contains(
 		t,
 		result.Metadata.Rules.Limitations,
@@ -364,6 +509,24 @@ func TestDataFreshnessIsDatabaseScopedWithoutPublicRecordCounts(t *testing.T) {
 	require.Equal(t, "database", decoded["scope"])
 	completed := decoded["lastCompleted"].(map[string]any)
 	require.NotContains(t, completed, "recordsProcessed")
+}
+
+func TestDataFreshnessResolvesAllUsersToExplicitStoreScope(t *testing.T) {
+	store := &fakeStore{userCatalog: []AnalyticsUser{
+		{UserID: 2, ID: "user:2", Currency: "USD"},
+		{UserID: 1, ID: "user:1", Currency: "RUB"},
+	}}
+	service := newTestService(t, store)
+
+	result, err := service.GetDataFreshness(
+		context.Background(), Principal{Subject: "owner", AllUsers: true}, DataFreshnessRequest{},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, Principal{Subject: "owner", UserIDs: []int64{1, 2}}, store.freshnessPrincipal)
+	require.Equal(t, []string{"user:1", "user:2"}, []string{
+		result.Users[0].ID, result.Users[1].ID,
+	})
 }
 
 func TestBudgetProgressRequiresCompleteCalendarMonths(t *testing.T) {

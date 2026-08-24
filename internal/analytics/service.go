@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -57,19 +58,23 @@ func (s *Service) GetSpendingSummary(
 	principal Principal,
 	request SpendingSummaryRequest,
 ) (SpendingSummaryResult, error) {
-	principal, err := normalizePrincipal(principal)
-	if err != nil {
-		return SpendingSummaryResult{}, err
-	}
 	canonical, query, period, err := s.normalizeSpendingRequest(request)
 	if err != nil {
 		return SpendingSummaryResult{}, err
 	}
+	principal, users, selection, err := s.resolveReportUsers(ctx, principal, canonical.Users)
+	if err != nil {
+		return SpendingSummaryResult{}, err
+	}
+	canonical.Users = selection
 	data, err := s.store.SpendingSummary(ctx, principal, query)
 	if err != nil {
 		return SpendingSummaryResult{}, fmt.Errorf("get spending summary: %w", err)
 	}
 	if err := validateSpendingData(data); err != nil {
+		return SpendingSummaryResult{}, fmt.Errorf("invalid spending data: %w", err)
+	}
+	if err := validateSelectedUserCurrency(users, data.Currency); err != nil {
 		return SpendingSummaryResult{}, fmt.Errorf("invalid spending data: %w", err)
 	}
 	normalized := NormalizedReportRequest{Kind: ReportSpendingSummary, SpendingSummary: &canonical}
@@ -78,6 +83,7 @@ func (s *Service) GetSpendingSummary(
 			ReportSpendingSummary,
 			&period,
 			data.Currency,
+			users,
 			query.Filters,
 			data.LastSyncAt,
 			normalized,
@@ -94,14 +100,15 @@ func (s *Service) GetCashflow(
 	principal Principal,
 	request CashflowRequest,
 ) (CashflowResult, error) {
-	principal, err := normalizePrincipal(principal)
-	if err != nil {
-		return CashflowResult{}, err
-	}
 	canonical, query, period, err := s.normalizeCashflowRequest(request)
 	if err != nil {
 		return CashflowResult{}, err
 	}
+	principal, users, selection, err := s.resolveReportUsers(ctx, principal, canonical.Users)
+	if err != nil {
+		return CashflowResult{}, err
+	}
+	canonical.Users = selection
 	data, err := s.store.Cashflow(ctx, principal, query)
 	if err != nil {
 		return CashflowResult{}, fmt.Errorf("get cashflow: %w", err)
@@ -109,10 +116,13 @@ func (s *Service) GetCashflow(
 	if err := validateCashflowData(data); err != nil {
 		return CashflowResult{}, fmt.Errorf("invalid cashflow data: %w", err)
 	}
+	if err := validateSelectedUserCurrency(users, data.Currency); err != nil {
+		return CashflowResult{}, fmt.Errorf("invalid cashflow data: %w", err)
+	}
 	normalized := NormalizedReportRequest{Kind: ReportCashflow, Cashflow: &canonical}
 	return CashflowResult{
 		Metadata: reportMetadata(
-			ReportCashflow, &period, data.Currency, query.Filters, data.LastSyncAt, normalized,
+			ReportCashflow, &period, data.Currency, users, query.Filters, data.LastSyncAt, normalized,
 		),
 		Points: nonNilCashflowPoints(data.Points), Totals: data.Totals,
 		Table: cashflowTable(data.Points, data.Currency),
@@ -124,19 +134,23 @@ func (s *Service) GetBudgetProgress(
 	principal Principal,
 	request BudgetProgressRequest,
 ) (BudgetProgressResult, error) {
-	principal, err := normalizePrincipal(principal)
-	if err != nil {
-		return BudgetProgressResult{}, err
-	}
 	canonical, query, period, err := s.normalizeBudgetRequest(request)
 	if err != nil {
 		return BudgetProgressResult{}, err
 	}
+	principal, users, selection, err := s.resolveReportUsers(ctx, principal, canonical.Users)
+	if err != nil {
+		return BudgetProgressResult{}, err
+	}
+	canonical.Users = selection
 	data, err := s.store.BudgetProgress(ctx, principal, query)
 	if err != nil {
 		return BudgetProgressResult{}, fmt.Errorf("get budget progress: %w", err)
 	}
 	if err := validateBudgetData(data); err != nil {
+		return BudgetProgressResult{}, fmt.Errorf("invalid budget data: %w", err)
+	}
+	if err := validateSelectedUserCurrency(users, data.Currency); err != nil {
 		return BudgetProgressResult{}, fmt.Errorf("invalid budget data: %w", err)
 	}
 	normalized := NormalizedReportRequest{Kind: ReportBudgetProgress, BudgetProgress: &canonical}
@@ -145,6 +159,7 @@ func (s *Service) GetBudgetProgress(
 			ReportBudgetProgress,
 			&period,
 			data.Currency,
+			users,
 			query.Filters,
 			data.LastSyncAt,
 			normalized,
@@ -160,19 +175,23 @@ func (s *Service) SearchTransactions(
 	principal Principal,
 	request TransactionSearchRequest,
 ) (TransactionSearchResult, error) {
-	principal, err := normalizePrincipal(principal)
-	if err != nil {
-		return TransactionSearchResult{}, err
-	}
 	canonical, query, period, err := s.normalizeSearchRequest(request)
 	if err != nil {
 		return TransactionSearchResult{}, err
 	}
+	principal, users, selection, err := s.resolveReportUsers(ctx, principal, canonical.Users)
+	if err != nil {
+		return TransactionSearchResult{}, err
+	}
+	canonical.Users = selection
 	page, err := s.store.SearchTransactions(ctx, principal, query)
 	if err != nil {
 		return TransactionSearchResult{}, fmt.Errorf("search transactions: %w", err)
 	}
 	if err := validateTransactionPage(page); err != nil {
+		return TransactionSearchResult{}, fmt.Errorf("invalid transaction data: %w", err)
+	}
+	if err := validateSelectedUserCurrency(users, page.Currency); err != nil {
 		return TransactionSearchResult{}, fmt.Errorf("invalid transaction data: %w", err)
 	}
 	nextCursor, err := encodeCursor(page.NextCursor)
@@ -184,7 +203,7 @@ func (s *Service) SearchTransactions(
 	filters.Search = canonical.Text
 	return TransactionSearchResult{
 		Metadata: reportMetadata(
-			ReportTransactions, &period, page.Currency, filters, page.LastSyncAt, normalized,
+			ReportTransactions, &period, page.Currency, users, filters, page.LastSyncAt, normalized,
 		),
 		Items: nonNilTransactions(page.Items), NextCursor: nextCursor,
 		Table: transactionsTable(page.Items, page.Currency),
@@ -200,6 +219,16 @@ func (s *Service) GetDataFreshness(
 	if err != nil {
 		return DataFreshnessResult{}, err
 	}
+	users, err := s.analyticsUsers(ctx, principal)
+	if err != nil {
+		return DataFreshnessResult{}, err
+	}
+	if len(users) == 0 {
+		return DataFreshnessResult{}, errors.New(
+			"authenticated analytics scope contains no users",
+		)
+	}
+	principal = explicitPrincipal(principal.Subject, users)
 	data, err := s.store.DataFreshness(ctx, principal)
 	if err != nil {
 		return DataFreshnessResult{}, fmt.Errorf("get data freshness: %w", err)
@@ -220,7 +249,7 @@ func (s *Service) GetDataFreshness(
 		Kind: ReportDataFreshness, DataFreshness: &DataFreshnessRequest{},
 	}
 	metadata := reportMetadata(
-		ReportDataFreshness, nil, "", AppliedFilters{}, lastSync, normalized,
+		ReportDataFreshness, nil, "", users, AppliedFilters{}, lastSync, normalized,
 	)
 	metadata.Rules.Limitations = append(
 		metadata.Rules.Limitations,
@@ -229,7 +258,7 @@ func (s *Service) GetDataFreshness(
 	return DataFreshnessResult{
 		Metadata: metadata, Scope: FreshnessScopeDatabase,
 		LastCompleted: data.LastCompleted, LastAttempt: data.LastAttempt,
-		AgeSeconds: age, Stale: stale, Table: freshnessTable(data),
+		AgeSeconds: age, Stale: stale, Users: users, Table: freshnessTable(data),
 	}, nil
 }
 
@@ -332,6 +361,10 @@ func (s *Service) normalizeSpendingRequest(
 	canonical := SpendingSummaryRequest{
 		Period: canonicalPeriod, Filters: filtersToRequest(filters), Limit: limit,
 	}
+	canonical.Users, err = s.normalizeUserSelection(request.Users)
+	if err != nil {
+		return SpendingSummaryRequest{}, SpendingSummaryQuery{}, Period{}, err
+	}
 	return canonical, SpendingSummaryQuery{
 		Range: rangeValue, Filters: filters, Limit: limit,
 	}, period, nil
@@ -368,6 +401,10 @@ func (s *Service) normalizeCashflowRequest(
 		Period: canonicalPeriod, Filters: filtersToRequest(filters),
 		Granularity: granularity,
 	}
+	canonical.Users, err = s.normalizeUserSelection(request.Users)
+	if err != nil {
+		return CashflowRequest{}, CashflowQuery{}, Period{}, err
+	}
 	return canonical, CashflowQuery{
 		Range: rangeValue, Filters: filters,
 		Granularity: granularity, MaxPoints: s.limits.MaxChartPoints,
@@ -401,6 +438,10 @@ func (s *Service) normalizeBudgetRequest(
 	}
 	canonical := BudgetProgressRequest{
 		Period: canonicalPeriod, Filters: filtersToRequest(filters), Limit: limit,
+	}
+	canonical.Users, err = s.normalizeUserSelection(request.Users)
+	if err != nil {
+		return BudgetProgressRequest{}, BudgetProgressQuery{}, Period{}, err
 	}
 	return canonical, BudgetProgressQuery{
 		Range: rangeValue, Filters: filters, Limit: limit,
@@ -437,6 +478,10 @@ func (s *Service) normalizeSearchRequest(
 	canonical := TransactionSearchRequest{
 		Period: canonicalPeriod, Filters: filtersToRequest(filters),
 		Text: text, Cursor: canonicalCursor, PageSize: pageSize,
+	}
+	canonical.Users, err = s.normalizeUserSelection(request.Users)
+	if err != nil {
+		return TransactionSearchRequest{}, TransactionSearchQuery{}, Period{}, err
 	}
 	return canonical, TransactionSearchQuery{
 		Range: rangeValue, Filters: filters, Text: text,
@@ -546,6 +591,15 @@ func normalizePrincipal(principal Principal) (Principal, error) {
 	if principal.Subject == "" {
 		return Principal{}, errors.New("authenticated principal subject is required")
 	}
+	if principal.AllUsers && len(principal.UserIDs) != 0 {
+		return Principal{}, errors.New(
+			"authenticated principal cannot combine all-users access with a user allowlist",
+		)
+	}
+	if principal.AllUsers {
+		principal.UserIDs = nil
+		return principal, nil
+	}
 	seen := make(map[int64]struct{}, len(principal.UserIDs))
 	users := make([]int64, 0, len(principal.UserIDs))
 	for _, userID := range principal.UserIDs {
@@ -564,6 +618,164 @@ func normalizePrincipal(principal Principal) (Principal, error) {
 	sort.Slice(users, func(i, j int) bool { return users[i] < users[j] })
 	principal.UserIDs = users
 	return principal, nil
+}
+
+func (s *Service) normalizeUserSelection(selection UserSelection) (UserSelection, error) {
+	if len(selection.UserIDs) > s.limits.MaxFilterValues {
+		return UserSelection{}, fmt.Errorf(
+			"user selection exceeds the maximum of %d",
+			s.limits.MaxFilterValues,
+		)
+	}
+	seen := make(map[int64]struct{}, len(selection.UserIDs))
+	userIDs := make([]int64, 0, len(selection.UserIDs))
+	for _, key := range selection.UserIDs {
+		userID, ok := parseAnalyticsUserKey(strings.TrimSpace(key))
+		if !ok {
+			return UserSelection{}, fmt.Errorf("invalid analytics user ID %q", key)
+		}
+		if _, exists := seen[userID]; exists {
+			continue
+		}
+		seen[userID] = struct{}{}
+		userIDs = append(userIDs, userID)
+	}
+	sort.Slice(userIDs, func(i, j int) bool { return userIDs[i] < userIDs[j] })
+	return UserSelection{UserIDs: analyticsUserKeys(userIDs)}, nil
+}
+
+func (s *Service) resolveReportUsers(
+	ctx context.Context,
+	principal Principal,
+	selection UserSelection,
+) (Principal, []AnalyticsUser, UserSelection, error) {
+	principal, err := normalizePrincipal(principal)
+	if err != nil {
+		return Principal{}, nil, UserSelection{}, err
+	}
+	catalog, err := s.analyticsUsers(ctx, principal)
+	if err != nil {
+		return Principal{}, nil, UserSelection{}, err
+	}
+	selection, err = s.normalizeUserSelection(selection)
+	if err != nil {
+		return Principal{}, nil, UserSelection{}, err
+	}
+
+	selected := catalog
+	if len(selection.UserIDs) != 0 {
+		catalogByID := make(map[string]AnalyticsUser, len(catalog))
+		for _, user := range catalog {
+			catalogByID[user.ID] = user
+		}
+		selected = make([]AnalyticsUser, 0, len(selection.UserIDs))
+		for _, userID := range selection.UserIDs {
+			user, exists := catalogByID[userID]
+			if !exists {
+				return Principal{}, nil, UserSelection{}, fmt.Errorf(
+					"analytics user %q is unknown or not authorized",
+					userID,
+				)
+			}
+			selected = append(selected, user)
+		}
+	}
+	if len(selected) == 0 {
+		return Principal{}, nil, UserSelection{}, errors.New(
+			"authenticated analytics scope contains no users",
+		)
+	}
+	if len(selected) > s.limits.MaxFilterValues {
+		return Principal{}, nil, UserSelection{}, fmt.Errorf(
+			"analytics user selection exceeds the maximum of %d",
+			s.limits.MaxFilterValues,
+		)
+	}
+
+	effective := explicitPrincipal(principal.Subject, selected)
+	keys := make([]string, len(selected))
+	for index, user := range selected {
+		keys[index] = user.ID
+	}
+	return effective, cloneAnalyticsUsers(selected), UserSelection{UserIDs: keys}, nil
+}
+
+func explicitPrincipal(subject string, users []AnalyticsUser) Principal {
+	principal := Principal{Subject: subject, UserIDs: make([]int64, len(users))}
+	for index, user := range users {
+		principal.UserIDs[index] = user.UserID
+	}
+	return principal
+}
+
+func (s *Service) analyticsUsers(
+	ctx context.Context,
+	principal Principal,
+) ([]AnalyticsUser, error) {
+	users, err := s.store.AnalyticsUsers(ctx, principal)
+	if err != nil {
+		return nil, fmt.Errorf("list analytics users: %w", err)
+	}
+	allowed := make(map[int64]struct{}, len(principal.UserIDs))
+	for _, userID := range principal.UserIDs {
+		allowed[userID] = struct{}{}
+	}
+	seen := make(map[int64]struct{}, len(users))
+	validated := make([]AnalyticsUser, 0, len(users))
+	for _, user := range users {
+		if user.UserID <= 0 || user.ID != analyticsUserKey(user.UserID) {
+			return nil, errors.New("store returned an invalid analytics user identity")
+		}
+		if !principal.AllUsers {
+			if _, exists := allowed[user.UserID]; !exists {
+				return nil, errors.New("store returned an analytics user outside principal scope")
+			}
+		}
+		if _, exists := seen[user.UserID]; exists {
+			return nil, errors.New("store returned duplicate analytics users")
+		}
+		if err := validateStoreCurrency(user.Currency); err != nil {
+			return nil, fmt.Errorf("store returned invalid currency for %s", user.ID)
+		}
+		user.Label = strings.TrimSpace(user.Label)
+		seen[user.UserID] = struct{}{}
+		validated = append(validated, user)
+	}
+	sort.Slice(validated, func(i, j int) bool { return validated[i].UserID < validated[j].UserID })
+	return nonNilAnalyticsUsers(validated), nil
+}
+
+func analyticsUserKey(userID int64) string { return "user:" + strconv.FormatInt(userID, 10) }
+
+func parseAnalyticsUserKey(key string) (int64, bool) {
+	prefix, value, found := strings.Cut(key, ":")
+	if !found || prefix != "user" || value == "" {
+		return 0, false
+	}
+	userID, err := strconv.ParseInt(value, 10, 64)
+	return userID, err == nil && userID > 0 && key == analyticsUserKey(userID)
+}
+
+func analyticsUserKeys(userIDs []int64) []string {
+	if len(userIDs) == 0 {
+		return nil
+	}
+	keys := make([]string, len(userIDs))
+	for index, userID := range userIDs {
+		keys[index] = analyticsUserKey(userID)
+	}
+	return keys
+}
+
+func cloneAnalyticsUsers(users []AnalyticsUser) []AnalyticsUser {
+	return append([]AnalyticsUser(nil), users...)
+}
+
+func nonNilAnalyticsUsers(users []AnalyticsUser) []AnalyticsUser {
+	if users == nil {
+		return []AnalyticsUser{}
+	}
+	return users
 }
 
 var (
@@ -685,13 +897,15 @@ func reportMetadata(
 	kind ReportKind,
 	period *Period,
 	currency string,
+	users []AnalyticsUser,
 	filters AppliedFilters,
 	lastSyncAt *time.Time,
 	normalized NormalizedReportRequest,
 ) ReportMetadata {
 	return ReportMetadata{
 		SchemaVersion: SchemaVersion, ReportKind: kind, Period: period, Currency: currency,
-		Filters: filters, Rules: calculationRules(filters.IncludeHold), LastSyncAt: lastSyncAt,
+		Users: cloneAnalyticsUsers(users), Filters: filters,
+		Rules: calculationRules(filters.IncludeHold), LastSyncAt: lastSyncAt,
 		NormalizedRequest: &normalized,
 	}
 }
@@ -836,6 +1050,20 @@ func validateStoreCurrency(currency string) error {
 	normalized, err := normalizeCurrency(currency)
 	if err != nil || normalized != currency {
 		return errors.New("store returned an invalid report currency")
+	}
+	return nil
+}
+
+func validateSelectedUserCurrency(users []AnalyticsUser, currency string) error {
+	for _, user := range users {
+		if user.Currency != currency {
+			return fmt.Errorf(
+				"report currency %q does not match selected analytics user %s currency %q",
+				currency,
+				user.ID,
+				user.Currency,
+			)
+		}
 	}
 	return nil
 }

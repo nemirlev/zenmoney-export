@@ -163,6 +163,7 @@ func (s *Service) previousCashflowReport(
 		},
 		Filters:     current.Cashflow.Filters,
 		Granularity: current.Cashflow.Granularity,
+		Users:       current.Cashflow.Users,
 	}
 	canonical, _, _, err := s.normalizeCashflowRequest(request)
 	if err != nil {

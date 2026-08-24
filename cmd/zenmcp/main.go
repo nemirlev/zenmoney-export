@@ -132,8 +132,9 @@ func run() error {
 
 func buildIdentityResolver(configValue *config.MCPConfig) (mcpserver.IdentityResolver, error) {
 	principal := analytics.Principal{
-		Subject: "local-development",
-		UserIDs: append([]int64(nil), configValue.UserIDs...),
+		Subject:  "local-development",
+		AllUsers: len(configValue.UserIDs) == 0,
+		UserIDs:  append([]int64(nil), configValue.UserIDs...),
 	}
 	if configValue.AuthMode == config.MCPAuthLocal {
 		return mcpserver.StaticIdentityResolver{Principal: principal}, nil

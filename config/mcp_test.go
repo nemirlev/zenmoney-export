@@ -10,7 +10,6 @@ import (
 func TestNewMCPConfigFromEnvUsesIndependentDefaults(t *testing.T) {
 	resetMCPEnvironment(t)
 	t.Setenv("DB_URL", "postgres://localhost/zenmoney")
-	t.Setenv("ZENMCP_USER_IDS", "9, 4,9")
 	t.Setenv("ZEN_API_TOKEN", "")
 
 	config, err := NewMCPConfigFromEnv()
@@ -19,11 +18,22 @@ func TestNewMCPConfigFromEnvUsesIndependentDefaults(t *testing.T) {
 	require.Equal(t, defaultMCPListenAddress, config.ListenAddress)
 	require.Equal(t, defaultMCPEndpoint, config.Endpoint)
 	require.Equal(t, MCPAuthLocal, config.AuthMode)
-	require.Equal(t, []int64{4, 9}, config.UserIDs)
+	require.Empty(t, config.UserIDs)
 	require.Equal(t, defaultMCPReportTimezone, config.ReportTimezone)
 	require.Equal(t, defaultMCPMaxRequestBodyByte, config.MaxRequestBodyBytes)
 	require.Equal(t, defaultMCPStaleAfter, config.StaleAfter)
 	require.Equal(t, defaultMCPRequestTimeout, config.RequestTimeout)
+}
+
+func TestNewMCPConfigFromEnvReadsOptionalRestrictiveUserAllowlist(t *testing.T) {
+	resetMCPEnvironment(t)
+	t.Setenv("ZENMCP_DB_URL", "postgres://localhost/zenmoney")
+	t.Setenv("ZENMCP_USER_IDS", "9, 4,9")
+
+	config, err := NewMCPConfigFromEnv()
+
+	require.NoError(t, err)
+	require.Equal(t, []int64{4, 9}, config.UserIDs)
 }
 
 func TestMCPPrefixedDatabaseURLTakesPriority(t *testing.T) {
@@ -81,6 +91,19 @@ func TestNewMCPConfigFromEnvReadsLimitsOriginsAndBearerMode(t *testing.T) {
 	require.Equal(t, 45*time.Second, config.RequestTimeout)
 }
 
+func TestNewMCPConfigFromEnvAllowsBearerDatabaseWideUserScope(t *testing.T) {
+	resetMCPEnvironment(t)
+	t.Setenv("ZENMCP_DB_URL", "postgres://localhost/zenmoney")
+	t.Setenv("ZENMCP_LISTEN_ADDRESS", "0.0.0.0:9090")
+	t.Setenv("ZENMCP_AUTH_MODE", "bearer")
+	t.Setenv("ZENMCP_BEARER_TOKEN", "0123456789abcdef0123456789abcdef")
+
+	config, err := NewMCPConfigFromEnv()
+
+	require.NoError(t, err)
+	require.Empty(t, config.UserIDs)
+}
+
 func TestValidateMCPConfigRejectsUnsafeAuthenticationConfiguration(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -106,11 +129,6 @@ func TestValidateMCPConfigRejectsUnsafeAuthenticationConfiguration(t *testing.T)
 			want: "at least 32 bytes",
 		},
 		{
-			name:   "missing users",
-			mutate: func(config *MCPConfig) { config.UserIDs = nil },
-			want:   "at least one",
-		},
-		{
 			name:   "unknown mode",
 			mutate: func(config *MCPConfig) { config.AuthMode = "oauth-ish" },
 			want:   "unsupported",
@@ -124,6 +142,13 @@ func TestValidateMCPConfigRejectsUnsafeAuthenticationConfiguration(t *testing.T)
 			require.ErrorContains(t, ValidateMCPConfig(config), test.want)
 		})
 	}
+}
+
+func TestValidateMCPConfigAllowsDatabaseWideUserScope(t *testing.T) {
+	config := validMCPConfig()
+	config.UserIDs = nil
+
+	require.NoError(t, ValidateMCPConfig(config))
 }
 
 func TestValidateMCPConfigRejectsInvalidPathsOriginsAndLimits(t *testing.T) {
@@ -219,6 +244,16 @@ func TestNewMCPConfigFromEnvRejectsMalformedValuesWithoutLeakingSecret(t *testin
 
 	require.Error(t, err)
 	require.NotContains(t, err.Error(), "do-not-leak")
+}
+
+func TestNewMCPConfigFromEnvRejectsEmptyExplicitUserAllowlist(t *testing.T) {
+	resetMCPEnvironment(t)
+	t.Setenv("ZENMCP_DB_URL", "postgres://localhost/zenmoney")
+	t.Setenv("ZENMCP_USER_IDS", ",,,")
+
+	_, err := NewMCPConfigFromEnv()
+
+	require.ErrorContains(t, err, "at least one positive user ID")
 }
 
 func TestNewMCPConfigFromEnvRejectsShortBearerWithoutLeakingSecret(t *testing.T) {

@@ -9,8 +9,24 @@ const SchemaVersion = "1.0"
 type Decimal string
 
 type Principal struct {
-	Subject string
-	UserIDs []int64
+	Subject  string
+	AllUsers bool
+	UserIDs  []int64
+}
+
+// AnalyticsUser is a user visible inside an authenticated analytics scope.
+// UserID is store-internal; ID is the stable public key "user:<UserID>".
+type AnalyticsUser struct {
+	UserID   int64  `json:"-"`
+	ID       string `json:"id"`
+	Label    string `json:"label,omitempty"`
+	Currency string `json:"currency"`
+}
+
+// UserSelection narrows an authenticated principal by stable analytics user
+// keys. An empty selection means every user in the principal's catalog.
+type UserSelection struct {
+	UserIDs []string `json:"userIds,omitempty"`
 }
 
 type PeriodRequest struct {
@@ -79,6 +95,7 @@ type ReportMetadata struct {
 	ReportKind        ReportKind               `json:"reportKind"`
 	Period            *Period                  `json:"period,omitempty"`
 	Currency          string                   `json:"currency,omitempty"`
+	Users             []AnalyticsUser          `json:"users"`
 	Filters           AppliedFilters           `json:"filters"`
 	Rules             CalculationRules         `json:"calculationRules"`
 	LastSyncAt        *time.Time               `json:"lastSyncAt,omitempty"`
@@ -97,6 +114,7 @@ type SpendingSummaryRequest struct {
 	Period  PeriodRequest `json:"period"`
 	Filters Filters       `json:"filters,omitempty"`
 	Limit   int           `json:"limit,omitempty"`
+	Users   UserSelection `json:"users,omitempty"`
 }
 
 type SpendingSummaryQuery struct {
@@ -138,6 +156,7 @@ type CashflowRequest struct {
 	Period      PeriodRequest `json:"period"`
 	Filters     Filters       `json:"filters,omitempty"`
 	Granularity Granularity   `json:"granularity,omitempty"`
+	Users       UserSelection `json:"users,omitempty"`
 }
 
 type CashflowQuery struct {
@@ -181,6 +200,7 @@ type BudgetProgressRequest struct {
 	Period  PeriodRequest `json:"period"`
 	Filters Filters       `json:"filters,omitempty"`
 	Limit   int           `json:"limit,omitempty"`
+	Users   UserSelection `json:"users,omitempty"`
 }
 
 type BudgetProgressQuery struct {
@@ -242,6 +262,7 @@ type TransactionSearchRequest struct {
 	Text     string        `json:"text,omitempty"`
 	Cursor   string        `json:"cursor,omitempty"`
 	PageSize int           `json:"pageSize,omitempty"`
+	Users    UserSelection `json:"users,omitempty"`
 }
 
 type TransactionCursor struct {
@@ -312,13 +333,14 @@ type FreshnessScope string
 const FreshnessScopeDatabase FreshnessScope = "database"
 
 type DataFreshnessResult struct {
-	Metadata      ReportMetadata `json:"metadata"`
-	Scope         FreshnessScope `json:"scope"`
-	LastCompleted *SyncSnapshot  `json:"lastCompleted,omitempty"`
-	LastAttempt   *SyncSnapshot  `json:"lastAttempt,omitempty"`
-	AgeSeconds    *int64         `json:"ageSeconds,omitempty"`
-	Stale         bool           `json:"stale"`
-	Table         TableFallback  `json:"table"`
+	Metadata      ReportMetadata  `json:"metadata"`
+	Scope         FreshnessScope  `json:"scope"`
+	LastCompleted *SyncSnapshot   `json:"lastCompleted,omitempty"`
+	LastAttempt   *SyncSnapshot   `json:"lastAttempt,omitempty"`
+	AgeSeconds    *int64          `json:"ageSeconds,omitempty"`
+	Stale         bool            `json:"stale"`
+	Users         []AnalyticsUser `json:"users"`
+	Table         TableFallback   `json:"table"`
 }
 
 type ReportRequest struct {

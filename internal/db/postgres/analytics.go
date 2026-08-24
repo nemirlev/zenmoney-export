@@ -21,11 +21,23 @@ const (
 
 var (
 	ErrAnalyticsAccessScope = errors.New("analytics principal has no authorized users")
+	ErrAnalyticsUserCatalog = errors.New("analytics user catalog is invalid")
 	ErrAnalyticsLimit       = errors.New("analytics result limit is invalid")
 	ErrAnalyticsCurrency    = errors.New("analytics users do not have one report currency")
 	ErrAnalyticsRate        = errors.New("analytics conversion rate is unavailable")
 	ErrAnalyticsRange       = errors.New("analytics date range is invalid")
 )
+
+const analyticsUsersSQL = `
+SELECT report_user.id::bigint,
+       COALESCE(NULLIF(BTRIM(report_user.login), ''), 'User ' || report_user.id::text),
+       COALESCE(report_instrument.short_title, '')
+FROM "user" report_user
+LEFT JOIN instrument report_instrument ON report_instrument.id = report_user.currency
+WHERE $1::boolean
+   OR report_user.id::bigint = ANY($2::bigint[])
+ORDER BY report_user.id
+LIMIT 101`
 
 var analyticsSnapshotTxOptions = pgx.TxOptions{
 	IsoLevel:   pgx.RepeatableRead,
@@ -102,7 +114,7 @@ func validateAnalyticsQuery(principal analytics.Principal, dateRange analytics.D
 }
 
 func validateAnalyticsPrincipal(principal analytics.Principal) error {
-	if len(principal.UserIDs) == 0 {
+	if principal.AllUsers || len(principal.UserIDs) == 0 {
 		return ErrAnalyticsAccessScope
 	}
 	if len(principal.UserIDs) > maxAnalyticsUsers {
@@ -113,6 +125,71 @@ func validateAnalyticsPrincipal(principal analytics.Principal) error {
 		)
 	}
 	return nil
+}
+
+func validateAnalyticsCatalogPrincipal(principal analytics.Principal) error {
+	if principal.AllUsers == (len(principal.UserIDs) > 0) {
+		return ErrAnalyticsAccessScope
+	}
+	if len(principal.UserIDs) > maxAnalyticsUsers {
+		return fmt.Errorf(
+			"%w: at most %d authorized users",
+			ErrAnalyticsAccessScope,
+			maxAnalyticsUsers,
+		)
+	}
+	for _, userID := range principal.UserIDs {
+		if userID <= 0 {
+			return ErrAnalyticsAccessScope
+		}
+	}
+	return nil
+}
+
+func (s *DB) AnalyticsUsers(
+	ctx context.Context,
+	principal analytics.Principal,
+) ([]analytics.AnalyticsUser, error) {
+	if err := validateAnalyticsCatalogPrincipal(principal); err != nil {
+		return nil, err
+	}
+	return withAnalyticsSnapshot(ctx, s.pool, func(executor analyticsQueryExecutor) (
+		[]analytics.AnalyticsUser,
+		error,
+	) {
+		rows, err := executor.Query(ctx, analyticsUsersSQL, principal.AllUsers, principal.UserIDs)
+		if err != nil {
+			return nil, fmt.Errorf("query analytics users: %w", err)
+		}
+		defer rows.Close()
+
+		users := make([]analytics.AnalyticsUser, 0)
+		for rows.Next() {
+			var user analytics.AnalyticsUser
+			if err := rows.Scan(&user.UserID, &user.Label, &user.Currency); err != nil {
+				return nil, fmt.Errorf("scan analytics user: %w", err)
+			}
+			if user.UserID <= 0 || strings.TrimSpace(user.Currency) == "" {
+				return nil, ErrAnalyticsUserCatalog
+			}
+			user.ID = fmt.Sprintf("user:%d", user.UserID)
+			users = append(users, user)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("iterate analytics users: %w", err)
+		}
+		if len(users) == 0 || len(users) > maxAnalyticsUsers {
+			return nil, fmt.Errorf(
+				"%w: expected between 1 and %d users",
+				ErrAnalyticsUserCatalog,
+				maxAnalyticsUsers,
+			)
+		}
+		if !principal.AllUsers && len(users) != uniqueUserCount(principal.UserIDs) {
+			return nil, ErrAnalyticsUserCatalog
+		}
+		return users, nil
+	})
 }
 
 func validateAnalyticsLimit(limit int) error {
@@ -720,7 +797,7 @@ func (s *DB) DataFreshness(
 	ctx context.Context,
 	principal analytics.Principal,
 ) (analytics.FreshnessData, error) {
-	if err := validateAnalyticsPrincipal(principal); err != nil {
+	if err := validateAnalyticsCatalogPrincipal(principal); err != nil {
 		return analytics.FreshnessData{}, err
 	}
 	return withAnalyticsSnapshot(ctx, s.pool, func(executor analyticsQueryExecutor) (

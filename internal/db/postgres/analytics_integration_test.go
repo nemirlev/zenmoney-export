@@ -50,6 +50,15 @@ func TestAnalyticsQueriesAgainstPostgres(t *testing.T) {
 	store, err := NewPostgresAnalyticsStore(ctx, dsn)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, store.Close(context.Background())) })
+	users, err := store.AnalyticsUsers(ctx, analytics.Principal{
+		Subject:  "integration",
+		AllUsers: true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, []analytics.AnalyticsUser{
+		{UserID: 42, ID: "user:42", Label: "analytics", Currency: "RUB"},
+		{UserID: 43, ID: "user:43", Label: "other", Currency: "RUB"},
+	}, users)
 	principal := analytics.Principal{Subject: "integration", UserIDs: []int64{42}}
 	dateRange := analytics.DateRange{
 		From: time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),

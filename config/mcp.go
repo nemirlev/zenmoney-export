@@ -175,9 +175,6 @@ func ValidateMCPConfig(config *MCPConfig) error {
 	default:
 		return fmt.Errorf("unsupported MCP authentication mode %q", config.AuthMode)
 	}
-	if len(config.UserIDs) == 0 {
-		return errors.New("at least one authenticated ZenMoney user ID is required")
-	}
 	for _, userID := range config.UserIDs {
 		if userID <= 0 {
 			return errors.New("authenticated ZenMoney user IDs must be positive")
@@ -275,6 +272,9 @@ func envPositiveDuration(name string, fallback time.Duration) (time.Duration, er
 }
 
 func parseMCPUserIDs(raw string) ([]int64, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
 	seen := make(map[int64]struct{})
 	for _, part := range strings.Split(raw, ",") {
 		part = strings.TrimSpace(part)
@@ -290,6 +290,9 @@ func parseMCPUserIDs(raw string) ([]int64, error) {
 	result := make([]int64, 0, len(seen))
 	for userID := range seen {
 		result = append(result, userID)
+	}
+	if len(result) == 0 {
+		return nil, errors.New("ZENMCP_USER_IDS must contain at least one positive user ID")
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i] < result[j] })
 	return result, nil

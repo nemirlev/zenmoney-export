@@ -13,8 +13,10 @@ import (
 
 var (
 	ErrUnauthenticated  = errors.New("request is not authenticated")
-	ErrInvalidPrincipal = errors.New("resolved identity has no subject or users")
+	ErrInvalidPrincipal = errors.New("resolved identity has no subject or valid user scope")
 )
+
+const minimumBearerTokenBytes = 32
 
 // IdentityResolver is the authentication boundary for the MCP HTTP endpoint.
 // Implementations must validate credentials and derive the subject and allowed
@@ -58,8 +60,9 @@ func NewBearerIdentityResolver(
 	token string,
 	principal analytics.Principal,
 ) (*BearerIdentityResolver, error) {
-	if token == "" || strings.TrimSpace(token) != token || strings.ContainsAny(token, " \t\r\n") {
-		return nil, errors.New("bearer token must be non-empty and contain no whitespace")
+	if len([]byte(token)) < minimumBearerTokenBytes || strings.TrimSpace(token) != token ||
+		strings.ContainsAny(token, " \t\r\n") {
+		return nil, errors.New("bearer token must contain at least 32 bytes and no whitespace")
 	}
 	if err := validatePrincipal(principal); err != nil {
 		return nil, err
@@ -96,15 +99,21 @@ func contextWithPrincipal(ctx context.Context, principal analytics.Principal) co
 
 func principalFromContext(ctx context.Context) (analytics.Principal, error) {
 	principal, ok := ctx.Value(principalContextKey{}).(analytics.Principal)
-	if !ok || principal.Subject == "" || len(principal.UserIDs) == 0 {
+	if !ok || validatePrincipal(principal) != nil {
 		return analytics.Principal{}, ErrUnauthenticated
 	}
 	return principal, nil
 }
 
 func validatePrincipal(principal analytics.Principal) error {
-	if principal.Subject == "" || len(principal.UserIDs) == 0 {
+	if strings.TrimSpace(principal.Subject) == "" ||
+		principal.AllUsers == (len(principal.UserIDs) > 0) {
 		return ErrInvalidPrincipal
+	}
+	for _, userID := range principal.UserIDs {
+		if userID <= 0 {
+			return ErrInvalidPrincipal
+		}
 	}
 	return nil
 }

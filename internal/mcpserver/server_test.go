@@ -105,6 +105,7 @@ func (f *fakeAnalyticsService) GetDataFreshness(
 	f.record(principal)
 	return analytics.DataFreshnessResult{
 		Metadata: metadata(analytics.ReportDataFreshness, ""),
+		Users:    []analytics.AnalyticsUser{},
 		Table:    tableFallback(),
 	}, nil
 }
@@ -154,6 +155,7 @@ func metadata(kind analytics.ReportKind, currency string) analytics.ReportMetada
 		SchemaVersion: analytics.SchemaVersion,
 		ReportKind:    kind,
 		Currency:      currency,
+		Users:         []analytics.AnalyticsUser{},
 		Filters: analytics.AppliedFilters{
 			AccountIDs: []string{}, CategoryIDs: []string{}, MerchantIDs: []string{},
 		},
@@ -176,11 +178,10 @@ func newTestHandlers(t *testing.T, service *fakeAnalyticsService) HTTPHandlers {
 				if subject == "" {
 					return analytics.Principal{}, ErrUnauthenticated
 				}
-				userID := int64(1)
-				if subject == "bob" {
-					userID = 2
+				if subject == "alice" {
+					return analytics.Principal{Subject: subject, AllUsers: true}, nil
 				}
-				return analytics.Principal{Subject: subject, UserIDs: []int64{userID}}, nil
+				return analytics.Principal{Subject: subject, UserIDs: []int64{2}}, nil
 			},
 		),
 		ProtectOrigin:  func(next http.Handler) http.Handler { return next },
@@ -214,6 +215,21 @@ func TestToolMetadataAndOutputSchemas(t *testing.T) {
 			"%s must derive currency from the authenticated user",
 			tool["name"],
 		)
+		schemaJSON, err := json.Marshal(inputSchema)
+		require.NoError(t, err)
+		switch tool["name"] {
+		case ToolGetSpendingSummary, ToolGetCashflow, ToolGetBudgetProgress,
+			ToolSearchTransactions:
+			assert.Contains(t, string(schemaJSON), `"users"`)
+			assert.Contains(t, string(schemaJSON), `"userIds"`)
+			required, _ := inputSchema["required"].([]any)
+			assert.NotContains(t, required, "users")
+		case ToolRenderFinanceChart:
+			assert.Contains(t, string(schemaJSON), `"users"`)
+			assert.Contains(t, string(schemaJSON), `"userIds"`)
+		case ToolGetDataFreshness:
+			assert.NotContains(t, string(schemaJSON), `"userIds"`)
+		}
 		meta, hasMeta := tool["_meta"].(map[string]any)
 		if tool["name"] != ToolRenderFinanceChart {
 			assert.False(t, hasMeta, "%s must not open an app", tool["name"])
@@ -242,6 +258,7 @@ func TestToolReturnsStructuredContentAndTextFallback(t *testing.T) {
 					"to":       "2026-02-01",
 					"timezone": "Europe/Moscow",
 				},
+				"users": map[string]any{"userIds": []string{"user:1"}},
 			},
 		},
 	)
@@ -348,7 +365,7 @@ func TestStatelessRequestsResolveIdentityIndependently(t *testing.T) {
 	require.Len(t, service.principals, 2)
 	assert.Equal(
 		t,
-		analytics.Principal{Subject: "alice", UserIDs: []int64{1}},
+		analytics.Principal{Subject: "alice", AllUsers: true},
 		service.principals[0],
 	)
 	assert.Equal(t, analytics.Principal{Subject: "bob", UserIDs: []int64{2}}, service.principals[1])
@@ -362,6 +379,35 @@ func TestUnauthenticatedRequestCannotReachService(t *testing.T) {
 	service.mu.Lock()
 	defer service.mu.Unlock()
 	assert.Empty(t, service.principals)
+}
+
+func TestInvalidUserScopeCannotReachService(t *testing.T) {
+	for name, principal := range map[string]analytics.Principal{
+		"empty": {Subject: "subject"},
+		"both":  {Subject: "subject", AllUsers: true, UserIDs: []int64{1}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			service := &fakeAnalyticsService{}
+			server, err := New(service, ServerOptions{})
+			require.NoError(t, err)
+			handlers, err := NewHTTPHandlers(server, HTTPOptions{
+				IdentityResolver: IdentityResolverFunc(
+					func(context.Context, *http.Request) (analytics.Principal, error) {
+						return principal, nil
+					},
+				),
+				ProtectOrigin:  func(next http.Handler) http.Handler { return next },
+				RequestTimeout: 30 * time.Second,
+			})
+			require.NoError(t, err)
+
+			response := postMCP(t, handlers.MCP, "subject", "tools/list", "", map[string]any{})
+			assert.Equal(t, http.StatusForbidden, response.Code)
+			service.mu.Lock()
+			defer service.mu.Unlock()
+			assert.Empty(t, service.principals)
+		})
+	}
 }
 
 func TestOriginProtectionRunsBeforeIdentityResolution(t *testing.T) {

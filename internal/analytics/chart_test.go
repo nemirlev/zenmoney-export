@@ -149,6 +149,20 @@ func TestNormalizeRenderRequestReconcilesCashflowGranularity(t *testing.T) {
 	require.ErrorContains(t, err, "only valid for cashflow")
 }
 
+func TestNormalizeRenderRequestPreservesUsersInComparisonPeriod(t *testing.T) {
+	service := newTestService(t, &fakeStore{})
+	request := cashflowRenderRequest("2026-08-01", "2026-08-03", GranularityDay)
+	request.Report.Cashflow.Users = UserSelection{UserIDs: []string{"user:2"}}
+	request.Chart.ComparisonPeriods = true
+
+	normalized, err := service.NormalizeRenderRequest(request)
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"user:2"}, normalized.Report.Cashflow.Users.UserIDs)
+	require.NotNil(t, normalized.PreviousReport)
+	require.Equal(t, []string{"user:2"}, normalized.PreviousReport.Cashflow.Users.UserIDs)
+}
+
 func TestComparisonPeriodsPreservesAuthoritativeBucketValues(t *testing.T) {
 	store := &fakeStore{cashflowDataSet: []CashflowData{
 		{
@@ -342,6 +356,38 @@ func TestRenderFinanceChartRerunsAuthoritativeReportAndBuildsOther(t *testing.T)
 	require.Equal(t, "presentation:other", first.Data[1].ID)
 	require.Equal(t, Decimal("6"), first.Data[1].Values[0].Value)
 	require.NotEmpty(t, first.Table.Columns, "an accessible table fallback is always returned")
+}
+
+func TestRenderFinanceChartResolvesSelectedUserBeforeAuthoritativeRead(t *testing.T) {
+	store := &fakeStore{
+		userCatalog: []AnalyticsUser{
+			{UserID: 1, ID: "user:1", Currency: "RUB"},
+			{UserID: 2, ID: "user:2", Label: "Second", Currency: "RUB"},
+		},
+		spendingData: SpendingSummaryData{Currency: "RUB", Total: "0"},
+	}
+	service := newTestService(t, store)
+	request := RenderFinanceChartRequest{
+		Report: ReportRequest{Kind: ReportSpendingSummary, SpendingSummary: &SpendingSummaryRequest{
+			Period: PeriodRequest{From: "2026-08-01", To: "2026-08-24"},
+			Users:  UserSelection{UserIDs: []string{"user:2"}},
+		}},
+		Chart: validChartSpec(ChartBar),
+	}
+
+	result, err := service.RenderFinanceChart(
+		context.Background(), Principal{Subject: "owner", AllUsers: true}, request,
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, Principal{Subject: "owner", UserIDs: []int64{2}}, store.principal)
+	require.Equal(t, []AnalyticsUser{
+		{UserID: 2, ID: "user:2", Label: "Second", Currency: "RUB"},
+	}, result.Report.SpendingSummary.Metadata.Users)
+	require.Equal(
+		t, []string{"user:2"},
+		result.Report.SpendingSummary.Metadata.NormalizedRequest.SpendingSummary.Users.UserIDs,
+	)
 }
 
 func TestRenderRejectsReportSeriesMismatchBeforeStore(t *testing.T) {
