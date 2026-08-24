@@ -23,6 +23,7 @@ type Limits struct {
 	MaxChartPoints  int
 	MaxFilterValues int
 	StaleAfter      time.Duration
+	DefaultTimezone string
 }
 
 func DefaultLimits() Limits {
@@ -33,6 +34,7 @@ func DefaultLimits() Limits {
 		MaxChartPoints:  400,
 		MaxFilterValues: 100,
 		StaleAfter:      24 * time.Hour,
+		DefaultTimezone: "UTC",
 	}
 }
 
@@ -415,7 +417,7 @@ func (s *Service) normalizePeriod(
 ) (DateRange, Period, PeriodRequest, error) {
 	timezone := strings.TrimSpace(request.Timezone)
 	if timezone == "" {
-		timezone = "UTC"
+		timezone = s.limits.DefaultTimezone
 	}
 	location, err := time.LoadLocation(timezone)
 	if err != nil {
@@ -498,6 +500,9 @@ func normalizeLimits(limits Limits) Limits {
 	}
 	if limits.StaleAfter <= 0 {
 		limits.StaleAfter = defaults.StaleAfter
+	}
+	if strings.TrimSpace(limits.DefaultTimezone) == "" {
+		limits.DefaultTimezone = defaults.DefaultTimezone
 	}
 	return limits
 }

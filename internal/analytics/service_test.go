@@ -104,6 +104,23 @@ func TestSpendingSummaryNormalizesAuthorizationPeriodAndFilters(t *testing.T) {
 	require.Contains(t, result.Metadata.Rules.MultiTag, "split equally")
 }
 
+func TestServiceUsesConfiguredTimezoneWhenRequestOmitsIt(t *testing.T) {
+	store := &fakeStore{spendingData: SpendingSummaryData{Currency: "RUB", Total: "0"}}
+	service, err := NewService(store, Limits{DefaultTimezone: "Europe/Moscow"})
+	require.NoError(t, err)
+
+	result, err := service.GetSpendingSummary(
+		context.Background(),
+		Principal{Subject: "user", UserIDs: []int64{1}},
+		SpendingSummaryRequest{Period: PeriodRequest{From: "2026-08-01", To: "2026-08-01"}},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, "Europe/Moscow", store.spendingQuery.Range.Timezone)
+	require.Equal(t, "Europe/Moscow", result.Metadata.Period.Timezone)
+	require.Equal(t, "Europe/Moscow", result.Metadata.NormalizedRequest.SpendingSummary.Period.Timezone)
+}
+
 func TestPublicRequestsDoNotContainModelSelectedCurrency(t *testing.T) {
 	for name, request := range map[string]any{
 		"spending": SpendingSummaryRequest{},
