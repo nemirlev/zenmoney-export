@@ -4,9 +4,10 @@ ZenMoney Export currently provides one command: `sync`.
 
 ## Requirements
 
-ZenMoney Export requires PostgreSQL 16 or newer. PostgreSQL 15 and earlier are not supported.
-Confirm the server version and apply the bundled schema migrations separately before the first
-`sync`; the CLI does not apply migrations itself.
+ZenMoney Export supports PostgreSQL 15 through 18. PostgreSQL 14 and earlier cannot run migration
+`000003`, which uses `UNIQUE NULLS NOT DISTINCT` from PostgreSQL 15. Confirm the server version and
+apply the bundled schema migrations separately before the first `sync`; the CLI does not apply
+migrations itself.
 
 ## Configuration priority
 

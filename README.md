@@ -14,7 +14,8 @@ service [ZenMoney](https://zenmoney.ru/) to your own database.
 
 ## Requirements
 
-- PostgreSQL 16 or newer. PostgreSQL 15 and earlier are not supported and may fail during schema migrations.
+- PostgreSQL 15 through 18. PostgreSQL 14 and earlier cannot run the bundled migrations because
+  migration `000003` uses `UNIQUE NULLS NOT DISTINCT`, which was introduced in PostgreSQL 15.
 
 ## Quick Start
 
@@ -33,11 +34,16 @@ migrations stay compatible. To use a prebuilt image, set `ZENEXPORT_IMAGE` and
 `ZENEXPORT_PULL_POLICY=always` in `./docker/.env`; the selected image must support the schema
 created by the migrations in this checkout.
 
-The example keeps PostgreSQL on the private Docker network and does not publish its port to the
-host. Its `sslmode=disable` setting is intended only for this local development stack; use a
-TLS-verified connection URL for an external or production database. The Compose stack runs schema
-migrations in a separate service. For an external database, verify that it runs PostgreSQL 16 or
-newer and apply the bundled migrations separately before starting the exporter.
+The example runs PostgreSQL 18, keeps it on the private Docker network, and does not publish its
+port to the host. Its `sslmode=disable` setting is intended only for this local development stack;
+use a TLS-verified connection URL for an external or production database. The Compose stack runs
+schema migrations in a separate service. For an external database, verify that it runs a supported
+PostgreSQL version and apply the bundled migrations separately before starting the exporter.
+
+PostgreSQL 18 changed the official Docker image's data layout. The Compose volume is therefore
+mounted at `/var/lib/postgresql`, which is the supported mount point for PostgreSQL 18 and later.
+Do not reuse a PostgreSQL 17-or-earlier data volume directly: perform a normal major-version upgrade
+or restore a backup into a fresh PostgreSQL 18 volume.
 
 ## Configuration
 
