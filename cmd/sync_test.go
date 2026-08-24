@@ -83,7 +83,10 @@ func TestSyncCommandRejectsInvalidDaemonInterval(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := NewSyncCommand(&RootCommand{})
-			require.NoError(t, cmd.Flags().Set("daemon", map[bool]string{true: "true", false: "false"}[tt.daemon]))
+			require.NoError(
+				t,
+				cmd.Flags().Set("daemon", map[bool]string{true: "true", false: "false"}[tt.daemon]),
+			)
 			require.NoError(t, cmd.Flags().Set("interval", tt.interval))
 
 			err := cmd.Args(cmd, nil)
@@ -106,7 +109,13 @@ func TestSyncCommandBatchSizeValidationAndWiring(t *testing.T) {
 		require.ErrorContains(t, cmd.Args(cmd, nil), "--batch-size must be greater than zero")
 	}
 
-	opts := &config.SyncOptions{Entities: "all", BatchSize: 37, WriteMode: "copy", Force: true, DryRun: true}
+	opts := &config.SyncOptions{
+		Entities:  "all",
+		BatchSize: 37,
+		WriteMode: "copy",
+		Force:     true,
+		DryRun:    true,
+	}
 	require.Equal(t, &app.SyncParams{
 		Entities:  "all",
 		BatchSize: 37,
@@ -163,7 +172,11 @@ func TestRunSyncAndCloseAlwaysClosesDatabase(t *testing.T) {
 				require.NoError(t, err)
 			}
 			require.Equal(t, 1, closer.calls)
-			require.NoError(t, closer.contexts[0].Err(), "database close must not inherit cancellation")
+			require.NoError(
+				t,
+				closer.contexts[0].Err(),
+				"database close must not inherit cancellation",
+			)
 			if tt.daemon {
 				require.Equal(t, 1, runner.daemonCalls)
 				require.Zero(t, runner.syncCalls)

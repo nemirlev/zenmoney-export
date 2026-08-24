@@ -65,9 +65,24 @@ func addSyncFlags(cmd *cobra.Command, opts *config.SyncOptions) {
 	flags := cmd.Flags()
 	flags.BoolVarP(&opts.IsDaemon, "daemon", "d", false, "run in daemon mode")
 	flags.IntVar(&opts.Interval, "interval", 30, "sync interval in minutes")
-	flags.StringVar(&opts.Entities, "entities", "all", "comma-separated entities to force-fetch, or all")
-	flags.IntVar(&opts.BatchSize, "batch-size", interfaces.DefaultBatchSize, "maximum records per database batch")
-	flags.StringVar(&opts.WriteMode, "write-mode", string(interfaces.WriteModeBatch), "transaction write mode: batch or copy")
+	flags.StringVar(
+		&opts.Entities,
+		"entities",
+		"all",
+		"comma-separated entities to force-fetch, or all",
+	)
+	flags.IntVar(
+		&opts.BatchSize,
+		"batch-size",
+		interfaces.DefaultBatchSize,
+		"maximum records per database batch",
+	)
+	flags.StringVar(
+		&opts.WriteMode,
+		"write-mode",
+		string(interfaces.WriteModeBatch),
+		"transaction write mode: batch or copy",
+	)
 	flags.BoolVar(&opts.Force, "force", false, "force full sync")
 	flags.BoolVar(&opts.DryRun, "dry-run", false, "dry run mode")
 }
@@ -76,7 +91,8 @@ func validateSyncOptions(opts *config.SyncOptions) error {
 	if opts.BatchSize <= 0 {
 		return fmt.Errorf("--batch-size must be greater than zero")
 	}
-	if opts.WriteMode != string(interfaces.WriteModeBatch) && opts.WriteMode != string(interfaces.WriteModeCopy) {
+	if opts.WriteMode != string(interfaces.WriteModeBatch) &&
+		opts.WriteMode != string(interfaces.WriteModeCopy) {
 		return fmt.Errorf("--write-mode must be one of: batch, copy")
 	}
 	if opts.IsDaemon && opts.Interval <= 0 {

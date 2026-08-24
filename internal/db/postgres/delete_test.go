@@ -109,7 +109,12 @@ func TestDeleteObjects_BudgetDeletionIsRejectedWithoutSQL(t *testing.T) {
 
 	db := &DB{pool: mock}
 	deletions := []models.Deletion{
-		{ID: "not-a-budget-id", Object: string(models.EntityTypeBudget), User: 1, Stamp: 1234567890},
+		{
+			ID:     "not-a-budget-id",
+			Object: string(models.EntityTypeBudget),
+			User:   1,
+			Stamp:  1234567890,
+		},
 	}
 
 	mock.ExpectBegin()

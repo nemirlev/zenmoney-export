@@ -30,7 +30,10 @@ type syncLockConnectionFactory interface {
 
 type pgxSyncLockConnectionFactory struct{}
 
-func (pgxSyncLockConnectionFactory) Connect(ctx context.Context, config *pgx.ConnConfig) (syncLockConnection, error) {
+func (pgxSyncLockConnectionFactory) Connect(
+	ctx context.Context,
+	config *pgx.ConnConfig,
+) (syncLockConnection, error) {
 	return pgx.ConnectConfig(ctx, config)
 }
 
@@ -39,7 +42,10 @@ func (s *DB) AcquireSyncLock(ctx context.Context) (interfaces.SyncLock, error) {
 	return s.acquireSyncLock(ctx, pgxSyncLockConnectionFactory{})
 }
 
-func (s *DB) acquireSyncLock(ctx context.Context, factory syncLockConnectionFactory) (interfaces.SyncLock, error) {
+func (s *DB) acquireSyncLock(
+	ctx context.Context,
+	factory syncLockConnectionFactory,
+) (interfaces.SyncLock, error) {
 	poolConfig := s.pool.Config()
 	if poolConfig == nil || poolConfig.ConnConfig == nil {
 		return nil, errors.New("postgres connection config is not available for sync lock")
@@ -125,7 +131,11 @@ func (l *postgresSyncLock) Unlock(ctx context.Context) error {
 	return closeSyncLockConnectionWithContext(conn, cleanupCtx)
 }
 
-func closeSyncLockConnection(conn syncLockConnection, parent context.Context, timeout time.Duration) error {
+func closeSyncLockConnection(
+	conn syncLockConnection,
+	parent context.Context,
+	timeout time.Duration,
+) error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), timeout)
 	defer cancel()
 	return closeSyncLockConnectionWithContext(conn, ctx)

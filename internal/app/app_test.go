@@ -39,7 +39,8 @@ func TestInstallDefaultLoggerHonorsConfiguredLevel(t *testing.T) {
 			if slog.Default() != logger {
 				t.Fatal("configured application logger was not installed as slog default")
 			}
-			if got := logger.Handler().Enabled(context.Background(), slog.LevelDebug); got != tt.debugEnabled {
+			if got := logger.Handler().
+				Enabled(context.Background(), slog.LevelDebug); got != tt.debugEnabled {
 				t.Errorf("debug enabled = %t, want %t", got, tt.debugEnabled)
 			}
 			if !logger.Handler().Enabled(context.Background(), slog.LevelInfo) {

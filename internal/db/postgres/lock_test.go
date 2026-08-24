@@ -23,7 +23,12 @@ func TestDBSyncLockUsesRawConnectionOutsidePool(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, pool.acquireCalls, "the advisory lock must not consume a working pool slot")
 	require.Len(t, factory.configs, 1)
-	require.NotSame(t, connConfig, factory.configs[0], "the raw connection must receive an isolated config copy")
+	require.NotSame(
+		t,
+		connConfig,
+		factory.configs[0],
+		"the raw connection must receive an isolated config copy",
+	)
 	require.Zero(t, conn.closeCalls, "the raw connection must remain open while the lock is held")
 
 	require.NoError(t, lock.Unlock(context.Background()))
@@ -59,7 +64,11 @@ func TestConcurrentSyncLockAttemptIsRejectedUntilOwnerUnlocks(t *testing.T) {
 	contender, err := acquireSyncLock(context.Background(), factory, nil)
 	require.Nil(t, contender)
 	require.ErrorIs(t, err, interfaces.ErrSyncAlreadyRunning)
-	require.Zero(t, ownerConn.closeCalls, "owner must retain its raw connection while contender checks")
+	require.Zero(
+		t,
+		ownerConn.closeCalls,
+		"owner must retain its raw connection while contender checks",
+	)
 	require.Equal(t, 1, contenderConn.closeCalls)
 
 	require.NoError(t, owner.Unlock(context.Background()))
@@ -157,7 +166,10 @@ type recordingLockFactory struct {
 	err         error
 }
 
-func (f *recordingLockFactory) Connect(_ context.Context, config *pgx.ConnConfig) (syncLockConnection, error) {
+func (f *recordingLockFactory) Connect(
+	_ context.Context,
+	config *pgx.ConnConfig,
+) (syncLockConnection, error) {
 	f.configs = append(f.configs, config)
 	if f.err != nil {
 		return nil, f.err

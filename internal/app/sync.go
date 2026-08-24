@@ -15,7 +15,11 @@ import (
 type zenMoneySyncClient interface {
 	FullSync(ctx context.Context) (models.Response, error)
 	SyncSince(ctx context.Context, lastSync time.Time) (models.Response, error)
-	ForceSyncEntitiesSince(ctx context.Context, lastSync time.Time, entityTypes ...models.EntityType) (models.Response, error)
+	ForceSyncEntitiesSince(
+		ctx context.Context,
+		lastSync time.Time,
+		entityTypes ...models.EntityType,
+	) (models.Response, error)
 }
 
 type SyncService struct {
@@ -226,7 +230,11 @@ func (s *SyncService) Sync(ctx context.Context, p *SyncParams) (syncErr error) {
 		if batchSize <= 0 {
 			batchSize = interfaces.DefaultBatchSize
 		}
-		err = s.app.db.Save(ctx, &data, interfaces.SaveOptions{BatchSize: batchSize, WriteMode: p.WriteMode})
+		err = s.app.db.Save(
+			ctx,
+			&data,
+			interfaces.SaveOptions{BatchSize: batchSize, WriteMode: p.WriteMode},
+		)
 		if err != nil {
 			return err
 		}

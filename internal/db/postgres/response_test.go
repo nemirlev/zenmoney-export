@@ -23,12 +23,21 @@ func TestSaveRollsBackEarlierEntitiesWhenLateEntityFails(t *testing.T) {
 		Transaction:     []models.Transaction{{ID: "transaction-1"}},
 	}
 
-	err := db.Save(context.Background(), response, interfaces.SaveOptions{BatchSize: interfaces.DefaultBatchSize})
+	err := db.Save(
+		context.Background(),
+		response,
+		interfaces.SaveOptions{BatchSize: interfaces.DefaultBatchSize},
+	)
 
 	require.ErrorContains(t, err, "failed to save transactions")
 	require.Equal(t, 2, tx.sendBatchCalls, "both entity batches must use the transaction")
 	require.Zero(t, pool.sendBatchCalls, "Save must not write entity batches through the pool")
-	require.Equal(t, 1, tx.rollbackCalls, "the transaction containing earlier entities must be rolled back")
+	require.Equal(
+		t,
+		1,
+		tx.rollbackCalls,
+		"the transaction containing earlier entities must be rolled back",
+	)
 	require.Zero(t, tx.commitCalls)
 	require.Equal(t, 1, pool.statusWrites, "failed status is recorded only after rollback")
 	require.True(t, pool.rollbackObservedAtStatus)
@@ -47,13 +56,27 @@ func TestSaveDoesNotRollbackAfterSuccessfulCommit(t *testing.T) {
 		}},
 	}
 
-	err := db.Save(context.Background(), response, interfaces.SaveOptions{BatchSize: interfaces.DefaultBatchSize})
+	err := db.Save(
+		context.Background(),
+		response,
+		interfaces.SaveOptions{BatchSize: interfaces.DefaultBatchSize},
+	)
 
 	require.NoError(t, err)
 	require.Equal(t, 1, tx.sendBatchCalls)
 	require.Zero(t, pool.sendBatchCalls)
-	require.Equal(t, 1, pool.beginCalls, "deletions inside Save must not start a nested transaction")
-	require.Equal(t, 2, tx.execCalls, "the delete and its history entry must use the Save transaction")
+	require.Equal(
+		t,
+		1,
+		pool.beginCalls,
+		"deletions inside Save must not start a nested transaction",
+	)
+	require.Equal(
+		t,
+		2,
+		tx.execCalls,
+		"the delete and its history entry must use the Save transaction",
+	)
 	require.Equal(t, 1, tx.commitCalls)
 	require.Zero(t, tx.rollbackCalls, "a committed transaction must not be rolled back")
 	require.Equal(t, "completed", tx.lastStatus, "completed cursor must be part of the transaction")
@@ -106,7 +129,11 @@ func TestSaveRollsBackWhenLaterChunkFails(t *testing.T) {
 	require.Equal(t, 2, tx.closedBatches)
 	require.Equal(t, 1, tx.rollbackCalls)
 	require.Zero(t, tx.commitCalls)
-	require.Empty(t, tx.lastStatus, "completed cursor must not be written in the rolled-back transaction")
+	require.Empty(
+		t,
+		tx.lastStatus,
+		"completed cursor must not be written in the rolled-back transaction",
+	)
 	require.Equal(t, "failed", pool.lastStatus)
 }
 

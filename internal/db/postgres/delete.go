@@ -51,8 +51,11 @@ func (s *DB) DeleteObjects(ctx context.Context, deletions []models.Deletion) err
 
 // deleteObjects executes deletions using the supplied executor. Save passes its
 // transaction here so deletions and upserts share the same atomic boundary.
-func deleteObjects(ctx context.Context, executor commandExecutor, deletions []models.Deletion) error {
-
+func deleteObjects(
+	ctx context.Context,
+	executor commandExecutor,
+	deletions []models.Deletion,
+) error {
 	// Process each deletion
 	for _, del := range deletions {
 		query := ""

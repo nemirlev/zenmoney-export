@@ -18,7 +18,12 @@ func TestSaveCopyModeCopiesTransactionsAndCommitsCursor(t *testing.T) {
 		ServerTimestamp: 42,
 		Instrument:      []models.Instrument{{ID: 1, Title: "USD"}},
 		Transaction: []models.Transaction{
-			{ID: "00000000-0000-0000-0000-000000000001", Date: "2026-08-22", Income: 0.1, Outcome: 12.34},
+			{
+				ID:      "00000000-0000-0000-0000-000000000001",
+				Date:    "2026-08-22",
+				Income:  0.1,
+				Outcome: 12.34,
+			},
 			{ID: "00000000-0000-0000-0000-000000000002", Date: "2026-08-22"},
 		},
 	}
@@ -70,9 +75,13 @@ func TestTransactionCopyMergeDeduplicatesEquivalentUUIDSpellingsAfterNormalizati
 
 	tx := &recordingTx{}
 	db := &DB{pool: &recordingPool{tx: tx}}
-	err := db.Save(context.Background(), &models.Response{Transaction: transactions}, interfaces.SaveOptions{
-		WriteMode: interfaces.WriteModeCopy,
-	})
+	err := db.Save(
+		context.Background(),
+		&models.Response{Transaction: transactions},
+		interfaces.SaveOptions{
+			WriteMode: interfaces.WriteModeCopy,
+		},
+	)
 
 	require.NoError(t, err)
 	require.Equal(t, len(uuidSpellings), tx.copiedRows)
@@ -82,7 +91,11 @@ func TestTransactionCopyMergeDeduplicatesEquivalentUUIDSpellingsAfterNormalizati
 
 	normalizedSQL := strings.Join(strings.Fields(mergeTransactionStagingSQL), " ")
 	require.Contains(t, normalizedSQL, "id::uuid AS normalized_id")
-	require.Contains(t, normalizedSQL, "SELECT DISTINCT ON (normalized_id) * FROM normalized_staging_transaction")
+	require.Contains(
+		t,
+		normalizedSQL,
+		"SELECT DISTINCT ON (normalized_id) * FROM normalized_staging_transaction",
+	)
 	require.Contains(t, normalizedSQL, "ORDER BY normalized_id, staging_order DESC")
 	require.Contains(t, normalizedSQL, "INSERT INTO transaction")
 	require.Contains(t, normalizedSQL, "SELECT normalized_id, \"user\"")
@@ -98,7 +111,11 @@ func TestSaveCopyModeRollsBackCopyFailureWithoutCompletedCursor(t *testing.T) {
 		Transaction:     []models.Transaction{{ID: "00000000-0000-0000-0000-000000000001"}},
 	}
 
-	err := db.Save(context.Background(), response, interfaces.SaveOptions{WriteMode: interfaces.WriteModeCopy})
+	err := db.Save(
+		context.Background(),
+		response,
+		interfaces.SaveOptions{WriteMode: interfaces.WriteModeCopy},
+	)
 
 	require.ErrorContains(t, err, "copy transactions to staging table")
 	require.Equal(t, 1, tx.rollbackCalls)
@@ -117,7 +134,11 @@ func TestSaveCopyModeRollsBackMergeFailureWithoutCompletedCursor(t *testing.T) {
 		Transaction:     []models.Transaction{{ID: "00000000-0000-0000-0000-000000000001"}},
 	}
 
-	err := db.Save(context.Background(), response, interfaces.SaveOptions{WriteMode: interfaces.WriteModeCopy})
+	err := db.Save(
+		context.Background(),
+		response,
+		interfaces.SaveOptions{WriteMode: interfaces.WriteModeCopy},
+	)
 
 	require.ErrorContains(t, err, "merge transaction staging table")
 	require.Equal(t, 1, tx.copyFromCalls)
@@ -133,9 +154,13 @@ func TestSaveCopyModeSkipsStagingForEmptyTransactions(t *testing.T) {
 	pool := &recordingPool{tx: tx}
 	db := &DB{pool: pool}
 
-	err := db.Save(context.Background(), &models.Response{ServerTimestamp: 42}, interfaces.SaveOptions{
-		WriteMode: interfaces.WriteModeCopy,
-	})
+	err := db.Save(
+		context.Background(),
+		&models.Response{ServerTimestamp: 42},
+		interfaces.SaveOptions{
+			WriteMode: interfaces.WriteModeCopy,
+		},
+	)
 
 	require.NoError(t, err)
 	require.False(t, tx.stagingCreated)
@@ -150,7 +175,11 @@ func TestSaveRejectsUnknownWriteModeBeforeBeginningTransaction(t *testing.T) {
 	pool := &recordingPool{tx: tx}
 	db := &DB{pool: pool}
 
-	err := db.Save(context.Background(), &models.Response{}, interfaces.SaveOptions{WriteMode: "fast"})
+	err := db.Save(
+		context.Background(),
+		&models.Response{},
+		interfaces.SaveOptions{WriteMode: "fast"},
+	)
 
 	require.ErrorContains(t, err, `unsupported write mode "fast"`)
 	require.Zero(t, pool.beginCalls)

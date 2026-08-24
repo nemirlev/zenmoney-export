@@ -12,7 +12,11 @@ import (
 )
 
 // Save saves the entire API response to database
-func (s *DB) Save(ctx context.Context, response *models.Response, options interfaces.SaveOptions) error {
+func (s *DB) Save(
+	ctx context.Context,
+	response *models.Response,
+	options interfaces.SaveOptions,
+) error {
 	batchSize := normalizeBatchSize(options.BatchSize)
 	writeMode := options.WriteMode
 	if writeMode == "" {

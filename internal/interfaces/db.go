@@ -10,7 +10,9 @@ import (
 
 // ErrSyncAlreadyRunning indicates that another process holds the database-wide
 // synchronization lock.
-var ErrSyncAlreadyRunning = errors.New("another exporter instance is already synchronizing this database")
+var ErrSyncAlreadyRunning = errors.New(
+	"another exporter instance is already synchronizing this database",
+)
 
 // SyncLock is held for the complete read-fetch-save synchronization cycle.
 type SyncLock interface {

@@ -32,7 +32,10 @@ func (c *recordingSyncClient) FullSync(context.Context) (models.Response, error)
 	return c.response, nil
 }
 
-func (c *recordingSyncClient) SyncSince(_ context.Context, since time.Time) (models.Response, error) {
+func (c *recordingSyncClient) SyncSince(
+	_ context.Context,
+	since time.Time,
+) (models.Response, error) {
 	c.record("fetch")
 	c.method = "since"
 	c.since = since
@@ -91,12 +94,16 @@ func TestSyncSelectsSDKMethod(t *testing.T) {
 			wantSince:  123,
 		},
 		{
-			name:         "selected entities are force fetched with regular diff",
-			lastSync:     interfaces.SyncStatus{ID: 1, ServerTimestamp: 234},
-			params:       SyncParams{Entities: " accounts,transaction,ACCOUNTS,reminder-markers "},
-			wantMethod:   "force-entities",
-			wantSince:    234,
-			wantEntities: []models.EntityType{models.EntityTypeAccount, models.EntityTypeTransaction, models.EntityTypeReminderMarker},
+			name:       "selected entities are force fetched with regular diff",
+			lastSync:   interfaces.SyncStatus{ID: 1, ServerTimestamp: 234},
+			params:     SyncParams{Entities: " accounts,transaction,ACCOUNTS,reminder-markers "},
+			wantMethod: "force-entities",
+			wantSince:  234,
+			wantEntities: []models.EntityType{
+				models.EntityTypeAccount,
+				models.EntityTypeTransaction,
+				models.EntityTypeReminderMarker,
+			},
 		},
 		{
 			name:         "force with selected entities does not discard regular diff",
@@ -121,7 +128,9 @@ func TestSyncSelectsSDKMethod(t *testing.T) {
 			storage.On("GetLastSyncStatus", mock.Anything).Return(tt.lastSync, nil).Once()
 
 			response := models.Response{ServerTimestamp: 999}
-			storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{BatchSize: interfaces.DefaultBatchSize}).Return(nil).Once()
+			storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{BatchSize: interfaces.DefaultBatchSize}).
+				Return(nil).
+				Once()
 			client := &recordingSyncClient{response: response}
 			service := &SyncService{
 				app: &Application{
@@ -149,7 +158,11 @@ func TestParseSyncEntitiesAliases(t *testing.T) {
 		value    string
 		expected models.EntityType
 	}{
-		{name: "instruments", value: "instrument,instruments", expected: models.EntityTypeInstrument},
+		{
+			name:     "instruments",
+			value:    "instrument,instruments",
+			expected: models.EntityTypeInstrument,
+		},
 		{name: "countries", value: "country,countries", expected: models.EntityTypeCountry},
 		{name: "companies", value: "company,companies", expected: models.EntityTypeCompany},
 		{name: "users", value: "user,users", expected: models.EntityTypeUser},
@@ -158,8 +171,16 @@ func TestParseSyncEntitiesAliases(t *testing.T) {
 		{name: "merchants", value: "merchant,merchants", expected: models.EntityTypeMerchant},
 		{name: "budgets", value: "budget,budgets", expected: models.EntityTypeBudget},
 		{name: "reminders", value: "reminder,reminders", expected: models.EntityTypeReminder},
-		{name: "reminder markers", value: "reminderMarker,reminder_markers", expected: models.EntityTypeReminderMarker},
-		{name: "transactions", value: "transaction,transactions", expected: models.EntityTypeTransaction},
+		{
+			name:     "reminder markers",
+			value:    "reminderMarker,reminder_markers",
+			expected: models.EntityTypeReminderMarker,
+		},
+		{
+			name:     "transactions",
+			value:    "transaction,transactions",
+			expected: models.EntityTypeTransaction,
+		},
 	}
 
 	for _, tt := range tests {
@@ -337,7 +358,9 @@ func TestSyncPassesConfiguredBatchSizeToStorage(t *testing.T) {
 	storage.On("AcquireSyncLock", mock.Anything).Return(&testSyncLock{}, nil).Once()
 	storage.On("GetLastSyncStatus", mock.Anything).Return(interfaces.SyncStatus{}, nil).Once()
 	response := models.Response{ServerTimestamp: 42}
-	storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{BatchSize: 37}).Return(nil).Once()
+	storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{BatchSize: 37}).
+		Return(nil).
+		Once()
 	service := &SyncService{
 		app:    &Application{cfg: &config.Config{DBType: "postgres"}, db: storage},
 		client: &recordingSyncClient{response: response},
@@ -362,7 +385,10 @@ func TestSyncPassesCopyWriteModeToStorage(t *testing.T) {
 		client: &recordingSyncClient{response: response},
 	}
 
-	err := service.Sync(context.Background(), &SyncParams{Entities: "all", WriteMode: interfaces.WriteModeCopy})
+	err := service.Sync(
+		context.Background(),
+		&SyncParams{Entities: "all", WriteMode: interfaces.WriteModeCopy},
+	)
 
 	require.NoError(t, err)
 }
@@ -395,7 +421,9 @@ func TestSyncReturnsUnlockFailureAfterSaving(t *testing.T) {
 		Once()
 	storage.On("GetLastSyncStatus", mock.Anything).Return(interfaces.SyncStatus{}, nil).Once()
 	response := models.Response{ServerTimestamp: 42}
-	storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{BatchSize: interfaces.DefaultBatchSize}).Return(nil).Once()
+	storage.On("Save", mock.Anything, &response, interfaces.SaveOptions{BatchSize: interfaces.DefaultBatchSize}).
+		Return(nil).
+		Once()
 	service := &SyncService{
 		app:    &Application{cfg: &config.Config{DBType: "postgres"}, db: storage},
 		client: &recordingSyncClient{response: response},
@@ -455,7 +483,10 @@ func TestRunDaemonSyncUsesExponentialRetryAndResetsAfterSuccess(t *testing.T) {
 func TestRunDaemonSyncTreatsBusyLockAsNormalInterval(t *testing.T) {
 	stopError := errors.New("stop test loop")
 	waits := make([]time.Duration, 0, 2)
-	results := []error{errors.Join(errors.New("acquire sync lock"), interfaces.ErrSyncAlreadyRunning), errors.New("real failure")}
+	results := []error{
+		errors.Join(errors.New("acquire sync lock"), interfaces.ErrSyncAlreadyRunning),
+		errors.New("real failure"),
+	}
 	syncCalls := 0
 
 	err := runDaemonSync(

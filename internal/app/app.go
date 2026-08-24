@@ -64,7 +64,10 @@ func newApplication(
 	)
 	if err != nil {
 		if closeErr := storage.Close(context.WithoutCancel(ctx)); closeErr != nil {
-			return nil, errors.Join(err, fmt.Errorf("close storage after API client initialization failure: %w", closeErr))
+			return nil, errors.Join(
+				err,
+				fmt.Errorf("close storage after API client initialization failure: %w", closeErr),
+			)
 		}
 		return nil, err
 	}

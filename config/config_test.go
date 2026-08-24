@@ -103,12 +103,36 @@ func TestValidateConfig(t *testing.T) {
 		mutate  func(*Config)
 		message string
 	}{
-		{name: "token is required", mutate: func(cfg *Config) { cfg.ZenMoneyToken = " " }, message: "API token is required"},
-		{name: "database URL is required", mutate: func(cfg *Config) { cfg.DBConfig = "" }, message: "database URL is required"},
-		{name: "database type is supported", mutate: func(cfg *Config) { cfg.DBType = "mysql" }, message: "unsupported database type"},
-		{name: "log level is valid", mutate: func(cfg *Config) { cfg.LogLevel = "verbose" }, message: "invalid log level"},
-		{name: "response size is positive", mutate: func(cfg *Config) { cfg.MaxResponseSizeMB = 0 }, message: "response size must be greater than zero"},
-		{name: "response size does not overflow", mutate: func(cfg *Config) { cfg.MaxResponseSizeMB = 1 << 44 }, message: "response size is too large"},
+		{
+			name:    "token is required",
+			mutate:  func(cfg *Config) { cfg.ZenMoneyToken = " " },
+			message: "API token is required",
+		},
+		{
+			name:    "database URL is required",
+			mutate:  func(cfg *Config) { cfg.DBConfig = "" },
+			message: "database URL is required",
+		},
+		{
+			name:    "database type is supported",
+			mutate:  func(cfg *Config) { cfg.DBType = "mysql" },
+			message: "unsupported database type",
+		},
+		{
+			name:    "log level is valid",
+			mutate:  func(cfg *Config) { cfg.LogLevel = "verbose" },
+			message: "invalid log level",
+		},
+		{
+			name:    "response size is positive",
+			mutate:  func(cfg *Config) { cfg.MaxResponseSizeMB = 0 },
+			message: "response size must be greater than zero",
+		},
+		{
+			name:    "response size does not overflow",
+			mutate:  func(cfg *Config) { cfg.MaxResponseSizeMB = 1 << 44 },
+			message: "response size is too large",
+		},
 	}
 
 	for _, tt := range tests {
@@ -119,7 +143,12 @@ func TestValidateConfig(t *testing.T) {
 			err := ValidateConfig(&cfg)
 
 			require.ErrorContains(t, err, tt.message)
-			require.NotContains(t, err.Error(), valid.ZenMoneyToken, "validation errors must not expose the API token")
+			require.NotContains(
+				t,
+				err.Error(),
+				valid.ZenMoneyToken,
+				"validation errors must not expose the API token",
+			)
 		})
 	}
 }

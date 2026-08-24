@@ -103,7 +103,6 @@ func TestGetLastSyncStatus_ReturnsLatestCompleted(t *testing.T) {
 	status, err := db.GetLastSyncStatus(context.Background())
 	assert.NoError(t, err)
 	assert.Equal(t, expectedStatus, status)
-
 }
 
 func TestGetLastSyncStatus_NoCompletedSync(t *testing.T) {
@@ -115,7 +114,6 @@ func TestGetLastSyncStatus_NoCompletedSync(t *testing.T) {
 	status, err := db.GetLastSyncStatus(context.Background())
 	assert.NoError(t, err)
 	assert.Equal(t, interfaces.SyncStatus{}, status)
-
 }
 
 func TestGetLastSyncStatus_Error(t *testing.T) {
@@ -128,5 +126,4 @@ func TestGetLastSyncStatus_Error(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get last sync status")
 	assert.Equal(t, interfaces.SyncStatus{}, status)
-
 }

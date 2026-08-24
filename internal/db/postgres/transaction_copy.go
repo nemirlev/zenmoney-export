@@ -178,7 +178,12 @@ func copyTransactions(ctx context.Context, tx pgx.Tx, transactions []models.Tran
 		}, nil
 	})
 
-	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"staging_transaction"}, transactionCopyColumns, rows); err != nil {
+	if _, err := tx.CopyFrom(
+		ctx,
+		pgx.Identifier{"staging_transaction"},
+		transactionCopyColumns,
+		rows,
+	); err != nil {
 		return fmt.Errorf("copy transactions to staging table: %w", err)
 	}
 
