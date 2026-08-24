@@ -8,6 +8,14 @@
 ### 🐛 Bug Fixes
 
 - Upgrades Go version in Docker build image (#22)
+## [2.1.2](https://github.com/nemirlev/zenmoney-export/compare/v2.1.1...v2.1.2) (2026-08-24)
+
+
+### 🧪 Testing
+
+* **postgres:** run compatibility checks with testcontainers ([cfe92b9](https://github.com/nemirlev/zenmoney-export/commit/cfe92b9c4df9f4cbe491f0249252191d32922379))
+* regenerate interface mocks with mockery v3 ([fd6afb8](https://github.com/nemirlev/zenmoney-export/commit/fd6afb82db5577ee9c7d55c0caf454cb41aa59a2))
+
 ## [2.1.1](https://github.com/nemirlev/zenmoney-export/compare/v2.1.0...v2.1.1) (2026-08-24)
 
 
