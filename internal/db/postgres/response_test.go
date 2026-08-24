@@ -26,7 +26,10 @@ func TestSaveRollsBackEarlierEntitiesWhenLateEntityFails(t *testing.T) {
 	err := db.Save(
 		context.Background(),
 		response,
-		interfaces.SaveOptions{BatchSize: interfaces.DefaultBatchSize},
+		interfaces.SaveOptions{
+			BatchSize: interfaces.DefaultBatchSize,
+			SyncType:  interfaces.SyncTypePartial,
+		},
 	)
 
 	require.ErrorContains(t, err, "failed to save transactions")
@@ -42,6 +45,7 @@ func TestSaveRollsBackEarlierEntitiesWhenLateEntityFails(t *testing.T) {
 	require.Equal(t, 1, pool.statusWrites, "failed status is recorded only after rollback")
 	require.True(t, pool.rollbackObservedAtStatus)
 	require.Equal(t, "failed", pool.lastStatus)
+	require.Equal(t, interfaces.SyncTypePartial, pool.lastSyncType)
 }
 
 func TestSaveDoesNotRollbackAfterSuccessfulCommit(t *testing.T) {
