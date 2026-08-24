@@ -1,36 +1,6 @@
+name: zenmcp
+
 services:
-    postgres:
-        image: postgres:18.6-alpine3.23
-        environment:
-            POSTGRES_USER: "${POSTGRES_USER:?Set POSTGRES_USER}"
-            POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}"
-            POSTGRES_DB: "${POSTGRES_DB:?Set POSTGRES_DB}"
-        ports:
-            - "127.0.0.1:${POSTGRES_PORT:-5455}:5432"
-        volumes:
-            # PostgreSQL 18+ stores versioned clusters below this directory.
-            - postgres_data:/var/lib/postgresql
-        healthcheck:
-            test: ["CMD-SHELL", "pg_isready -q -d \"$${POSTGRES_DB}\" -U \"$${POSTGRES_USER}\""]
-            interval: 5s
-            timeout: 5s
-            retries: 10
-            start_period: 10s
-        restart: unless-stopped
-
-    migrations:
-        image: migrate/migrate:v4.19.1
-        volumes:
-            - ../migrations/postgres:/migrations:ro
-        depends_on:
-            postgres:
-                condition: service_healthy
-        command:
-            - -path=/migrations/
-            - -database=${DB_URL:?Set DB_URL to the internal PostgreSQL connection URL}
-            - up
-        restart: "no"
-
     mcp:
         image: "${ZENMCP_IMAGE:-zenmcp:local}"
         build:
@@ -45,7 +15,6 @@ services:
             ZENMCP_ENDPOINT: "${ZENMCP_ENDPOINT:-/mcp}"
             ZENMCP_LOG_LEVEL: "${ZENMCP_LOG_LEVEL:-info}"
             ZENMCP_AUTH_MODE: bearer
-            ZENMCP_USER_IDS: "${ZENMCP_USER_IDS:?Set comma-separated ZenMoney user IDs}"
             # Supply a random secret of at least 32 bytes through the shell or an ignored local env file.
             ZENMCP_BEARER_TOKEN: "${ZENMCP_BEARER_TOKEN:?Set a bearer secret of at least 32 bytes}"
             ZENMCP_ALLOWED_ORIGINS: "${ZENMCP_ALLOWED_ORIGINS:-}"
@@ -60,11 +29,8 @@ services:
             ZENMCP_REQUEST_TIMEOUT: "${ZENMCP_REQUEST_TIMEOUT:-30s}"
         ports:
             - "127.0.0.1:${ZENMCP_PORT:-8080}:8080"
-        depends_on:
-            postgres:
-                condition: service_healthy
-            migrations:
-                condition: service_completed_successfully
+        networks:
+            - zenexport
         healthcheck:
             test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/readyz"]
             interval: 10s
@@ -81,5 +47,7 @@ services:
         restart: unless-stopped
         stop_grace_period: 15s
 
-volumes:
-    postgres_data:
+networks:
+    zenexport:
+        external: true
+        name: "${ZENEXPORT_DOCKER_NETWORK:-docker_default}"
