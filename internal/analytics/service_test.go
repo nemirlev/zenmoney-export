@@ -18,6 +18,7 @@ const (
 type fakeStore struct {
 	principal       Principal
 	spendingQuery   SpendingSummaryQuery
+	budgetQuery     BudgetProgressQuery
 	searchQuery     TransactionSearchQuery
 	spendingCalls   int
 	spendingData    SpendingSummaryData
@@ -48,10 +49,11 @@ func (s *fakeStore) Cashflow(
 }
 
 func (s *fakeStore) BudgetProgress(
-	context.Context,
-	Principal,
-	BudgetProgressQuery,
+	_ context.Context,
+	_ Principal,
+	query BudgetProgressQuery,
 ) (BudgetProgressData, error) {
+	s.budgetQuery = query
 	return s.budgetData, s.err
 }
 
@@ -287,7 +289,9 @@ func TestAllDataReportsExposeStableStructuredMetadataAndTables(t *testing.T) {
 	require.NotNil(t, cashflow.Points)
 
 	budget, err := service.GetBudgetProgress(
-		context.Background(), principal, BudgetProgressRequest{Period: period},
+		context.Background(), principal, BudgetProgressRequest{Period: PeriodRequest{
+			From: "2026-08-01", To: "2026-08-31",
+		}},
 	)
 	require.NoError(t, err)
 	require.Equal(t, ReportBudgetProgress, budget.Metadata.ReportKind)
@@ -308,6 +312,65 @@ func TestAllDataReportsExposeStableStructuredMetadataAndTables(t *testing.T) {
 	require.Equal(t, int64(3600), *freshness.AgeSeconds)
 	require.False(t, freshness.Stale)
 	require.Empty(t, freshness.Metadata.Currency)
+}
+
+func TestBudgetProgressRequiresCompleteCalendarMonths(t *testing.T) {
+	store := &fakeStore{budgetData: BudgetProgressData{
+		Currency: "RUB", Totals: BudgetTotals{Budget: "0", Spent: "0", Remaining: "0"},
+	}}
+	service := newTestService(t, store)
+	principal := Principal{Subject: "user", UserIDs: []int64{1}}
+
+	for _, period := range []PeriodRequest{
+		{From: "2026-01-02", To: "2026-01-31"},
+		{From: "2026-01-01", To: "2026-01-30"},
+		{From: "2026-01-15", To: "2026-02-14"},
+	} {
+		_, err := service.GetBudgetProgress(
+			context.Background(), principal, BudgetProgressRequest{Period: period},
+		)
+		require.ErrorContains(t, err, "complete calendar months")
+	}
+
+	result, err := service.GetBudgetProgress(
+		context.Background(), principal, BudgetProgressRequest{Period: PeriodRequest{
+			From: "2026-01-01", To: "2026-02-28",
+		}},
+	)
+	require.NoError(t, err)
+	require.Equal(t, "2026-03-01", store.budgetQuery.Range.To.Format(dateLayout))
+	require.Equal(t, "2026-02-28", result.Metadata.Period.To)
+}
+
+func TestBudgetProgressRejectsUnsupportedFilters(t *testing.T) {
+	store := &fakeStore{}
+	service := newTestService(t, store)
+	principal := Principal{Subject: "user", UserIDs: []int64{1}}
+	period := PeriodRequest{From: "2026-08-01", To: "2026-08-31"}
+
+	for name, filters := range map[string]Filters{
+		"account":  {AccountIDs: []string{testAccountID}},
+		"merchant": {MerchantIDs: []string{"33333333-3333-3333-3333-333333333333"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := service.GetBudgetProgress(
+				context.Background(), principal,
+				BudgetProgressRequest{Period: period, Filters: filters},
+			)
+			require.ErrorContains(t, err, "supports only category")
+		})
+	}
+
+	store.budgetData = BudgetProgressData{
+		Currency: "RUB", Totals: BudgetTotals{Budget: "0", Spent: "0", Remaining: "0"},
+	}
+	_, err := service.GetBudgetProgress(
+		context.Background(), principal,
+		BudgetProgressRequest{Period: period, Filters: Filters{
+			CategoryIDs: []string{testCategoryID}, IncludeHold: true,
+		}},
+	)
+	require.NoError(t, err)
 }
 
 func TestServiceWrapsStoreErrors(t *testing.T) {

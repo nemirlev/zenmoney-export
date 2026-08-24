@@ -359,9 +359,19 @@ func (s *Service) normalizeBudgetRequest(
 	if err != nil {
 		return BudgetProgressRequest{}, BudgetProgressQuery{}, Period{}, err
 	}
+	if rangeValue.From.Day() != 1 || rangeValue.To.Day() != 1 {
+		return BudgetProgressRequest{}, BudgetProgressQuery{}, Period{}, errors.New(
+			"budget progress requires complete calendar months: from must be the first day and to the last day of a month",
+		)
+	}
 	filters, err := s.normalizeFilters(request.Filters)
 	if err != nil {
 		return BudgetProgressRequest{}, BudgetProgressQuery{}, Period{}, err
+	}
+	if len(filters.AccountIDs) != 0 || len(filters.MerchantIDs) != 0 {
+		return BudgetProgressRequest{}, BudgetProgressQuery{}, Period{}, errors.New(
+			"budget progress supports only category and includeHold filters",
+		)
 	}
 	limit, err := s.normalizePageSize(request.Limit)
 	if err != nil {
