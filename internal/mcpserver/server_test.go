@@ -296,3 +296,31 @@ func TestEmbeddedUIIsSelfContained(t *testing.T) {
 	assert.NotContains(t, financeChartHTML, "<script src=")
 	assert.NotContains(t, financeChartHTML, "<link rel=")
 }
+
+func TestEmbeddedUIHonorsPresentationFlags(t *testing.T) {
+	for _, contract := range []string{
+		"legend: spec.legend !== false",
+		"tooltip: spec.tooltip !== false",
+		"showNegative: spec.showNegative !== false",
+		"tableEnabled: Boolean(spec.table && spec.table.enabled)",
+		"authoritativeTable: payload.table",
+		"formatExactValue(value, column.format",
+		"valueFormat === \"percent\" ? formatted + \"%\"",
+		"negative values remain available in the table",
+	} {
+		assert.Contains(t, financeChartHTML, contract)
+	}
+	assert.NotContains(t, financeChartHTML, `options.style = "percent"`)
+}
+
+func TestEmbeddedUITableUsesAuthoritativeStringCells(t *testing.T) {
+	start := strings.Index(financeChartHTML, "function renderTable(model)")
+	require.GreaterOrEqual(t, start, 0)
+	end := strings.Index(financeChartHTML[start:], "function svg(")
+	require.Greater(t, end, 0)
+	tableRenderer := financeChartHTML[start : start+end]
+
+	assert.Contains(t, tableRenderer, "model.authoritativeTable")
+	assert.Contains(t, tableRenderer, "formatExactValue(value, column.format")
+	assert.NotContains(t, tableRenderer, "number(")
+}
