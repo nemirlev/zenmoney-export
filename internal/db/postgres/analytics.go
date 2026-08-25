@@ -332,59 +332,12 @@ func (s *DB) spendingSummarySnapshot(
 
 	var data analytics.SpendingSummaryData
 	data.Currency = currency
-	var invalidRates int64
-	if err := executor.QueryRow(ctx, spendingTotalsSQL, args...).Scan(
-		&data.Total,
-		&data.TransactionCount,
-		&invalidRates,
-	); err != nil {
-		return analytics.SpendingSummaryData{}, fmt.Errorf("query spending totals: %w", err)
+	if err := loadSpendingTotals(ctx, executor, args, &data); err != nil {
+		return analytics.SpendingSummaryData{}, err
 	}
-	if invalidRates != 0 {
-		return analytics.SpendingSummaryData{}, fmt.Errorf(
-			"%w: %d spending legs",
-			ErrAnalyticsRate,
-			invalidRates,
-		)
-	}
-
-	categoryArgs := append(append([]any{}, args...), query.Limit+1)
-	rows, err := executor.Query(ctx, spendingCategoriesSQL, categoryArgs...)
+	data.Categories, err = loadSpendingCategories(ctx, executor, args, query.Limit)
 	if err != nil {
-		return analytics.SpendingSummaryData{}, fmt.Errorf("query spending categories: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var categoryID sql.NullString
-		var title sql.NullString
-		var category analytics.SpendingCategory
-		if err := rows.Scan(
-			&categoryID,
-			&title,
-			&category.Amount,
-			&category.SharePercent,
-			&category.TransactionCount,
-		); err != nil {
-			return analytics.SpendingSummaryData{}, fmt.Errorf("scan spending category: %w", err)
-		}
-		if !categoryID.Valid {
-			category.CategoryID = "category:uncategorized"
-			category.ID = "spending:category:uncategorized"
-			category.Title = "Uncategorized"
-		} else {
-			category.CategoryID = categoryID.String
-			category.ID = "spending:category:" + categoryID.String
-			if !title.Valid || strings.TrimSpace(title.String) == "" {
-				category.Title = "Unnamed category"
-			} else {
-				category.Title = title.String
-			}
-		}
-		data.Categories = append(data.Categories, category)
-	}
-	if err := rows.Err(); err != nil {
-		return analytics.SpendingSummaryData{}, fmt.Errorf("iterate spending categories: %w", err)
+		return analytics.SpendingSummaryData{}, err
 	}
 	if len(data.Categories) > query.Limit {
 		data.HasMore = true
@@ -396,6 +349,89 @@ func (s *DB) spendingSummarySnapshot(
 		return analytics.SpendingSummaryData{}, err
 	}
 	return data, nil
+}
+
+func loadSpendingTotals(
+	ctx context.Context,
+	executor analyticsQueryExecutor,
+	args []any,
+	data *analytics.SpendingSummaryData,
+) error {
+	var invalidRates int64
+	if err := executor.QueryRow(ctx, spendingTotalsSQL, args...).Scan(
+		&data.Total,
+		&data.TransactionCount,
+		&invalidRates,
+	); err != nil {
+		return fmt.Errorf("query spending totals: %w", err)
+	}
+	if invalidRates != 0 {
+		return fmt.Errorf("%w: %d spending legs", ErrAnalyticsRate, invalidRates)
+	}
+	return nil
+}
+
+func loadSpendingCategories(
+	ctx context.Context,
+	executor analyticsQueryExecutor,
+	args []any,
+	limit int,
+) ([]analytics.SpendingCategory, error) {
+	categoryArgs := append(append([]any{}, args...), limit+1)
+	rows, err := executor.Query(ctx, spendingCategoriesSQL, categoryArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("query spending categories: %w", err)
+	}
+	defer rows.Close()
+
+	categories := make([]analytics.SpendingCategory, 0)
+	for rows.Next() {
+		category, err := scanSpendingCategory(rows)
+		if err != nil {
+			return nil, err
+		}
+		categories = append(categories, category)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate spending categories: %w", err)
+	}
+	return categories, nil
+}
+
+func scanSpendingCategory(rows pgx.Rows) (analytics.SpendingCategory, error) {
+	var categoryID sql.NullString
+	var title sql.NullString
+	var category analytics.SpendingCategory
+	if err := rows.Scan(
+		&categoryID,
+		&title,
+		&category.Amount,
+		&category.SharePercent,
+		&category.TransactionCount,
+	); err != nil {
+		return analytics.SpendingCategory{}, fmt.Errorf("scan spending category: %w", err)
+	}
+	setSpendingCategoryIdentity(&category, categoryID, title)
+	return category, nil
+}
+
+func setSpendingCategoryIdentity(
+	category *analytics.SpendingCategory,
+	categoryID sql.NullString,
+	title sql.NullString,
+) {
+	if !categoryID.Valid {
+		category.CategoryID = "category:uncategorized"
+		category.ID = "spending:category:uncategorized"
+		category.Title = "Uncategorized"
+		return
+	}
+	category.CategoryID = categoryID.String
+	category.ID = "spending:category:" + categoryID.String
+	category.Title = title.String
+	if !title.Valid || strings.TrimSpace(title.String) == "" {
+		category.Title = "Unnamed category"
+	}
 }
 
 func cashflowBucketSQL(granularity analytics.Granularity) (string, string, error) {
