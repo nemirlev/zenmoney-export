@@ -554,6 +554,11 @@ func TestEmbeddedUIIsSelfContained(t *testing.T) {
 	assert.NotContains(t, financeChartHTML, "<link rel=")
 }
 
+func TestEmbeddedUIProvidesStaticTableHeaders(t *testing.T) {
+	assert.Contains(t, financeChartHTML, `<table id="table">`)
+	assert.Contains(t, financeChartHTML, `<thead><tr><th scope="col">Data</th></tr></thead>`)
+}
+
 func TestEmbeddedUIHonorsPresentationFlags(t *testing.T) {
 	for _, contract := range []string{
 		"legend: spec.legend !== false",

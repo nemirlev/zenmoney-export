@@ -79,7 +79,12 @@
     <svg id="chart" role="img" aria-labelledby="title subtitle"></svg>
     <div id="tooltip" role="tooltip" hidden></div>
   </section>
-  <section id="table-wrap" hidden aria-label="Accessible data table"><table id="table"></table></section>
+  <section id="table-wrap" hidden aria-label="Accessible data table">
+    <table id="table">
+      <thead><tr><th scope="col">Data</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
 </main>
 <script>
 (() => {
