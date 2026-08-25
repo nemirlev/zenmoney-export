@@ -269,15 +269,15 @@ func envOrDefault(name, fallback string) string {
 }
 
 func envPositiveInt(name string, fallback int) (int, error) {
-	value, err := envPositiveInt64(name, int64(fallback))
-	if err != nil {
-		return 0, err
+	raw := strings.TrimSpace(os.Getenv(name))
+	if raw == "" {
+		return fallback, nil
 	}
-	converted := int(value)
-	if int64(converted) != value {
-		return 0, fmt.Errorf("%s is too large", name)
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer", name)
 	}
-	return converted, nil
+	return value, nil
 }
 
 func envPositiveInt64(name string, fallback int64) (int64, error) {

@@ -1,6 +1,8 @@
 package config
 
 import (
+	"math"
+	"strconv"
 	"testing"
 	"time"
 
@@ -280,6 +282,15 @@ func TestNewMCPConfigFromEnvRejectsNonPositiveRequestTimeout(t *testing.T) {
 	_, err := NewMCPConfigFromEnv()
 
 	require.ErrorContains(t, err, "ZENMCP_REQUEST_TIMEOUT must be a positive duration")
+}
+
+func TestEnvPositiveIntRejectsValueAbovePlatformIntRange(t *testing.T) {
+	const name = "ZENMCP_TEST_POSITIVE_INT"
+	t.Setenv(name, strconv.FormatUint(uint64(math.MaxInt)+1, 10))
+
+	_, err := envPositiveInt(name, 1)
+
+	require.ErrorContains(t, err, name+" must be a positive integer")
 }
 
 func validMCPConfig() *MCPConfig {
