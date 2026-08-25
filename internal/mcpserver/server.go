@@ -26,6 +26,8 @@ const (
 	ToolRenderFinanceChart = "render_finance_chart"
 )
 
+const optionalUsersDescription = "Optional users.userIds narrows the authenticated user catalog. "
+
 //go:embed ui/chart.html
 var financeChartHTML string
 
@@ -97,7 +99,7 @@ func (s *Server) registerTools(service AnalyticsService) {
 	mcp.AddTool(s.core, &mcp.Tool{
 		Name: ToolGetSpendingSummary,
 		Description: "Summarize expenses by category for an inclusive from/to date period. " +
-			"Optional users.userIds narrows the authenticated user catalog. " +
+			optionalUsersDescription +
 			"Returns authoritative Decimal amounts as strings, applied filters, calculation rules, stable category IDs, and a compact table fallback.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, input analytics.SpendingSummaryRequest) (*mcp.CallToolResult, analytics.SpendingSummaryResult, error) {
 		principal, err := principalFromContext(ctx)
@@ -111,7 +113,7 @@ func (s *Server) registerTools(service AnalyticsService) {
 	mcp.AddTool(s.core, &mcp.Tool{
 		Name: ToolGetCashflow,
 		Description: "Return aggregated income, outcome, and net cashflow over an inclusive from/to date period with day, week, or month granularity. " +
-			"Optional users.userIds narrows the authenticated user catalog. " +
+			optionalUsersDescription +
 			"Transfers and currency conversion follow the calculation rules included in the result.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, input analytics.CashflowRequest) (*mcp.CallToolResult, analytics.CashflowResult, error) {
 		principal, err := principalFromContext(ctx)
@@ -125,7 +127,7 @@ func (s *Server) registerTools(service AnalyticsService) {
 	mcp.AddTool(s.core, &mcp.Tool{
 		Name: ToolGetBudgetProgress,
 		Description: "Compare category spending with configured budgets for an inclusive from/to date period. " +
-			"Optional users.userIds narrows the authenticated user catalog. " +
+			optionalUsersDescription +
 			"Returns budget, spent, remaining, and percentage values with stable category IDs.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, input analytics.BudgetProgressRequest) (*mcp.CallToolResult, analytics.BudgetProgressResult, error) {
 		principal, err := principalFromContext(ctx)
@@ -139,7 +141,7 @@ func (s *Server) registerTools(service AnalyticsService) {
 	mcp.AddTool(s.core, &mcp.Tool{
 		Name: ToolSearchTransactions,
 		Description: "Search a bounded, cursor-paginated set of transactions visible to the authenticated identity. " +
-			"Optional users.userIds narrows the authenticated user catalog. " +
+			optionalUsersDescription +
 			"Use aggregated tools for broad analysis; this tool intentionally limits personal transaction detail.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, input analytics.TransactionSearchRequest) (*mcp.CallToolResult, analytics.TransactionSearchResult, error) {
 		principal, err := principalFromContext(ctx)
