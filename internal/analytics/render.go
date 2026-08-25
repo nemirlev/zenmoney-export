@@ -48,6 +48,14 @@ func (s *Service) normalizeChartSpec(
 	report NormalizedReportRequest,
 	chart ChartSpec,
 ) (ChartSpec, error) {
+	chart = normalizeChartDefaults(chart)
+	if report.Kind != ReportCashflow {
+		return validateNonCashflowChart(chart)
+	}
+	return normalizeCashflowChart(report, chart)
+}
+
+func normalizeChartDefaults(chart ChartSpec) ChartSpec {
 	chart.Title = strings.TrimSpace(chart.Title)
 	chart.Subtitle = strings.TrimSpace(chart.Subtitle)
 	chart.Other.Label = strings.TrimSpace(chart.Other.Label)
@@ -77,59 +85,47 @@ func (s *Service) normalizeChartSpec(
 	if chart.Table.Caption == "" {
 		chart.Table.Caption = chart.Title + " data"
 	}
+	return chart
+}
 
-	if report.Kind != ReportCashflow {
-		if chart.Granularity != "" {
-			return ChartSpec{}, errors.New(
-				"chart granularity is only valid for cashflow period reports",
-			)
-		}
-		if chart.ComparisonPeriods {
-			return ChartSpec{}, errors.New(
-				"comparison periods are only valid for cashflow period reports",
-			)
-		}
-		return chart, nil
+func validateNonCashflowChart(chart ChartSpec) (ChartSpec, error) {
+	if chart.Granularity != "" {
+		return ChartSpec{}, errors.New(
+			"chart granularity is only valid for cashflow period reports",
+		)
 	}
+	if chart.ComparisonPeriods {
+		return ChartSpec{}, errors.New(
+			"comparison periods are only valid for cashflow period reports",
+		)
+	}
+	return chart, nil
+}
+
+func normalizeCashflowChart(
+	report NormalizedReportRequest,
+	chart ChartSpec,
+) (ChartSpec, error) {
 	if report.Cashflow == nil {
 		return ChartSpec{}, errors.New("normalized cashflow report is missing its payload")
 	}
-	for _, series := range chart.Series {
-		if series.Key == SeriesCurrentNet || series.Key == SeriesPreviousNet {
-			return ChartSpec{}, errors.New("current_net and previous_net series are server-derived")
-		}
+	if hasServerDerivedSeries(chart.Series) {
+		return ChartSpec{}, errors.New("current_net and previous_net series are server-derived")
 	}
 	reportGranularity := report.Cashflow.Granularity
-	if chart.Granularity == "" {
-		chart.Granularity = reportGranularity
-	} else if chart.Granularity != reportGranularity {
+	if chart.Granularity != "" && chart.Granularity != reportGranularity {
 		return ChartSpec{}, fmt.Errorf(
 			"chart granularity %q does not match cashflow granularity %q",
 			chart.Granularity,
 			reportGranularity,
 		)
 	}
+	chart.Granularity = reportGranularity
 	if !chart.ComparisonPeriods {
 		return chart, nil
 	}
-	if chart.TopN != 0 || chart.Other.Enabled {
-		return ChartSpec{}, errors.New("comparison periods cannot use topN or an Other bucket")
-	}
-	if chart.Sort.By != SortDimension || chart.Sort.Direction != SortAscending {
-		return ChartSpec{}, errors.New("comparison periods require ascending chronological sorting")
-	}
-	if chart.Type != ChartLine {
-		return ChartSpec{}, errors.New("comparison periods currently support only line charts")
-	}
-	if reportGranularity != GranularityDay {
-		return ChartSpec{}, errors.New(
-			"comparison periods currently support only daily granularity",
-		)
-	}
-	if len(chart.Series) != 1 || chart.Series[0].Key != SeriesNet {
-		return ChartSpec{}, errors.New(
-			"comparison periods currently require exactly the net series",
-		)
+	if err := validateComparisonChart(chart, reportGranularity); err != nil {
+		return ChartSpec{}, err
 	}
 	format := chart.Series[0].Format
 	chart.Series = []ChartSeries{
@@ -137,6 +133,38 @@ func (s *Service) normalizeChartSpec(
 		{Key: SeriesPreviousNet, Label: "Previous net", Format: format},
 	}
 	return chart, nil
+}
+
+func hasServerDerivedSeries(seriesList []ChartSeries) bool {
+	for _, series := range seriesList {
+		if series.Key == SeriesCurrentNet || series.Key == SeriesPreviousNet {
+			return true
+		}
+	}
+	return false
+}
+
+func validateComparisonChart(chart ChartSpec, reportGranularity Granularity) error {
+	if chart.TopN != 0 || chart.Other.Enabled {
+		return errors.New("comparison periods cannot use topN or an Other bucket")
+	}
+	if chart.Sort.By != SortDimension || chart.Sort.Direction != SortAscending {
+		return errors.New("comparison periods require ascending chronological sorting")
+	}
+	if chart.Type != ChartLine {
+		return errors.New("comparison periods currently support only line charts")
+	}
+	if reportGranularity != GranularityDay {
+		return errors.New(
+			"comparison periods currently support only daily granularity",
+		)
+	}
+	if len(chart.Series) != 1 || chart.Series[0].Key != SeriesNet {
+		return errors.New(
+			"comparison periods currently require exactly the net series",
+		)
+	}
+	return nil
 }
 
 func (s *Service) previousCashflowReport(
