@@ -174,8 +174,8 @@
     const spec = payload.chartSpec || payload.spec || payload.chart || {};
     const source = payload.data || payload.dataset || payload.rows || payload.reportRows || [];
     const data = Array.isArray(source) && source.some(point => Array.isArray(point && point.values))
-      ? source.map(point => Object.assign({ id: point.id, label: point.label },
-          Object.fromEntries(point.values.map(value => [value.series, value.value]))))
+      ? source.map(point => ({ id: point.id, label: point.label,
+          ...Object.fromEntries(point.values.map(value => [value.series, value.value])) }))
       : source;
     const series = Array.isArray(spec.series) && spec.series.length ? spec.series : inferSeries(data, spec);
     const report = payload.report && (payload.report.spendingSummary || payload.report.cashflow || payload.report.budgetProgress || payload.report.transactions);
