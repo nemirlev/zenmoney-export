@@ -795,70 +795,12 @@ func (s *DB) budgetProgressSnapshot(
 	}
 	args := analyticsQueryArgs(principal, query.Range, query.Filters)
 	data := analytics.BudgetProgressData{Currency: currency}
-	var totalPercent sql.NullString
-	var invalidRates int64
-	if err := executor.QueryRow(ctx, budgetProgressTotalsSQL, args...).Scan(
-		&data.Totals.Budget,
-		&data.Totals.Spent,
-		&data.Totals.Remaining,
-		&totalPercent,
-		&invalidRates,
-	); err != nil {
-		return analytics.BudgetProgressData{}, fmt.Errorf("query budget progress totals: %w", err)
+	if err := loadBudgetProgressTotals(ctx, executor, args, &data); err != nil {
+		return analytics.BudgetProgressData{}, err
 	}
-	if invalidRates != 0 {
-		return analytics.BudgetProgressData{}, fmt.Errorf(
-			"%w: %d budget progress values",
-			ErrAnalyticsRate,
-			invalidRates,
-		)
-	}
-	data.Totals.Percent = decimalPointer(totalPercent)
-
-	rowArgs := append(append([]any{}, args...), query.Limit+1)
-	rows, err := executor.Query(ctx, budgetProgressRowsSQL, rowArgs...)
+	data.Rows, err = loadBudgetProgressRows(ctx, executor, args, query.Limit)
 	if err != nil {
-		return analytics.BudgetProgressData{}, fmt.Errorf("query budget progress rows: %w", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var categoryID sql.NullString
-		var title sql.NullString
-		var percent sql.NullString
-		var row analytics.BudgetProgressRow
-		if err := rows.Scan(
-			&categoryID,
-			&title,
-			&row.Budget,
-			&row.Spent,
-			&row.Remaining,
-			&percent,
-			&row.TransactionCount,
-		); err != nil {
-			return analytics.BudgetProgressData{}, fmt.Errorf("scan budget progress row: %w", err)
-		}
-		if !categoryID.Valid {
-			row.CategoryID = "category:uncategorized"
-			row.ID = "budget:category:uncategorized"
-			row.Title = "Uncategorized"
-		} else if categoryID.String == aggregateCategoryUUID {
-			row.CategoryID = "category:all"
-			row.ID = "budget:category:all"
-			row.Title = "All categories"
-		} else {
-			row.CategoryID = categoryID.String
-			row.ID = "budget:category:" + categoryID.String
-			if !title.Valid || strings.TrimSpace(title.String) == "" {
-				row.Title = "Unnamed category"
-			} else {
-				row.Title = title.String
-			}
-		}
-		row.Percent = decimalPointer(percent)
-		data.Rows = append(data.Rows, row)
-	}
-	if err := rows.Err(); err != nil {
-		return analytics.BudgetProgressData{}, fmt.Errorf("iterate budget progress rows: %w", err)
+		return analytics.BudgetProgressData{}, err
 	}
 	if len(data.Rows) > query.Limit {
 		data.HasMore = true
@@ -869,6 +811,107 @@ func (s *DB) budgetProgressSnapshot(
 		return analytics.BudgetProgressData{}, err
 	}
 	return data, nil
+}
+
+func loadBudgetProgressTotals(
+	ctx context.Context,
+	executor analyticsQueryExecutor,
+	args []any,
+	data *analytics.BudgetProgressData,
+) error {
+	var totalPercent sql.NullString
+	var invalidRates int64
+	if err := executor.QueryRow(ctx, budgetProgressTotalsSQL, args...).Scan(
+		&data.Totals.Budget,
+		&data.Totals.Spent,
+		&data.Totals.Remaining,
+		&totalPercent,
+		&invalidRates,
+	); err != nil {
+		return fmt.Errorf("query budget progress totals: %w", err)
+	}
+	if invalidRates != 0 {
+		return fmt.Errorf(
+			"%w: %d budget progress values",
+			ErrAnalyticsRate,
+			invalidRates,
+		)
+	}
+	data.Totals.Percent = decimalPointer(totalPercent)
+	return nil
+}
+
+func loadBudgetProgressRows(
+	ctx context.Context,
+	executor analyticsQueryExecutor,
+	args []any,
+	limit int,
+) ([]analytics.BudgetProgressRow, error) {
+	rowArgs := append(append([]any{}, args...), limit+1)
+	rows, err := executor.Query(ctx, budgetProgressRowsSQL, rowArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("query budget progress rows: %w", err)
+	}
+	defer rows.Close()
+
+	result := make([]analytics.BudgetProgressRow, 0)
+	for rows.Next() {
+		row, err := scanBudgetProgressRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate budget progress rows: %w", err)
+	}
+	return result, nil
+}
+
+func scanBudgetProgressRow(rows pgx.Rows) (analytics.BudgetProgressRow, error) {
+	var categoryID sql.NullString
+	var title sql.NullString
+	var percent sql.NullString
+	var row analytics.BudgetProgressRow
+	if err := rows.Scan(
+		&categoryID,
+		&title,
+		&row.Budget,
+		&row.Spent,
+		&row.Remaining,
+		&percent,
+		&row.TransactionCount,
+	); err != nil {
+		return analytics.BudgetProgressRow{}, fmt.Errorf("scan budget progress row: %w", err)
+	}
+	setBudgetProgressIdentity(&row, categoryID, title)
+	row.Percent = decimalPointer(percent)
+	return row, nil
+}
+
+func setBudgetProgressIdentity(
+	row *analytics.BudgetProgressRow,
+	categoryID sql.NullString,
+	title sql.NullString,
+) {
+	if !categoryID.Valid {
+		row.CategoryID = "category:uncategorized"
+		row.ID = "budget:category:uncategorized"
+		row.Title = "Uncategorized"
+		return
+	}
+	if categoryID.String == aggregateCategoryUUID {
+		row.CategoryID = "category:all"
+		row.ID = "budget:category:all"
+		row.Title = "All categories"
+		return
+	}
+	row.CategoryID = categoryID.String
+	row.ID = "budget:category:" + categoryID.String
+	row.Title = title.String
+	if !title.Valid || strings.TrimSpace(title.String) == "" {
+		row.Title = "Unnamed category"
+	}
 }
 
 func (s *DB) readSyncSnapshot(
