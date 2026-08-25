@@ -120,7 +120,7 @@
     if (event.source !== window.parent) return;
     const message = event.data;
     if (!message || message.jsonrpc !== "2.0") return;
-    if (Object.prototype.hasOwnProperty.call(message, "id") && !message.method) {
+    if (Object.hasOwn(message, "id") && !message.method) {
       const waiter = pending.get(message.id);
       if (!waiter) return;
       pending.delete(message.id);
