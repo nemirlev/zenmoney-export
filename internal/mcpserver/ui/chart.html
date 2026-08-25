@@ -395,7 +395,10 @@
     $("chart-wrap").hidden=table; $("table-wrap").hidden=!table;
     if (!table && current && !current.tableEnabled) $("table-wrap").hidden=false;
     $("chart-button").setAttribute("aria-pressed",String(!table)); $("table-button").setAttribute("aria-pressed",String(table));
-    if (!table && current) renderSVG(current); reportSize();
+    if (!table && current) {
+      renderSVG(current);
+    }
+    reportSize();
   }
   $("chart-button").addEventListener("click",()=>setMode(false)); $("table-button").addEventListener("click",()=>setMode(true));
   function reportSize() { notify("ui/notifications/size-changed", { width: Math.ceil(document.documentElement.scrollWidth), height: Math.ceil(document.documentElement.scrollHeight) }); }
