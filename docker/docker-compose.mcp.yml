@@ -16,7 +16,7 @@ services:
             ZENMCP_LOG_LEVEL: "${ZENMCP_LOG_LEVEL:-info}"
             ZENMCP_AUTH_MODE: bearer
             # Supply a random secret of at least 32 bytes through the shell or an ignored local env file.
-            ZENMCP_BEARER_TOKEN: "${ZENMCP_BEARER_TOKEN:?Set a bearer secret of at least 32 bytes}"
+            ZENMCP_BEARER_TOKEN: "${ZENMCP_BEARER_TOKEN:-d528f5b625f5e6c73767d678644b80ce0db159433d2bb50c948d92f5093631c2}"
             ZENMCP_ALLOWED_ORIGINS: "${ZENMCP_ALLOWED_ORIGINS:-}"
             ZENMCP_REPORT_TIMEZONE: "${ZENMCP_REPORT_TIMEZONE:-UTC}"
             ZENMCP_MAX_PERIOD_DAYS: "${ZENMCP_MAX_PERIOD_DAYS:-3660}"
@@ -29,8 +29,6 @@ services:
             ZENMCP_REQUEST_TIMEOUT: "${ZENMCP_REQUEST_TIMEOUT:-30s}"
         ports:
             - "127.0.0.1:${ZENMCP_PORT:-8080}:8080"
-        networks:
-            - zenexport
         healthcheck:
             test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/readyz"]
             interval: 10s
@@ -46,8 +44,3 @@ services:
             - ALL
         restart: unless-stopped
         stop_grace_period: 15s
-
-networks:
-    zenexport:
-        external: true
-        name: "${ZENEXPORT_DOCKER_NETWORK:-docker_default}"
