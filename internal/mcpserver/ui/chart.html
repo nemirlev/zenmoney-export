@@ -219,7 +219,10 @@
       const formatted = new Intl.NumberFormat(hostContext.locale || undefined, options).format(number(value));
       return valueFormat === "percent" ? formatted + "%" : formatted;
     }
-    catch (_) { return formatExactValue(value, valueFormat, model.currency); }
+    catch (error) {
+      console.warn("Number formatting failed:", error);
+      return formatExactValue(value, valueFormat, model.currency);
+    }
   }
   function formatExactValue(value, valueFormat, currency) {
     const text = value == null ? "" : String(value);
