@@ -8,6 +8,18 @@
 ### 🐛 Bug Fixes
 
 - Upgrades Go version in Docker build image (#22)
+## [2.2.1](https://github.com/nemirlev/zenmoney-export/compare/v2.2.0...v2.2.1) (2026-08-25)
+
+
+### 🐛 Bug Fixes
+
+* **postgres:** support nullable tag static IDs ([606f588](https://github.com/nemirlev/zenmoney-export/commit/606f5883593778c3988526c08501f5bdcb2dd844))
+
+
+### 🧪 Testing
+
+* **postgres:** cover nullable tag static IDs ([026f129](https://github.com/nemirlev/zenmoney-export/commit/026f129d9a249099ad9afabec1de739a590a338c))
+
 ## [2.2.0](https://github.com/nemirlev/zenmoney-export/compare/v2.1.4...v2.2.0) (2026-08-25)
 
 
