@@ -235,11 +235,10 @@ contracts and calculation policies.
 
 ### Docker Compose and local Codex
 
-The MCP Compose file contains only `mcp`. It joins the existing exporter Compose network and uses
-the PostgreSQL service, migrations, synchronized data, and persistent volume managed by
-`docker/docker-compose.postgres.yml`; it never duplicates or owns them. From the repository root,
-create an ignored local environment file, replace every credential placeholder, and generate a
-random bearer secret:
+The MCP Compose file contains only `mcp` and is designed to be merged with the exporter Compose
+file. Both files use one ignored environment file and one Compose project, so PostgreSQL, exporter,
+and MCP share the default network. From the repository root, replace every credential placeholder
+and generate a random bearer secret:
 
 ```bash
 cp -n docker/.env.example docker/.env
@@ -247,22 +246,24 @@ openssl rand -hex 32
 # Edit docker/.env and paste the generated value into ZENMCP_BEARER_TOKEN.
 ```
 
-Start the exporter stack first so it creates PostgreSQL and its default `docker_default` network.
-After migrations and synchronization are available, start the independent `zenmcp` project:
+Start the complete stack with both Compose files:
 
 ```bash
-docker compose --env-file docker/.env -f docker/docker-compose.postgres.yml up -d
-docker compose --env-file docker/.env -f docker/docker-compose.mcp.yml up -d --build
-docker compose --env-file docker/.env -f docker/docker-compose.mcp.yml ps
+docker compose --env-file docker/.env \
+  -f docker/docker-compose.postgres.yml \
+  -f docker/docker-compose.mcp.yml \
+  up -d --build
+docker compose --env-file docker/.env \
+  -f docker/docker-compose.postgres.yml \
+  -f docker/docker-compose.mcp.yml \
+  ps
 curl --fail --silent --show-error http://127.0.0.1:8080/healthz
 curl --fail --silent --show-error http://127.0.0.1:8080/readyz
 ```
 
-The exporter Compose project defaults to the name `docker`, so its default network is
-`docker_default`. If it was started with a different project name, set
-`ZENEXPORT_DOCKER_NETWORK=<project>_default` before starting MCP. The external network must already
-exist; a missing network is an intentional startup error. `DB_URL` must remain an internal Docker
-URL whose host is the exporter service name `postgres`.
+Compose merges `postgres`, `migrations`, `app`, and `mcp` into one project and default network.
+`DB_URL` must remain an internal Docker URL whose host is the exporter service name `postgres`;
+the MCP Compose file passes the same value to `zenmcp` as `ZENMCP_DB_URL`.
 
 If `ZENMCP_PORT` was changed, use that host port in the URLs. The MCP Compose file publishes only
 the MCP port and binds it to `127.0.0.1`; PostgreSQL port and volume policy remain in the exporter
@@ -313,12 +314,14 @@ for the shared configuration model and current Streamable HTTP support.
 Stop only MCP:
 
 ```bash
-docker compose --env-file docker/.env -f docker/docker-compose.mcp.yml down
+docker compose --env-file docker/.env \
+  -f docker/docker-compose.postgres.yml \
+  -f docker/docker-compose.mcp.yml \
+  stop mcp
 ```
 
-Because `zenmcp` is a separate Compose project and `docker_default` is external, this command does
-not stop PostgreSQL, remove the exporter network, or touch `docker_postgres_data`. Manage those only
-through `docker/docker-compose.postgres.yml`. Do not use `--remove-orphans` across the two projects.
+This keeps PostgreSQL and exporter running. Use the same two-file command with `down` to stop the
+whole project; the PostgreSQL volume is preserved unless `--volumes` is explicitly supplied.
 
 ### Standalone image
 
@@ -372,8 +375,8 @@ period above ten seconds.
   `ZENMCP_ALLOWED_ORIGINS`; do not disable origin protection globally.
 - `/readyz` returns `503`: verify database routing, TLS, credentials, migrations, and PostgreSQL
   version.
-- Compose reports that `docker_default` is missing: start the exporter Compose project first, or
-  set `ZENEXPORT_DOCKER_NETWORK` to the actual `<project>_default` network name.
+- MCP cannot resolve `postgres`: make sure both Compose files were supplied to the same command so
+  the exporter and MCP share one default network.
 - currency/rate error: all users selected for one report must share one primary currency and every
   required current instrument rate must be positive. Use `get_data_freshness` to discover the
   catalog and have Codex issue separate `users.userIds` calls for different currencies.

@@ -100,19 +100,50 @@ Now app supports the following commands:
 
 - `sync`: Synchronize data from ZenMoney to your database.
 
-## Financial analytics MCP server
+## ZenMoney MCP (read-only)
 
-The repository also provides `zenmcp`, a separate read-only MCP `2026-07-28` server over stateless
-Streamable HTTP. It reads the PostgreSQL database populated by `zenexport`; it runs independently
-and does not require a ZenMoney API token.
+`zenmcp` lets MCP-compatible AI clients analyze the data previously synchronized by `zenexport`.
+It is a separate read-only server: report queries run in read-only PostgreSQL transactions, the
+server never modifies financial data, and it does not need a ZenMoney API token.
 
-See [MCP setup and operations](doc/mcp.md) for local and remote examples, and
-[MCP architecture](doc/mcp-architecture.md) for tool contracts, financial semantics, security,
-MCP Apps rendering, and known limitations. Build its independent container with:
+Available tools cover spending summaries, cash flow, budget progress, transaction search, sync
+freshness, and finance chart rendering.
+
+### MCP quick start
+
+Create one environment file for PostgreSQL, exporter, and MCP. Replace the credentials and API
+token, then generate a bearer token with `openssl rand -hex 32` and save it as
+`ZENMCP_BEARER_TOKEN`:
 
 ```bash
-docker build -f docker/Dockerfile.zenmcp -t zenmcp:local .
+cp -n docker/.env.example docker/.env
+openssl rand -hex 32
 ```
+
+Start the exporter and MCP together. Compose merges both files into one project and default
+network; `zenmcp` reuses `DB_URL` from `docker/.env` and connects to the same PostgreSQL service:
+
+```bash
+docker compose --env-file docker/.env \
+  -f docker/docker-compose.postgres.yml \
+  -f docker/docker-compose.mcp.yml \
+  up -d --build
+```
+
+Register its Streamable HTTP endpoint in Codex. The client variable must contain the same bearer
+token as `ZENMCP_BEARER_TOKEN` in `docker/.env`:
+
+```bash
+export ZENMCP_CLIENT_BEARER_TOKEN='paste-the-same-token-here'
+codex mcp add zenmoney \
+  --url http://127.0.0.1:8080/mcp \
+  --bearer-token-env-var ZENMCP_CLIENT_BEARER_TOKEN
+```
+
+The server is ready when `curl --fail http://127.0.0.1:8080/readyz` succeeds. Compose publishes the
+MCP endpoint on loopback only. See [MCP setup and operations](doc/mcp.md) for MCP Inspector, remote
+deployment, and all configuration options. See [MCP architecture](doc/mcp-architecture.md) for tool
+contracts and financial semantics.
 
 ### Sync Command
 
