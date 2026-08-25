@@ -153,12 +153,28 @@ func ValidateMCPConfig(config *MCPConfig) error {
 	if strings.TrimSpace(config.DatabaseURL) == "" {
 		return errors.New("MCP database URL is required")
 	}
-	host, port, err := net.SplitHostPort(config.ListenAddress)
-	if err != nil || strings.TrimSpace(host) == "" || !validPort(port) {
-		return errors.New("MCP listen address must include a host and valid port")
+	if err := validateMCPAddressAndAuth(config); err != nil {
+		return err
 	}
 	if err := validateMCPEndpoint(config.Endpoint); err != nil {
 		return err
+	}
+	if err := validateMCPUserScope(config); err != nil {
+		return err
+	}
+	if err := validateMCPPresentation(config); err != nil {
+		return err
+	}
+	if err := validateMCPLimits(config); err != nil {
+		return err
+	}
+	return validateMCPOrigins(config.AllowedOrigins)
+}
+
+func validateMCPAddressAndAuth(config *MCPConfig) error {
+	host, port, err := net.SplitHostPort(config.ListenAddress)
+	if err != nil || strings.TrimSpace(host) == "" || !validPort(port) {
+		return errors.New("MCP listen address must include a host and valid port")
 	}
 	switch config.AuthMode {
 	case MCPAuthLocal:
@@ -175,18 +191,31 @@ func ValidateMCPConfig(config *MCPConfig) error {
 	default:
 		return fmt.Errorf("unsupported MCP authentication mode %q", config.AuthMode)
 	}
+	return nil
+}
+
+func validateMCPUserScope(config *MCPConfig) error {
 	for _, userID := range config.UserIDs {
 		if userID <= 0 {
 			return errors.New("authenticated ZenMoney user IDs must be positive")
 		}
 	}
+	return nil
+}
+
+func validateMCPPresentation(config *MCPConfig) error {
 	if _, err := time.LoadLocation(config.ReportTimezone); err != nil {
 		return fmt.Errorf("invalid MCP report timezone %q", config.ReportTimezone)
 	}
-	if config.LogLevel != "debug" && config.LogLevel != "info" &&
-		config.LogLevel != "warn" && config.LogLevel != "error" {
+	switch config.LogLevel {
+	case "debug", "info", "warn", "error":
+		return nil
+	default:
 		return fmt.Errorf("invalid MCP log level %q", config.LogLevel)
 	}
+}
+
+func validateMCPLimits(config *MCPConfig) error {
 	if config.MaxPeriodDays <= 0 || config.DefaultPageSize <= 0 || config.MaxPageSize <= 0 ||
 		config.MaxChartPoints <= 0 || config.MaxFilterValues <= 0 ||
 		config.MaxRequestBodyBytes <= 0 || config.StaleAfter <= 0 || config.RequestTimeout <= 0 {
@@ -207,7 +236,11 @@ func ValidateMCPConfig(config *MCPConfig) error {
 			maxMCPPostgresRows,
 		)
 	}
-	for _, origin := range config.AllowedOrigins {
+	return nil
+}
+
+func validateMCPOrigins(origins []string) error {
+	for _, origin := range origins {
 		if _, err := normalizeMCPOrigin(origin); err != nil {
 			return err
 		}
