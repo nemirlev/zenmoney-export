@@ -8,6 +8,73 @@
 ### 🐛 Bug Fixes
 
 - Upgrades Go version in Docker build image (#22)
+## [2.2.0](https://github.com/nemirlev/zenmoney-export/compare/v2.1.4...v2.2.0) (2026-08-25)
+
+
+### 🚀 Features
+
+* **analytics:** add financial reporting domain ([dccdeea](https://github.com/nemirlev/zenmoney-export/commit/dccdeea2b8722260babd0ceca07b270cd5a98c1f))
+* **docker:** add local MCP compose stack ([2d9ba20](https://github.com/nemirlev/zenmoney-export/commit/2d9ba20da29d4a45a18acbfd17c08c175b97e325))
+* **mcp:** add stateless finance analytics server ([30ed4fe](https://github.com/nemirlev/zenmoney-export/commit/30ed4fe944da1dbaea78dbb5f11e708924901fdf))
+* **mcp:** discover database users automatically ([c83dd9d](https://github.com/nemirlev/zenmoney-export/commit/c83dd9d22a3362e3132d0cb3416292a14a64e413))
+* **pg:** add port pg for local access ([0405830](https://github.com/nemirlev/zenmoney-export/commit/04058301f905a7741340731861c6136b68638e98))
+* **postgres:** add read-only financial analytics store ([1637133](https://github.com/nemirlev/zenmoney-export/commit/16371331bf79e53145bfcb3ebb1ed046e135eb0e))
+* **zenmcp:** add secure runtime configuration ([8bea308](https://github.com/nemirlev/zenmoney-export/commit/8bea308e3d3711fc92b8ba24aa8014bcb321b57d))
+
+
+### 🐛 Bug Fixes
+
+* **analytics:** harden chart report contracts ([a3f894e](https://github.com/nemirlev/zenmoney-export/commit/a3f894e6e6e2e5fb2fd66bda4d77390eb8fe38c2))
+* **analytics:** implement period comparisons ([51597b7](https://github.com/nemirlev/zenmoney-export/commit/51597b76a5baa6bba28e5bd62ea1b1a46cbb4a8d))
+* **analytics:** scope freshness metadata to database ([2778c48](https://github.com/nemirlev/zenmoney-export/commit/2778c48f602ac65707d19f73514bc1775211006a))
+* **analytics:** validate budget report scope ([be5169e](https://github.com/nemirlev/zenmoney-export/commit/be5169ece47a7bb916510cdb52147503ac5c6065))
+* **docker:** remove docker network on mcp service ([6582904](https://github.com/nemirlev/zenmoney-export/commit/658290476080bbef5c3f52e90815ec06245c66fb))
+* **docker:** reuse exporter database network ([6ee3bdb](https://github.com/nemirlev/zenmoney-export/commit/6ee3bdb8ff2ae430ec118757b24c6c995a7da5db))
+* **mcp-ui:** log initialization failures ([3535785](https://github.com/nemirlev/zenmoney-export/commit/3535785bc0434b84152fb19cfd655494620af726))
+* **mcp-ui:** log number formatting failures ([160d443](https://github.com/nemirlev/zenmoney-export/commit/160d443f5c4e8cb6aeb3f3806fc2a1bd8ddba3ae))
+* **mcp-ui:** use Object.hasOwn for response ids ([bc2e5ce](https://github.com/nemirlev/zenmoney-export/commit/bc2e5ceaa80a7d98780b847a919350710aced1d7))
+* **mcp:** add static table header ([0eb0b2d](https://github.com/nemirlev/zenmoney-export/commit/0eb0b2d9146fe55a4bd739c60f0c589a61f81d76))
+* **mcp:** disclose truncated category rows ([c3e8ded](https://github.com/nemirlev/zenmoney-export/commit/c3e8dedbf33a379aeadcd88ccb8d458df89b2c62))
+* **mcp:** honor chart presentation contracts ([70d913a](https://github.com/nemirlev/zenmoney-export/commit/70d913a209409cfc7177daef3c1a54feb85798c7))
+* **mcp:** parse integer limits without narrowing ([b8046c1](https://github.com/nemirlev/zenmoney-export/commit/b8046c1a50ef2d0c9e28d1efd8bac1cbeb4b3f31))
+* **mcp:** use native status output ([4efdaf1](https://github.com/nemirlev/zenmoney-export/commit/4efdaf170d8f4ced140ec85138264f091ce98de7))
+* **postgres:** make analytics snapshots consistent ([1de1c7f](https://github.com/nemirlev/zenmoney-export/commit/1de1c7fa9fd5c425684b8aba3ed4f672dfc72c3c))
+* **zenmcp:** harden request security ([808be94](https://github.com/nemirlev/zenmoney-export/commit/808be945d162b9fa7f136080d7ed91a40d40e038))
+
+
+### 🚜 Refactor
+
+* **analytics:** split chart data mapping ([cace4e9](https://github.com/nemirlev/zenmoney-export/commit/cace4e9ff6338991f25b80b52d95be1841c98418))
+* **analytics:** split chart normalization ([3accb54](https://github.com/nemirlev/zenmoney-export/commit/3accb543b01cf0a7d7ad9be330c18b368efd0cbb))
+* **analytics:** split chart presentation ([e193fc8](https://github.com/nemirlev/zenmoney-export/commit/e193fc8bf4bacb806f07d7b4a370b740a0ffa56e))
+* **analytics:** split chart validation ([8e379fe](https://github.com/nemirlev/zenmoney-export/commit/8e379fe63e140acb57e596ae24367dc46538a03c))
+* **config:** split MCP validation ([dee125f](https://github.com/nemirlev/zenmoney-export/commit/dee125fe1a4759805be1179c2d49fe5910ae8315))
+* **mcp-ui:** brace line segment reset ([8dd7a16](https://github.com/nemirlev/zenmoney-export/commit/8dd7a1646122318c1462d928a7b8f2a5e7db3e7b))
+* **mcp-ui:** clarify chart mode update scope ([dfeed77](https://github.com/nemirlev/zenmoney-export/commit/dfeed77596bc897436e5aaf1060b455eafba2d24))
+* **mcp-ui:** normalize series with object spread ([cce6f99](https://github.com/nemirlev/zenmoney-export/commit/cce6f9965e0949728307fe95de410c32becee36d))
+* **mcp-ui:** remove unused tool call bridge ([1247528](https://github.com/nemirlev/zenmoney-export/commit/12475287332b1948b59763eb85d6c5906d6058ac))
+* **mcp:** reuse user scope description ([776796d](https://github.com/nemirlev/zenmoney-export/commit/776796d5487b105db6511107dbedd9abf4821c62))
+* **postgres:** split analytics user loading ([428bc26](https://github.com/nemirlev/zenmoney-export/commit/428bc2695cf5764435de45f2b86d7168b0c6e6a7))
+* **postgres:** split budget progress loading ([22bccf2](https://github.com/nemirlev/zenmoney-export/commit/22bccf243a5e61c9a8a15f5b22df40ed080d5145))
+* **postgres:** split spending summary loading ([72479d7](https://github.com/nemirlev/zenmoney-export/commit/72479d7972c80cbb51ee5cbb66cb28d09d18bad5))
+* **postgres:** split transaction search loading ([0c8e905](https://github.com/nemirlev/zenmoney-export/commit/0c8e905c28d302fc9e18fa68cce66c2e9a0e179c))
+
+
+### 📚 Documentation
+
+* **mcp:** add architecture and deployment guide ([ec340c8](https://github.com/nemirlev/zenmoney-export/commit/ec340c8cdd3f6fbe101e20b28464f4589db66b60))
+* **mcp:** add read-only quick start ([97fc875](https://github.com/nemirlev/zenmoney-export/commit/97fc875633f4216105d1eea9d6319905b80a62c9))
+* **mcp:** describe shared database user scope ([6169e68](https://github.com/nemirlev/zenmoney-export/commit/6169e6874f1a345ddb225488cc0d87bf7aa5aac3))
+* **mcp:** document Compose and Codex setup ([17c2f19](https://github.com/nemirlev/zenmoney-export/commit/17c2f196b10b7e2ebfe17f54653b8c9665ca92b4))
+* **mcp:** explain embedded chart import ([524f481](https://github.com/nemirlev/zenmoney-export/commit/524f481291a5f939be9070472138ebbc2d323228))
+* **mcp:** preserve existing local environment ([4c6500a](https://github.com/nemirlev/zenmoney-export/commit/4c6500a6997d0e7abd6610137fec1def060b7110))
+* **readme:** add MCP badge ([7dec946](https://github.com/nemirlev/zenmoney-export/commit/7dec94651a089882ad96f714ef6e9e138e417618))
+
+
+### 🧪 Testing
+
+* **postgres:** cover multi-user currency scope ([680a3d6](https://github.com/nemirlev/zenmoney-export/commit/680a3d6f2e08680a725014178eda14affe7be1e9))
+
 ## [2.1.4](https://github.com/nemirlev/zenmoney-export/compare/v2.1.3...v2.1.4) (2026-08-24)
 
 
