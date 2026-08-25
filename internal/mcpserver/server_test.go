@@ -559,6 +559,11 @@ func TestEmbeddedUIProvidesStaticTableHeaders(t *testing.T) {
 	assert.Contains(t, financeChartHTML, `<thead><tr><th scope="col">Data</th></tr></thead>`)
 }
 
+func TestEmbeddedUIUsesNativeStatusOutput(t *testing.T) {
+	assert.Contains(t, financeChartHTML, `<output id="status" aria-live="polite">`)
+	assert.NotContains(t, financeChartHTML, `role="status"`)
+}
+
 func TestEmbeddedUIHonorsPresentationFlags(t *testing.T) {
 	for _, contract := range []string{
 		"legend: spec.legend !== false",
