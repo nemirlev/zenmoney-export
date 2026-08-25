@@ -604,16 +604,25 @@ func (s *DB) searchTransactionsSnapshot(
 	if err != nil {
 		return analytics.TransactionPage{}, err
 	}
-	args := analyticsQueryArgs(principal, query.Range, query.Filters)
-	args = append(args, strings.TrimSpace(query.Text))
-	if query.Cursor == nil {
-		args = append(args, nil, int64(0), nil)
-	} else {
-		args = append(args, query.Cursor.Date, query.Cursor.Created, query.Cursor.ID)
+	page, err := loadTransactionPage(ctx, executor, principal, query, currency)
+	if err != nil {
+		return analytics.TransactionPage{}, err
 	}
-	args = append(args, query.Limit+1)
+	page.LastSyncAt, err = s.lastCompletedSyncAt(ctx, executor)
+	if err != nil {
+		return analytics.TransactionPage{}, err
+	}
+	return page, nil
+}
 
-	rows, err := executor.Query(ctx, searchTransactionsSQL, args...)
+func loadTransactionPage(
+	ctx context.Context,
+	executor analyticsQueryExecutor,
+	principal analytics.Principal,
+	query analytics.TransactionSearchQuery,
+	currency string,
+) (analytics.TransactionPage, error) {
+	rows, err := executor.Query(ctx, searchTransactionsSQL, transactionSearchArgs(principal, query)...)
 	if err != nil {
 		return analytics.TransactionPage{}, fmt.Errorf("search transactions: %w", err)
 	}
@@ -621,93 +630,130 @@ func (s *DB) searchTransactionsSnapshot(
 
 	page := analytics.TransactionPage{Currency: currency}
 	var lastCursor *analytics.TransactionCursor
-	hasMore := false
 	for rows.Next() {
-		var sourceID string
-		var created int64
-		var direction string
-		var accountTitle sql.NullString
-		var incomeAccountID string
-		var outcomeAccountID sql.NullString
-		var merchantID sql.NullString
-		var merchantTitle sql.NullString
-		var invalidRate bool
-		var item analytics.TransactionItem
-		if err := rows.Scan(
-			&sourceID,
-			&item.Date,
-			&created,
-			&direction,
-			&item.Amount,
-			&item.Income,
-			&item.Outcome,
-			&incomeAccountID,
-			&outcomeAccountID,
-			&accountTitle,
-			&item.CategoryIDs,
-			&item.CategoryTitles,
-			&merchantID,
-			&merchantTitle,
-			&item.Hold,
-			&invalidRate,
-		); err != nil {
-			return analytics.TransactionPage{}, fmt.Errorf("scan transaction search row: %w", err)
-		}
-		if invalidRate {
-			return analytics.TransactionPage{}, fmt.Errorf(
-				"%w: transaction %s",
-				ErrAnalyticsRate,
-				sourceID,
-			)
-		}
-		date, err := time.Parse("2006-01-02", item.Date)
+		item, cursor, err := scanTransactionSearchRow(rows, currency)
 		if err != nil {
-			return analytics.TransactionPage{}, fmt.Errorf("parse transaction date: %w", err)
+			return analytics.TransactionPage{}, err
 		}
 		if len(page.Items) == query.Limit {
-			hasMore = true
+			page.NextCursor = lastCursor
 			continue
 		}
-
-		item.ID = sourceID
-		item.Direction = analytics.TransactionDirection(direction)
-		item.Currency = currency
-		item.AccountID = incomeAccountID
-		item.IncomeAccountID = new(incomeAccountID)
-		if outcomeAccountID.Valid {
-			item.OutcomeAccountID = new(outcomeAccountID.String)
-		}
-		if !accountTitle.Valid || strings.TrimSpace(accountTitle.String) == "" {
-			item.AccountTitle = "Unnamed account"
-		} else {
-			item.AccountTitle = accountTitle.String
-		}
-		if !merchantID.Valid {
-			noneID := "merchant:none"
-			item.MerchantID = &noneID
-			item.MerchantTitle = "No merchant"
-		} else {
-			item.MerchantID = new(merchantID.String)
-			if !merchantTitle.Valid || strings.TrimSpace(merchantTitle.String) == "" {
-				item.MerchantTitle = "Unnamed merchant"
-			} else {
-				item.MerchantTitle = merchantTitle.String
-			}
-		}
 		page.Items = append(page.Items, item)
-		lastCursor = &analytics.TransactionCursor{Date: date, Created: created, ID: sourceID}
+		lastCursor = &cursor
 	}
 	if err := rows.Err(); err != nil {
 		return analytics.TransactionPage{}, fmt.Errorf("iterate transaction search rows: %w", err)
 	}
-	if hasMore {
-		page.NextCursor = lastCursor
-	}
-	page.LastSyncAt, err = s.lastCompletedSyncAt(ctx, executor)
-	if err != nil {
-		return analytics.TransactionPage{}, err
-	}
 	return page, nil
+}
+
+func transactionSearchArgs(
+	principal analytics.Principal,
+	query analytics.TransactionSearchQuery,
+) []any {
+	args := analyticsQueryArgs(principal, query.Range, query.Filters)
+	args = append(args, strings.TrimSpace(query.Text))
+	if query.Cursor == nil {
+		args = append(args, nil, int64(0), nil)
+	} else {
+		args = append(args, query.Cursor.Date, query.Cursor.Created, query.Cursor.ID)
+	}
+	return append(args, query.Limit+1)
+}
+
+func scanTransactionSearchRow(
+	rows pgx.Rows,
+	currency string,
+) (analytics.TransactionItem, analytics.TransactionCursor, error) {
+	var sourceID string
+	var created int64
+	var direction string
+	var accountTitle sql.NullString
+	var incomeAccountID string
+	var outcomeAccountID sql.NullString
+	var merchantID sql.NullString
+	var merchantTitle sql.NullString
+	var invalidRate bool
+	var item analytics.TransactionItem
+	if err := rows.Scan(
+		&sourceID,
+		&item.Date,
+		&created,
+		&direction,
+		&item.Amount,
+		&item.Income,
+		&item.Outcome,
+		&incomeAccountID,
+		&outcomeAccountID,
+		&accountTitle,
+		&item.CategoryIDs,
+		&item.CategoryTitles,
+		&merchantID,
+		&merchantTitle,
+		&item.Hold,
+		&invalidRate,
+	); err != nil {
+		return analytics.TransactionItem{}, analytics.TransactionCursor{}, fmt.Errorf(
+			"scan transaction search row: %w",
+			err,
+		)
+	}
+	if invalidRate {
+		return analytics.TransactionItem{}, analytics.TransactionCursor{}, fmt.Errorf(
+			"%w: transaction %s",
+			ErrAnalyticsRate,
+			sourceID,
+		)
+	}
+	date, err := time.Parse("2006-01-02", item.Date)
+	if err != nil {
+		return analytics.TransactionItem{}, analytics.TransactionCursor{}, fmt.Errorf(
+			"parse transaction date: %w",
+			err,
+		)
+	}
+	item.ID = sourceID
+	item.Direction = analytics.TransactionDirection(direction)
+	item.Currency = currency
+	setTransactionAccounts(&item, incomeAccountID, outcomeAccountID, accountTitle)
+	setTransactionMerchant(&item, merchantID, merchantTitle)
+	return item, analytics.TransactionCursor{Date: date, Created: created, ID: sourceID}, nil
+}
+
+func setTransactionAccounts(
+	item *analytics.TransactionItem,
+	incomeAccountID string,
+	outcomeAccountID sql.NullString,
+	accountTitle sql.NullString,
+) {
+	item.AccountID = incomeAccountID
+	item.IncomeAccountID = new(incomeAccountID)
+	if outcomeAccountID.Valid {
+		item.OutcomeAccountID = new(outcomeAccountID.String)
+	}
+	item.AccountTitle = accountTitle.String
+	if !accountTitle.Valid || strings.TrimSpace(accountTitle.String) == "" {
+		item.AccountTitle = "Unnamed account"
+	}
+}
+
+func setTransactionMerchant(
+	item *analytics.TransactionItem,
+	merchantID sql.NullString,
+	merchantTitle sql.NullString,
+) {
+	if !merchantID.Valid {
+		noneID := "merchant:none"
+		item.MerchantID = &noneID
+		item.MerchantTitle = "No merchant"
+		return
+	}
+	item.MerchantID = new(merchantID.String)
+	item.MerchantTitle = merchantTitle.String
+	if !merchantTitle.Valid || strings.TrimSpace(merchantTitle.String) == "" {
+		item.MerchantTitle = "Unnamed merchant"
+	}
 }
 
 func decimalPointer(value sql.NullString) *analytics.Decimal {
