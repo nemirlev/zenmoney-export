@@ -157,39 +157,62 @@ func (s *DB) AnalyticsUsers(
 		[]analytics.AnalyticsUser,
 		error,
 	) {
-		rows, err := executor.Query(ctx, analyticsUsersSQL, principal.AllUsers, principal.UserIDs)
-		if err != nil {
-			return nil, fmt.Errorf("query analytics users: %w", err)
-		}
-		defer rows.Close()
+		return s.analyticsUsersSnapshot(ctx, executor, principal)
+	})
+}
 
-		users := make([]analytics.AnalyticsUser, 0)
-		for rows.Next() {
-			var user analytics.AnalyticsUser
-			if err := rows.Scan(&user.UserID, &user.Label, &user.Currency); err != nil {
-				return nil, fmt.Errorf("scan analytics user: %w", err)
-			}
-			if user.UserID <= 0 || strings.TrimSpace(user.Currency) == "" {
-				return nil, ErrAnalyticsUserCatalog
-			}
-			user.ID = fmt.Sprintf("user:%d", user.UserID)
-			users = append(users, user)
+func (s *DB) analyticsUsersSnapshot(
+	ctx context.Context,
+	executor analyticsQueryExecutor,
+	principal analytics.Principal,
+) ([]analytics.AnalyticsUser, error) {
+	rows, err := executor.Query(ctx, analyticsUsersSQL, principal.AllUsers, principal.UserIDs)
+	if err != nil {
+		return nil, fmt.Errorf("query analytics users: %w", err)
+	}
+	defer rows.Close()
+
+	users, err := scanAnalyticsUsers(rows)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateAnalyticsUsers(users, principal); err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
+func scanAnalyticsUsers(rows pgx.Rows) ([]analytics.AnalyticsUser, error) {
+	users := make([]analytics.AnalyticsUser, 0)
+	for rows.Next() {
+		var user analytics.AnalyticsUser
+		if err := rows.Scan(&user.UserID, &user.Label, &user.Currency); err != nil {
+			return nil, fmt.Errorf("scan analytics user: %w", err)
 		}
-		if err := rows.Err(); err != nil {
-			return nil, fmt.Errorf("iterate analytics users: %w", err)
-		}
-		if len(users) == 0 || len(users) > maxAnalyticsUsers {
-			return nil, fmt.Errorf(
-				"%w: expected between 1 and %d users",
-				ErrAnalyticsUserCatalog,
-				maxAnalyticsUsers,
-			)
-		}
-		if !principal.AllUsers && len(users) != uniqueUserCount(principal.UserIDs) {
+		if user.UserID <= 0 || strings.TrimSpace(user.Currency) == "" {
 			return nil, ErrAnalyticsUserCatalog
 		}
-		return users, nil
-	})
+		user.ID = fmt.Sprintf("user:%d", user.UserID)
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate analytics users: %w", err)
+	}
+	return users, nil
+}
+
+func validateAnalyticsUsers(users []analytics.AnalyticsUser, principal analytics.Principal) error {
+	if len(users) == 0 || len(users) > maxAnalyticsUsers {
+		return fmt.Errorf(
+			"%w: expected between 1 and %d users",
+			ErrAnalyticsUserCatalog,
+			maxAnalyticsUsers,
+		)
+	}
+	if !principal.AllUsers && len(users) != uniqueUserCount(principal.UserIDs) {
+		return ErrAnalyticsUserCatalog
+	}
+	return nil
 }
 
 func validateAnalyticsLimit(limit int) error {
