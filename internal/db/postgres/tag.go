@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -21,6 +22,7 @@ func (s *DB) GetTag(ctx context.Context, id string) (*models.Tag, error) {
         WHERE id = $1`
 
 	tag := &models.Tag{}
+	var staticID sql.NullString
 	err := s.pool.QueryRow(ctx, query, id).Scan(
 		&tag.ID,
 		&tag.User,
@@ -36,7 +38,7 @@ func (s *DB) GetTag(ctx context.Context, id string) (*models.Tag, error) {
 		&tag.ShowIncome,
 		&tag.ShowOutcome,
 		&tag.Parent,
-		&tag.StaticID,
+		&staticID,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -44,6 +46,7 @@ func (s *DB) GetTag(ctx context.Context, id string) (*models.Tag, error) {
 		}
 		return nil, fmt.Errorf("failed to get tag: %w", err)
 	}
+	tag.StaticID = nullableStringPointer(staticID)
 
 	return tag, nil
 }
@@ -84,6 +87,7 @@ func (s *DB) ListTags(ctx context.Context, filter interfaces.Filter) ([]models.T
 	var tags []models.Tag
 	for rows.Next() {
 		var tag models.Tag
+		var staticID sql.NullString
 		err := rows.Scan(
 			&tag.ID,
 			&tag.User,
@@ -99,11 +103,12 @@ func (s *DB) ListTags(ctx context.Context, filter interfaces.Filter) ([]models.T
 			&tag.ShowIncome,
 			&tag.ShowOutcome,
 			&tag.Parent,
-			&tag.StaticID,
+			&staticID,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan tag: %w", err)
 		}
+		tag.StaticID = nullableStringPointer(staticID)
 		tags = append(tags, tag)
 	}
 
@@ -112,6 +117,13 @@ func (s *DB) ListTags(ctx context.Context, filter interfaces.Filter) ([]models.T
 	}
 
 	return tags, nil
+}
+
+func nullableStringPointer(value sql.NullString) *string {
+	if !value.Valid {
+		return nil
+	}
+	return &value.String
 }
 
 // CreateTag creates a new tag record

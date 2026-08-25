@@ -211,7 +211,7 @@ func testTag(id, title string) *models.Tag {
 	return &models.Tag{
 		ID: id, User: 1, Changed: 1234567890, Icon: new("icon"), BudgetIncome: true,
 		Required: new(true), Archive: true, Color: new(int64(123456)), Picture: new("picture"),
-		Title: title, ShowIncome: true, Parent: new("parent-id"), StaticID: "static-id",
+		Title: title, ShowIncome: true, Parent: new("parent-id"), StaticID: new("static-id"),
 	}
 }
 

@@ -24,7 +24,7 @@ func TestGetTag_Success(t *testing.T) {
 		expectedTag.ID, expectedTag.User, expectedTag.Changed, expectedTag.Icon,
 		expectedTag.BudgetIncome, expectedTag.BudgetOutcome, expectedTag.Required,
 		expectedTag.Archive, expectedTag.Color, expectedTag.Picture, expectedTag.Title, expectedTag.ShowIncome,
-		expectedTag.ShowOutcome, expectedTag.Parent, expectedTag.StaticID,
+		expectedTag.ShowOutcome, expectedTag.Parent, *expectedTag.StaticID,
 	)
 
 	mock.ExpectQuery(`SELECT id, "user", changed, icon, budget_income, budget_outcome, required, archive, color, picture, title, show_income, show_outcome, parent, static_id FROM tag WHERE id = \$1`).

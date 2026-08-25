@@ -7,7 +7,7 @@ toolchain go1.27.0
 require (
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/modelcontextprotocol/go-sdk v1.7.0
-	github.com/nemirlev/zenmoney-go-sdk/v3 v3.0.1
+	github.com/nemirlev/zenmoney-go-sdk/v3 v3.0.2
 	github.com/pashagolub/pgxmock/v4 v4.9.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
