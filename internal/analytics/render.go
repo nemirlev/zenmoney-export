@@ -350,69 +350,87 @@ func cashflowNetByDate(points []CashflowPoint) map[string]Decimal {
 func chartData(report ReportEnvelope) ([]ChartDataPoint, TableFallback, error) {
 	switch report.Kind {
 	case ReportSpendingSummary:
-		if report.SpendingSummary == nil {
-			break
-		}
-		points := make([]ChartDataPoint, 0, len(report.SpendingSummary.Categories))
-		for _, row := range report.SpendingSummary.Categories {
-			points = append(
-				points,
-				ChartDataPoint{ID: row.ID, Label: row.Title, Values: []ChartValue{
-					{Series: SeriesAmount, Value: row.Amount},
-				}},
-			)
-		}
-		return points, report.SpendingSummary.Table, nil
+		return spendingSummaryChartData(report.SpendingSummary)
 	case ReportCashflow:
-		if report.Cashflow == nil {
-			break
-		}
-		points := make([]ChartDataPoint, 0, len(report.Cashflow.Points))
-		for _, row := range report.Cashflow.Points {
-			points = append(
-				points,
-				ChartDataPoint{ID: row.ID, Label: row.Label, Values: []ChartValue{
-					{Series: SeriesIncome, Value: row.Income},
-					{Series: SeriesOutcome, Value: row.Outcome},
-					{Series: SeriesNet, Value: row.Net},
-				}},
-			)
-		}
-		return points, report.Cashflow.Table, nil
+		return cashflowChartData(report.Cashflow)
 	case ReportBudgetProgress:
-		if report.BudgetProgress == nil {
-			break
-		}
-		points := make([]ChartDataPoint, 0, len(report.BudgetProgress.Rows))
-		for _, row := range report.BudgetProgress.Rows {
-			percent := Decimal("0")
-			if row.Percent != nil {
-				percent = *row.Percent
-			}
-			points = append(
-				points,
-				ChartDataPoint{ID: row.ID, Label: row.Title, Values: []ChartValue{
-					{Series: SeriesBudget, Value: row.Budget},
-					{Series: SeriesSpent, Value: row.Spent},
-					{Series: SeriesRemaining, Value: row.Remaining},
-					{Series: SeriesPercent, Value: percent},
-				}},
-			)
-		}
-		return points, report.BudgetProgress.Table, nil
+		return budgetProgressChartData(report.BudgetProgress)
 	case ReportTransactions:
-		if report.Transactions == nil {
-			break
-		}
-		points := make([]ChartDataPoint, 0, len(report.Transactions.Items))
-		for _, row := range report.Transactions.Items {
-			label := row.Date + " · " + row.MerchantTitle
-			points = append(points, ChartDataPoint{ID: row.ID, Label: label, Values: []ChartValue{
-				{Series: SeriesAmount, Value: row.Amount},
-			}})
-		}
-		return points, report.Transactions.Table, nil
+		return transactionsChartData(report.Transactions)
+	default:
+		return missingChartData()
 	}
+}
+
+func spendingSummaryChartData(
+	report *SpendingSummaryResult,
+) ([]ChartDataPoint, TableFallback, error) {
+	if report == nil {
+		return missingChartData()
+	}
+	points := make([]ChartDataPoint, 0, len(report.Categories))
+	for _, row := range report.Categories {
+		points = append(points, ChartDataPoint{ID: row.ID, Label: row.Title, Values: []ChartValue{
+			{Series: SeriesAmount, Value: row.Amount},
+		}})
+	}
+	return points, report.Table, nil
+}
+
+func cashflowChartData(report *CashflowResult) ([]ChartDataPoint, TableFallback, error) {
+	if report == nil {
+		return missingChartData()
+	}
+	points := make([]ChartDataPoint, 0, len(report.Points))
+	for _, row := range report.Points {
+		points = append(points, ChartDataPoint{ID: row.ID, Label: row.Label, Values: []ChartValue{
+			{Series: SeriesIncome, Value: row.Income},
+			{Series: SeriesOutcome, Value: row.Outcome},
+			{Series: SeriesNet, Value: row.Net},
+		}})
+	}
+	return points, report.Table, nil
+}
+
+func budgetProgressChartData(
+	report *BudgetProgressResult,
+) ([]ChartDataPoint, TableFallback, error) {
+	if report == nil {
+		return missingChartData()
+	}
+	points := make([]ChartDataPoint, 0, len(report.Rows))
+	for _, row := range report.Rows {
+		percent := Decimal("0")
+		if row.Percent != nil {
+			percent = *row.Percent
+		}
+		points = append(points, ChartDataPoint{ID: row.ID, Label: row.Title, Values: []ChartValue{
+			{Series: SeriesBudget, Value: row.Budget},
+			{Series: SeriesSpent, Value: row.Spent},
+			{Series: SeriesRemaining, Value: row.Remaining},
+			{Series: SeriesPercent, Value: percent},
+		}})
+	}
+	return points, report.Table, nil
+}
+
+func transactionsChartData(
+	report *TransactionSearchResult,
+) ([]ChartDataPoint, TableFallback, error) {
+	if report == nil {
+		return missingChartData()
+	}
+	points := make([]ChartDataPoint, 0, len(report.Items))
+	for _, row := range report.Items {
+		label := row.Date + " · " + row.MerchantTitle
+		points = append(points, ChartDataPoint{ID: row.ID, Label: label, Values: []ChartValue{
+			{Series: SeriesAmount, Value: row.Amount},
+		}})
+	}
+	return points, report.Table, nil
+}
+
+func missingChartData() ([]ChartDataPoint, TableFallback, error) {
 	return nil, TableFallback{}, errors.New("report result does not contain renderable data")
 }
 
