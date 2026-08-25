@@ -1,0 +1,46 @@
+name: zenmcp
+
+services:
+    mcp:
+        image: "${ZENMCP_IMAGE:-zenmcp:local}"
+        build:
+            context: ..
+            dockerfile: docker/Dockerfile.zenmcp
+        pull_policy: "${ZENMCP_PULL_POLICY:-build}"
+        init: true
+        environment:
+            ZENMCP_DB_URL: "${DB_URL:?Set DB_URL to the internal PostgreSQL connection URL}"
+            # Containers need a wildcard bind internally; the published port below remains localhost-only.
+            ZENMCP_LISTEN_ADDRESS: "0.0.0.0:8080"
+            ZENMCP_ENDPOINT: "${ZENMCP_ENDPOINT:-/mcp}"
+            ZENMCP_LOG_LEVEL: "${ZENMCP_LOG_LEVEL:-info}"
+            ZENMCP_AUTH_MODE: bearer
+            # Supply a random secret of at least 32 bytes through the shell or an ignored local env file.
+            ZENMCP_BEARER_TOKEN: "${ZENMCP_BEARER_TOKEN:-d528f5b625f5e6c73767d678644b80ce0db159433d2bb50c948d92f5093631c2}"
+            ZENMCP_ALLOWED_ORIGINS: "${ZENMCP_ALLOWED_ORIGINS:-}"
+            ZENMCP_REPORT_TIMEZONE: "${ZENMCP_REPORT_TIMEZONE:-UTC}"
+            ZENMCP_MAX_PERIOD_DAYS: "${ZENMCP_MAX_PERIOD_DAYS:-3660}"
+            ZENMCP_DEFAULT_PAGE_SIZE: "${ZENMCP_DEFAULT_PAGE_SIZE:-50}"
+            ZENMCP_MAX_PAGE_SIZE: "${ZENMCP_MAX_PAGE_SIZE:-100}"
+            ZENMCP_MAX_CHART_POINTS: "${ZENMCP_MAX_CHART_POINTS:-400}"
+            ZENMCP_MAX_FILTER_VALUES: "${ZENMCP_MAX_FILTER_VALUES:-100}"
+            ZENMCP_MAX_REQUEST_BODY_BYTES: "${ZENMCP_MAX_REQUEST_BODY_BYTES:-1048576}"
+            ZENMCP_STALE_AFTER: "${ZENMCP_STALE_AFTER:-24h}"
+            ZENMCP_REQUEST_TIMEOUT: "${ZENMCP_REQUEST_TIMEOUT:-30s}"
+        ports:
+            - "127.0.0.1:${ZENMCP_PORT:-8080}:8080"
+        healthcheck:
+            test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/readyz"]
+            interval: 10s
+            timeout: 3s
+            retries: 10
+            start_period: 10s
+        read_only: true
+        tmpfs:
+            - /tmp
+        security_opt:
+            - no-new-privileges:true
+        cap_drop:
+            - ALL
+        restart: unless-stopped
+        stop_grace_period: 15s

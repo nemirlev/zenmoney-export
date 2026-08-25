@@ -1,6 +1,6 @@
 # ZenMoney Export
 
-[![GoDoc](https://godoc.org/github.com/zenexport/zenmoney-export?status.svg)](https://godoc.org/github.com/nemirlev/zenmoney-export) [![golangci-lint](https://img.shields.io/badge/golangci--lint-enabled-brightgreen?logo=go)](https://golangci-lint.run/) ![GitHub License](https://img.shields.io/github/license/nemirlev/zenmoney-export) ![Go Version](https://img.shields.io/github/go-mod/go-version/nemirlev/zenmoney-export) ![Latest Release](https://img.shields.io/github/v/release/nemirlev/zenmoney-export) ![Docker Pulls](https://img.shields.io/docker/pulls/nemirlev/zenexport) ![Docker Image Size](https://img.shields.io/docker/image-size/nemirlev/zenexport) [![codecov](https://codecov.io/gh/nemirlev/zenmoney-export/graph/badge.svg?token=WOGJKM2YV0)](https://codecov.io/gh/nemirlev/zenmoney-export)
+[![MCP Server](https://img.shields.io/badge/MCP-read--only-7C3AED)](doc/mcp.md) [![GoDoc](https://godoc.org/github.com/zenexport/zenmoney-export?status.svg)](https://godoc.org/github.com/nemirlev/zenmoney-export) [![golangci-lint](https://img.shields.io/badge/golangci--lint-enabled-brightgreen?logo=go)](https://golangci-lint.run/) ![GitHub License](https://img.shields.io/github/license/nemirlev/zenmoney-export) ![Go Version](https://img.shields.io/github/go-mod/go-version/nemirlev/zenmoney-export) ![Latest Release](https://img.shields.io/github/v/release/nemirlev/zenmoney-export) ![Docker Pulls](https://img.shields.io/docker/pulls/nemirlev/zenexport) ![Docker Image Size](https://img.shields.io/docker/image-size/nemirlev/zenexport) [![codecov](https://codecov.io/gh/nemirlev/zenmoney-export/graph/badge.svg?token=WOGJKM2YV0)](https://codecov.io/gh/nemirlev/zenmoney-export)
 
 ZenMoney Export is a tool designed to export and sync data from the personal finance management
 service [ZenMoney](https://zenmoney.ru/) to your own database.
@@ -99,6 +99,51 @@ Only PostgreSQL is currently supported.
 Now app supports the following commands:
 
 - `sync`: Synchronize data from ZenMoney to your database.
+
+## ZenMoney MCP (read-only)
+
+`zenmcp` lets MCP-compatible AI clients analyze the data previously synchronized by `zenexport`.
+It is a separate read-only server: report queries run in read-only PostgreSQL transactions, the
+server never modifies financial data, and it does not need a ZenMoney API token.
+
+Available tools cover spending summaries, cash flow, budget progress, transaction search, sync
+freshness, and finance chart rendering.
+
+### MCP quick start
+
+Create one environment file for PostgreSQL, exporter, and MCP. Replace the credentials and API
+token, then generate a bearer token with `openssl rand -hex 32` and save it as
+`ZENMCP_BEARER_TOKEN`:
+
+```bash
+cp -n docker/.env.example docker/.env
+openssl rand -hex 32
+```
+
+Start the exporter and MCP together. Compose merges both files into one project and default
+network; `zenmcp` reuses `DB_URL` from `docker/.env` and connects to the same PostgreSQL service:
+
+```bash
+docker compose --env-file docker/.env \
+  -f docker/docker-compose.postgres.yml \
+  -f docker/docker-compose.mcp.yml \
+  up -d --build
+```
+
+Register its Streamable HTTP endpoint in Codex. The client variable must contain the same bearer
+token as `ZENMCP_BEARER_TOKEN` in `docker/.env`:
+
+```bash
+export ZENMCP_CLIENT_BEARER_TOKEN='paste-the-same-token-here'
+codex mcp add zenmoney \
+  --url http://127.0.0.1:8080/mcp \
+  --bearer-token-env-var ZENMCP_CLIENT_BEARER_TOKEN
+```
+
+The server is ready when `curl --fail http://127.0.0.1:8080/readyz` succeeds. Compose publishes the
+MCP endpoint on loopback only. See [MCP setup and operations](doc/mcp.md) for MCP Inspector, remote
+deployment, and all configuration options. See [MCP architecture](doc/mcp-architecture.md) for tool
+contracts and financial semantics.
 
 ### Sync Command
 
