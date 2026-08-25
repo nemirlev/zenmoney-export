@@ -622,7 +622,10 @@ func loadTransactionPage(
 	query analytics.TransactionSearchQuery,
 	currency string,
 ) (analytics.TransactionPage, error) {
-	rows, err := executor.Query(ctx, searchTransactionsSQL, transactionSearchArgs(principal, query)...)
+	rows, err := executor.Query(
+		ctx,
+		searchTransactionsSQL,
+		transactionSearchArgs(principal, query)...)
 	if err != nil {
 		return analytics.TransactionPage{}, fmt.Errorf("search transactions: %w", err)
 	}
