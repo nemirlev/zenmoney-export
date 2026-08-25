@@ -435,33 +435,8 @@ func missingChartData() ([]ChartDataPoint, TableFallback, error) {
 }
 
 func applyPresentation(points []ChartDataPoint, spec ChartSpec) ([]ChartDataPoint, error) {
-	selected := make(map[ChartSeriesKey]bool, len(spec.Series))
-	for _, series := range spec.Series {
-		selected[series.Key] = true
-	}
-	result := make([]ChartDataPoint, 0, len(points))
-	for _, point := range points {
-		values := make([]ChartValue, 0, len(spec.Series))
-		for _, value := range point.Values {
-			if selected[value.Series] {
-				values = append(values, value)
-			}
-		}
-		result = append(result, ChartDataPoint{ID: point.ID, Label: point.Label, Values: values})
-	}
-	sort.SliceStable(result, func(i, j int) bool {
-		comparison := strings.Compare(result[i].Label, result[j].Label)
-		if spec.Sort.By == SortValue {
-			comparison = compareDecimal(
-				valueForSeries(result[i], spec.Sort.Series),
-				valueForSeries(result[j], spec.Sort.Series),
-			)
-		}
-		if spec.Sort.Direction == SortDescending {
-			return comparison > 0
-		}
-		return comparison < 0
-	})
+	result := selectChartSeries(points, spec.Series)
+	sortChartPoints(result, spec.Sort)
 	if spec.TopN == 0 || len(result) <= spec.TopN {
 		return result, nil
 	}
@@ -470,6 +445,51 @@ func applyPresentation(points []ChartDataPoint, spec ChartSpec) ([]ChartDataPoin
 	if !spec.Other.Enabled {
 		return result, nil
 	}
+	other, err := aggregateOtherChartPoint(remainder, spec)
+	if err != nil {
+		return nil, err
+	}
+	return append(result, other), nil
+}
+
+func selectChartSeries(points []ChartDataPoint, seriesList []ChartSeries) []ChartDataPoint {
+	selected := make(map[ChartSeriesKey]bool, len(seriesList))
+	for _, series := range seriesList {
+		selected[series.Key] = true
+	}
+	result := make([]ChartDataPoint, 0, len(points))
+	for _, point := range points {
+		values := make([]ChartValue, 0, len(seriesList))
+		for _, value := range point.Values {
+			if selected[value.Series] {
+				values = append(values, value)
+			}
+		}
+		result = append(result, ChartDataPoint{ID: point.ID, Label: point.Label, Values: values})
+	}
+	return result
+}
+
+func sortChartPoints(points []ChartDataPoint, sortSpec ChartSort) {
+	sort.SliceStable(points, func(i, j int) bool {
+		comparison := strings.Compare(points[i].Label, points[j].Label)
+		if sortSpec.By == SortValue {
+			comparison = compareDecimal(
+				valueForSeries(points[i], sortSpec.Series),
+				valueForSeries(points[j], sortSpec.Series),
+			)
+		}
+		if sortSpec.Direction == SortDescending {
+			return comparison > 0
+		}
+		return comparison < 0
+	})
+}
+
+func aggregateOtherChartPoint(
+	remainder []ChartDataPoint,
+	spec ChartSpec,
+) (ChartDataPoint, error) {
 	label := spec.Other.Label
 	if label == "" {
 		label = "Other"
@@ -486,11 +506,11 @@ func applyPresentation(points []ChartDataPoint, spec ChartSpec) ([]ChartDataPoin
 		}
 		total, err := addDecimals(values)
 		if err != nil {
-			return nil, fmt.Errorf("aggregate Other bucket: %w", err)
+			return ChartDataPoint{}, fmt.Errorf("aggregate Other bucket: %w", err)
 		}
 		other.Values = append(other.Values, ChartValue{Series: series.Key, Value: total})
 	}
-	return append(result, other), nil
+	return other, nil
 }
 
 func valueForSeries(point ChartDataPoint, series ChartSeriesKey) Decimal {
