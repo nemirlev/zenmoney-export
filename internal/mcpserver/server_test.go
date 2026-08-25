@@ -332,7 +332,7 @@ func TestUIResourceUsesPortableAppsContract(t *testing.T) {
 	html := resource["text"].(string)
 	assert.Contains(t, html, "ui/initialize")
 	assert.Contains(t, html, "ui/notifications/tool-result")
-	assert.Contains(t, html, "tools/call")
+	assert.NotContains(t, html, "tools/call")
 	assert.NotContains(t, html, "window.openai")
 	assert.NotContains(t, html, "https://")
 	uiMeta := resource["_meta"].(map[string]any)["ui"].(map[string]any)

@@ -161,13 +161,6 @@
     }
   }
 
-  // MCP Apps tools/call bridge retained here for host-mediated follow-up
-  // actions. This renderer intentionally does not bypass the host or call a
-  // network endpoint directly.
-  function callServerTool(name, args) {
-    return request("tools/call", { name, arguments: args || {} });
-  }
-
   function acceptResult(result) {
     const payload = result && result.structuredContent;
     if (!payload || typeof payload !== "object") {
