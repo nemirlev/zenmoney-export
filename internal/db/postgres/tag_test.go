@@ -10,30 +10,41 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetTag_Success(t *testing.T) {
-	db, mock := newTestDB(t)
+func TestGetTag_StaticID(t *testing.T) {
+	tests := map[string]struct {
+		databaseValue any
+		want          *string
+	}{
+		"system tag": {databaseValue: "static-id", want: new("static-id")},
+		"user tag":   {databaseValue: nil, want: nil},
+	}
 
-	tagID := "test-id"
-	expectedTag := testTag(tagID, "Test Tag")
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			db, mock := newTestDB(t)
+			expectedTag := testTag("test-id", "Test Tag")
+			expectedTag.StaticID = test.want
 
-	rows := mock.NewRows([]string{
-		"id", "user", "changed", "icon", "budget_income", "budget_outcome",
-		"required", "archive", "color", "picture", "title", "show_income", "show_outcome",
-		"parent", "static_id",
-	}).AddRow(
-		expectedTag.ID, expectedTag.User, expectedTag.Changed, expectedTag.Icon,
-		expectedTag.BudgetIncome, expectedTag.BudgetOutcome, expectedTag.Required,
-		expectedTag.Archive, expectedTag.Color, expectedTag.Picture, expectedTag.Title, expectedTag.ShowIncome,
-		expectedTag.ShowOutcome, expectedTag.Parent, *expectedTag.StaticID,
-	)
+			rows := mock.NewRows([]string{
+				"id", "user", "changed", "icon", "budget_income", "budget_outcome",
+				"required", "archive", "color", "picture", "title", "show_income", "show_outcome",
+				"parent", "static_id",
+			}).AddRow(
+				expectedTag.ID, expectedTag.User, expectedTag.Changed, expectedTag.Icon,
+				expectedTag.BudgetIncome, expectedTag.BudgetOutcome, expectedTag.Required,
+				expectedTag.Archive, expectedTag.Color, expectedTag.Picture, expectedTag.Title,
+				expectedTag.ShowIncome, expectedTag.ShowOutcome, expectedTag.Parent, test.databaseValue,
+			)
 
-	mock.ExpectQuery(`SELECT id, "user", changed, icon, budget_income, budget_outcome, required, archive, color, picture, title, show_income, show_outcome, parent, static_id FROM tag WHERE id = \$1`).
-		WithArgs(tagID).
-		WillReturnRows(rows)
+			mock.ExpectQuery(`SELECT id, "user", changed, icon, budget_income, budget_outcome, required, archive, color, picture, title, show_income, show_outcome, parent, static_id FROM tag WHERE id = \$1`).
+				WithArgs(expectedTag.ID).
+				WillReturnRows(rows)
 
-	result, err := db.GetTag(context.Background(), tagID)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedTag, result)
+			result, err := db.GetTag(context.Background(), expectedTag.ID)
+			assert.NoError(t, err)
+			assert.Equal(t, expectedTag, result)
+		})
+	}
 }
 
 func TestGetTag_NotFound(t *testing.T) {
@@ -79,6 +90,10 @@ func TestListTags_Success(t *testing.T) {
 		"test-id", 1, 1234567890, new("icon"), true, false,
 		new(true), true, new(int64(123456)), new("picture"), "Test Tag", true, false,
 		new("parent-id"), "static-id",
+	).AddRow(
+		"user-tag-id", 1, 1234567890, new("icon"), true, false,
+		new(true), true, new(int64(123456)), new("picture"), "User Tag", true, false,
+		new("parent-id"), nil,
 	)
 
 	mock.ExpectQuery(`SELECT id, "user", changed, icon, budget_income, budget_outcome, required, archive, color, picture, title, show_income, show_outcome, parent, static_id FROM tag WHERE "user" = \$1 LIMIT \$2 OFFSET \$3`).
@@ -87,8 +102,11 @@ func TestListTags_Success(t *testing.T) {
 
 	tags, err := db.ListTags(context.Background(), filter)
 	assert.NoError(t, err)
-	assert.Len(t, tags, 1)
+	assert.Len(t, tags, 2)
 	assert.Equal(t, "test-id", tags[0].ID)
+	assert.Equal(t, new("static-id"), tags[0].StaticID)
+	assert.Equal(t, "user-tag-id", tags[1].ID)
+	assert.Nil(t, tags[1].StaticID)
 }
 
 func TestListTags_QueryError(t *testing.T) {

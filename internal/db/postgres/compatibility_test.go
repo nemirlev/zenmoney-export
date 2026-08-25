@@ -86,6 +86,31 @@ func TestPostgresCompatibility(t *testing.T) {
 		require.Equal(t, transaction.Income, stored.Income)
 		require.Equal(t, transaction.Outcome, stored.Outcome)
 	}
+
+	tags := []models.Tag{
+		{
+			ID:       "00000000-0000-0000-0000-000000000021",
+			User:     1,
+			Title:    "User category",
+			StaticID: nil,
+		},
+		{
+			ID:       "00000000-0000-0000-0000-000000000022",
+			User:     1,
+			Title:    "System category",
+			StaticID: new("69"),
+		},
+	}
+	require.NoError(t, storage.Save(ctx, &models.Response{
+		ServerTimestamp: 3,
+		Tag:             tags,
+	}, interfaces.SaveOptions{}))
+
+	for _, tag := range tags {
+		stored, getErr := storage.GetTag(ctx, tag.ID)
+		require.NoError(t, getErr)
+		require.Equal(t, tag.StaticID, stored.StaticID)
+	}
 }
 
 func applyMigrations(t *testing.T, ctx context.Context, dsn string, files []string) {
