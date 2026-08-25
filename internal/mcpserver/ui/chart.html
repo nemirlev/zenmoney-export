@@ -156,6 +156,7 @@
       applyHostContext(result.hostContext || {});
       notify("ui/notifications/initialized");
     } catch (error) {
+      console.warn("MCP Apps initialization failed:", error);
       $("status").textContent = "This host did not complete MCP Apps initialization.";
     }
   }
