@@ -159,6 +159,29 @@ var dangerousPresentationPatterns = []*regexp.Regexp{
 }
 
 func ValidateChartSpec(spec ChartSpec, maxPoints int) error {
+	if err := validateChartPresentation(spec); err != nil {
+		return err
+	}
+	if err := validateChartShape(spec); err != nil {
+		return err
+	}
+	seen, err := validateChartSeries(spec.Series)
+	if err != nil {
+		return err
+	}
+	if err := validateChartStacking(spec); err != nil {
+		return err
+	}
+	if err := validateChartSort(spec.Sort, seen); err != nil {
+		return err
+	}
+	if err := validateChartOptions(spec, maxPoints); err != nil {
+		return err
+	}
+	return validateChartComparison(spec)
+}
+
+func validateChartPresentation(spec ChartSpec) error {
 	if !validChartType(spec.Type) {
 		return fmt.Errorf("unsupported chart type %q", spec.Type)
 	}
@@ -177,6 +200,10 @@ func ValidateChartSpec(spec ChartSpec, maxPoints int) error {
 	if !validDimension(spec.Dimension) {
 		return fmt.Errorf("unsupported chart dimension %q", spec.Dimension)
 	}
+	return nil
+}
+
+func validateChartShape(spec ChartSpec) error {
 	if len(spec.Series) == 0 || len(spec.Series) > 4 {
 		return fmt.Errorf("chart series count must be between 1 and 4")
 	}
@@ -189,22 +216,30 @@ func ValidateChartSpec(spec ChartSpec, maxPoints int) error {
 	if (spec.Type == ChartStackedBar || spec.Type == ChartGroupedBar) && len(spec.Series) < 2 {
 		return fmt.Errorf("%s requires at least two series", spec.Type)
 	}
-	seen := make(map[ChartSeriesKey]struct{}, len(spec.Series))
-	for _, series := range spec.Series {
+	return nil
+}
+
+func validateChartSeries(seriesList []ChartSeries) (map[ChartSeriesKey]struct{}, error) {
+	seen := make(map[ChartSeriesKey]struct{}, len(seriesList))
+	for _, series := range seriesList {
 		if !validSeries(series.Key) {
-			return fmt.Errorf("unsupported chart series %q", series.Key)
+			return nil, fmt.Errorf("unsupported chart series %q", series.Key)
 		}
 		if _, exists := seen[series.Key]; exists {
-			return fmt.Errorf("duplicate chart series %q", series.Key)
+			return nil, fmt.Errorf("duplicate chart series %q", series.Key)
 		}
 		seen[series.Key] = struct{}{}
 		if err := validatePresentationText("series label", series.Label, true); err != nil {
-			return err
+			return nil, err
 		}
 		if !validValueFormat(series.Format) {
-			return fmt.Errorf("unsupported series format %q", series.Format)
+			return nil, fmt.Errorf("unsupported series format %q", series.Format)
 		}
 	}
+	return seen, nil
+}
+
+func validateChartStacking(spec ChartSpec) error {
 	if spec.Stacking == "" {
 		spec.Stacking = StackingNone
 	}
@@ -217,17 +252,25 @@ func ValidateChartSpec(spec ChartSpec, maxPoints int) error {
 	if spec.Type != ChartStackedBar && spec.Stacking == StackingNormal {
 		return fmt.Errorf("normal stacking is only valid for stacked_bar")
 	}
-	if spec.Sort.By != SortDimension && spec.Sort.By != SortValue {
-		return fmt.Errorf("unsupported sort field %q", spec.Sort.By)
+	return nil
+}
+
+func validateChartSort(sortSpec ChartSort, series map[ChartSeriesKey]struct{}) error {
+	if sortSpec.By != SortDimension && sortSpec.By != SortValue {
+		return fmt.Errorf("unsupported sort field %q", sortSpec.By)
 	}
-	if spec.Sort.Direction != SortAscending && spec.Sort.Direction != SortDescending {
-		return fmt.Errorf("unsupported sort direction %q", spec.Sort.Direction)
+	if sortSpec.Direction != SortAscending && sortSpec.Direction != SortDescending {
+		return fmt.Errorf("unsupported sort direction %q", sortSpec.Direction)
 	}
-	if spec.Sort.By == SortValue {
-		if _, ok := seen[spec.Sort.Series]; !ok {
-			return fmt.Errorf("sort series %q is not present in chart series", spec.Sort.Series)
+	if sortSpec.By == SortValue {
+		if _, ok := series[sortSpec.Series]; !ok {
+			return fmt.Errorf("sort series %q is not present in chart series", sortSpec.Series)
 		}
 	}
+	return nil
+}
+
+func validateChartOptions(spec ChartSpec, maxPoints int) error {
 	if spec.TopN < 0 || (maxPoints > 0 && spec.TopN > maxPoints) {
 		return fmt.Errorf("topN must be between 0 and %d", maxPoints)
 	}
@@ -243,6 +286,10 @@ func ValidateChartSpec(spec ChartSpec, maxPoints int) error {
 	if spec.Granularity != "" && spec.Dimension != DimensionPeriod {
 		return fmt.Errorf("granularity requires period dimension")
 	}
+	return nil
+}
+
+func validateChartComparison(spec ChartSpec) error {
 	if spec.ComparisonPeriods {
 		if spec.Granularity == "" {
 			return fmt.Errorf("comparison periods require explicit granularity")
