@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	// Register embed support for the finance chart resource declared below.
 	_ "embed"
 	"errors"
 	"fmt"
