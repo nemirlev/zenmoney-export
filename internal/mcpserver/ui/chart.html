@@ -345,7 +345,13 @@
       const segments = []; let segment = [];
       model.rows.forEach((row, i) => {
         const value = chartNumber(row[seriesKey(series)], model);
-        if (value === null) { if (segment.length) segments.push(segment); segment = []; return; }
+        if (value === null) {
+          if (segment.length) {
+            segments.push(segment);
+          }
+          segment = [];
+          return;
+        }
         segment.push({ x: margin.l+i*step, y: y(value) });
       });
       if (segment.length) segments.push(segment);
